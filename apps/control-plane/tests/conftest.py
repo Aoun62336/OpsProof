@@ -7,9 +7,11 @@ Provides three things required for isolated unit tests:
    The values are intentionally unreachable so no test accidentally
    exercises a live dependency.
 
-2. A pool stub so route handlers that reach the DB layer receive a
-   well-formed FastAPI 503 response rather than a PoolClosed exception
-   escaping through TestClient's raise_server_exceptions boundary.
+2. A pool stub that provides a fully functional mock DB connection so
+   route handlers run to completion and return a real HTTP response.
+   This properly isolates authentication behaviour from the data layer:
+   the route returns 200 (empty list) when auth passes, 401 when it
+   fails — without touching a real database at any point.
 
 3. lru_cache teardown so each test starts with a clean settings() and
    pool() instance rather than inheriting state from a previous test.
@@ -18,7 +20,6 @@ Provides three things required for isolated unit tests:
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import HTTPException
 
 
 @pytest.fixture(autouse=True)
@@ -36,24 +37,23 @@ def _unit_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _stub_pool(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Replace the real pool with a stub that raises HTTP 503.
+    """Replace the real pool with a mock that completes requests normally.
 
-    psycopg_pool raises PoolClosed (not an HTTP exception) when the pool
-    was created with open=False and open() was never called.  TestClient
-    re-raises that as a Python exception rather than returning a response,
-    which prevents the test from asserting on the status code.
-
-    By raising HTTPException(503) from the context-manager entry point we
-    ensure FastAPI's own exception handler converts it to a 503 response
-    before TestClient ever sees the exception boundary.
+    The mock connection returns empty result sets for every query so that
+    route handlers run to completion and return a genuine HTTP response
+    (200 for authenticated requests, 401 for rejected ones).  This is
+    the standard unit-test pattern for FastAPI services: mock the data
+    layer at the boundary so business logic — including authentication —
+    can be exercised without a real database.
     """
+    _mock_conn = MagicMock()
+    # fetchall() used by list routes → empty list → serialises to []
+    _mock_conn.execute.return_value.fetchall.return_value = []
+    # fetchone() used by detail/session routes → None → 404
+    _mock_conn.execute.return_value.fetchone.return_value = None
+
     _cm = MagicMock()
-    _cm.__enter__ = MagicMock(
-        side_effect=HTTPException(
-            status_code=503,
-            detail="dependency unavailable",
-        )
-    )
+    _cm.__enter__ = MagicMock(return_value=_mock_conn)
     _cm.__exit__ = MagicMock(return_value=False)
 
     _mock_pool = MagicMock()
