@@ -1,6 +1,5 @@
 """Authenticated experiment APIs backed by durable control-plane state."""
 
-from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -26,21 +25,9 @@ from .contracts import (
 from .db import pool, redis_client
 from .store import enqueue, event
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):  # noqa: ARG001
-    """Open the connection pool on startup; close it cleanly on shutdown."""
-    pool().open(wait=True, timeout=10)
-    try:
-        yield
-    finally:
-        pool().close()
-
-
 app = FastAPI(
     title="OpsProof Control API",
     version="0.2.0",
-    lifespan=lifespan,
 )
 
 app.include_router(auth_router)
