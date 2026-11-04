@@ -58,9 +58,12 @@ def _stub_pool(monkeypatch: pytest.MonkeyPatch) -> None:
 
     _mock_pool = MagicMock()
     _mock_pool.connection.return_value = _cm
+    _mock_pool.open = MagicMock()
+    _mock_pool.close = MagicMock()
 
     monkeypatch.setattr("opsproof_control.api.pool", lambda: _mock_pool)
     monkeypatch.setattr("opsproof_control.auth.pool", lambda: _mock_pool)
+    monkeypatch.setattr("opsproof_control.db.pool", lambda: _mock_pool)
 
 
 @pytest.fixture(autouse=True)
