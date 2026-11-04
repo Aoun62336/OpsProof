@@ -1,0 +1,130 @@
+name: opsproof-demo
+
+x-demo-build: &demo-build
+  context: ./apps/demo-workload
+  dockerfile: Dockerfile
+
+x-demo-env: &demo-env
+  OPSPROOF_DATABASE_URL: "postgresql://opsproof:${OPSPROOF_DB_PASSWORD:?Create .env first}@db:5432/opsproof"
+  OPSPROOF_REDIS_URL: "redis://redis:6379/0"
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: opsproof
+      POSTGRES_DB: opsproof
+      POSTGRES_PASSWORD: "${OPSPROOF_DB_PASSWORD:?Create .env first}"
+    volumes:
+      - pg-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opsproof -d opsproof"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    mem_limit: 512m
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    mem_limit: 256m
+    restart: unless-stopped
+
+  migrate:
+    build: *demo-build
+    image: opsproof-demo:local
+    environment: *demo-env
+    entrypoint: ["alembic"]
+    command: ["upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: *demo-build
+    image: opsproof-demo:local
+    environment: *demo-env
+    command: ["api"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8088:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=3).close()"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  dispatcher:
+    build: *demo-build
+    image: opsproof-demo:local
+    environment: *demo-env
+    command: ["dispatcher"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 192m
+    restart: unless-stopped
+
+  worker:
+    build: *demo-build
+    image: opsproof-demo:local
+    environment: *demo-env
+    command: ["worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 192m
+    restart: unless-stopped
+    stop_grace_period: 15s
+
+volumes:
+  pg-data:
+  redis-data:
+
