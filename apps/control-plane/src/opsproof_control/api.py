@@ -1,36 +1,43 @@
-"""Authenticated OpsProof control API."""
+"""Authenticated experiment APIs backed by durable control-plane state."""
 
-import secrets
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
-from fastapi.security import APIKeyHeader
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Query,
+    status,
+)
+from pydantic import BaseModel
 
+from .auth import authorize
+from .auth import router as auth_router
 from .config import settings
-from .contracts import CreateRun, EventView, RunView
+from .contracts import (
+    CreateRun,
+    EventView,
+    RunStatus,
+    RunView,
+)
 from .db import pool, redis_client
 from .store import enqueue, event
 
 app = FastAPI(
     title="OpsProof Control API",
-    version="0.1.0",
+    version="0.2.0",
 )
 
-api_key_header = APIKeyHeader(
-    name="X-OpsProof-Key",
-    auto_error=False,
-)
+app.include_router(auth_router)
 
 
-def authorize(
-    key: str | None = Depends(api_key_header),
-) -> None:
-    expected = settings().api_key
-    if not expected or not key or not secrets.compare_digest(key, expected):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing API key",
-        )
+class SummaryView(BaseModel):
+    total: int
+    counts: dict[RunStatus, int]
+    recent: list[RunView]
+    generated_at: str
 
 
 @app.get("/health/live")
@@ -50,6 +57,52 @@ def ready() -> dict[str, str]:
             detail="dependency unavailable",
         ) from exc
     return {"status": "ready"}
+
+
+@app.get(
+    "/api/v1/summary",
+    response_model=SummaryView,
+    dependencies=[Depends(authorize)],
+)
+def get_summary() -> SummaryView:
+    with pool().connection() as conn:
+        total_row = conn.execute("SELECT COUNT(*) AS n FROM experiments").fetchone()
+        total = total_row["n"] if total_row else 0
+
+        status_rows = conn.execute(
+            """
+            SELECT status, COUNT(*) AS n
+            FROM experiments
+            GROUP BY status
+            """
+        ).fetchall()
+
+        recent_rows = conn.execute(
+            """
+            SELECT * FROM experiments
+            ORDER BY created_at DESC
+            LIMIT 10
+            """
+        ).fetchall()
+
+    counts: dict[RunStatus, int] = {
+        "queued": 0,
+        "running": 0,
+        "verifying": 0,
+        "succeeded": 0,
+        "failed": 0,
+    }
+    for row in status_rows:
+        s = row["status"]
+        if s in counts:
+            counts[s] = row["n"]
+
+    return SummaryView(
+        total=total,
+        counts=counts,
+        recent=[RunView.model_validate(r) for r in recent_rows],
+        generated_at=datetime.now(UTC).isoformat(),
+    )
 
 
 @app.post(
@@ -161,11 +214,16 @@ def get_run(run_id: UUID) -> RunView:
 )
 def list_runs(
     limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
 ) -> list[RunView]:
     with pool().connection() as conn:
         rows = conn.execute(
-            "SELECT * FROM experiments ORDER BY created_at DESC LIMIT %s",
-            (limit,),
+            """
+            SELECT * FROM experiments
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s
+            """,
+            (limit, offset),
         ).fetchall()
 
     return [RunView.model_validate(r) for r in rows]
@@ -188,6 +246,7 @@ def get_run_events(run_id: UUID) -> list[EventView]:
             SELECT * FROM experiment_events
             WHERE run_id = %s
             ORDER BY id
+            LIMIT 200
             """,
             (run_id,),
         ).fetchall()

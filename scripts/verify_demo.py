@@ -60,11 +60,23 @@ def wait_completed(ids: list[str]) -> None:
     while remaining:
         if monotonic() > deadline:
             raise TimeoutError(
-                "Jobs did not complete before deadline"
+                f"{len(remaining)} jobs did not complete before deadline"
             )
         for job_id in list(remaining):
-            code, job = request("GET", f"/api/v1/jobs/{job_id}")
-            if code == 200 and job["status"] in ("completed", "failed"):
+            code, job = request(
+                "GET",
+                f"/api/v1/jobs/{job_id}",
+            )
+            if code != 200:
+                raise RuntimeError(
+                    f"Cannot inspect job {job_id}: HTTP {code}"
+                )
+            status = job["status"]
+            if status == "failed":
+                raise RuntimeError(
+                    f"Job {job_id} failed; recovery is not successful"
+                )
+            if status == "completed":
                 remaining.discard(job_id)
         if remaining:
             sleep(1)
@@ -142,7 +154,17 @@ def outage_verify() -> None:
     ids = report["ids"]
     print(f"Verifying {len(ids)} jobs complete after worker restart...")
     wait_completed(ids)
-    print("PASS: all queued jobs completed after worker recovery")
+    report["verified_at"] = datetime.now(UTC).isoformat()
+    report["all_completed"] = True
+    report["verified_job_count"] = len(ids)
+    RUN_FILE.write_text(
+        json.dumps(report, indent=2),
+        encoding="utf-8",
+    )
+    print(
+        f"PASS: all {len(ids)} queued jobs "
+        "completed after worker recovery"
+    )
 
 
 COMMANDS = {

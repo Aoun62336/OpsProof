@@ -48,7 +48,7 @@ def fail(
     run_id: UUID,
     reason: str,
 ) -> None:
-    conn.execute(
+    result = conn.execute(
         """
         UPDATE experiments
         SET status = 'failed',
@@ -56,7 +56,14 @@ def fail(
             completed_at = now()
         WHERE id = %s
           AND status NOT IN ('succeeded', 'failed')
+        RETURNING id
         """,
-        (reason, run_id),
-    )
-    event(conn, run_id, "failed", {"reason": reason})
+        (reason[:300], run_id),
+    ).fetchone()
+    if result is not None:
+        event(
+            conn,
+            run_id,
+            "failed",
+            {"reason": reason[:300]},
+        )

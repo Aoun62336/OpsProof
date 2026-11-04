@@ -20,7 +20,7 @@ def pool() -> ConnectionPool:
             "row_factory": dict_row,
             "connect_timeout": 3,
         },
-        open=True,
+        open=False,
     )
 
 

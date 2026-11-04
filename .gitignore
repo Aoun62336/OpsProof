@@ -1,5 +1,4 @@
-cat > .gitignore <<'EOF'
-# Environment files and secrets
+# Local configuration and credentials
 .env
 .env.*
 !.env.example
@@ -16,7 +15,7 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Node.js
+# Node / frontend
 node_modules/
 dist/
 coverage/
@@ -32,18 +31,17 @@ coverage/
 crash.log
 crash.*.log
 
-# Testing
+# Browser testing
 playwright-report/
 test-results/
 
-# Runtime and generated files
+# Local runtime and cache
 .runtime/
 .tmp/
 .cache/
 
-# IDE and operating system
+# Operating system and IDE
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
-EOF
