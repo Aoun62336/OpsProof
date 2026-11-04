@@ -1,0 +1,154 @@
+name: Control Plane Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Control Plane Quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.7"
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.14
+
+      - name: Install locked dependencies
+        run: uv sync --project apps/control-plane --locked
+
+      - name: Check Python lint
+        run: |
+          uv run --project apps/control-plane --locked \
+            ruff check apps/control-plane
+
+      - name: Check Python formatting
+        run: |
+          uv run --project apps/control-plane --locked \
+            ruff format --check apps/control-plane
+
+      - name: Run control-plane unit tests
+        run: |
+          uv run --project apps/control-plane --locked \
+            pytest apps/control-plane/tests -v
+
+  integration:
+    name: Control Plane Integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.7"
+
+      - name: Install Python
+        run: uv python install 3.14
+
+      - name: Generate temporary credentials
+        run: |
+          python3 - <<'PY' > .env
+          import secrets
+
+          print(
+              "OPSPROOF_DB_PASSWORD="
+              + secrets.token_urlsafe(24)
+          )
+          print(
+              "OPSPROOF_CONTROL_DB_PASSWORD="
+              + secrets.token_urlsafe(24)
+          )
+          print(
+              "OPSPROOF_CONTROL_API_KEY="
+              + secrets.token_urlsafe(32)
+          )
+          PY
+
+      - name: Create isolated integration network
+        run: docker network create opsproof-integration
+
+      - name: Validate Compose definitions
+        run: |
+          docker compose \
+            -f compose.yaml \
+            -f compose.target-integration.yaml \
+            config --quiet
+
+          docker compose \
+            -f compose.control.yaml \
+            config --quiet
+
+      - name: Start demo workload
+        run: |
+          docker compose \
+            -f compose.yaml \
+            -f compose.target-integration.yaml \
+            up -d --build --wait
+
+      - name: Start OpsProof control plane
+        run: |
+          docker compose \
+            -f compose.control.yaml \
+            up -d --build --wait
+
+      - name: Verify complete experiment flow
+        run: |
+          uv run --no-project --python 3.14 \
+            python scripts/verify_control.py
+
+      - name: Show logs if validation failed
+        if: failure()
+        run: |
+          docker compose \
+            -f compose.control.yaml \
+            logs --no-color --tail=80 || true
+
+          docker compose \
+            -f compose.yaml \
+            -f compose.target-integration.yaml \
+            logs --no-color --tail=80 || true
+
+      - name: Remove control-plane environment
+        if: always()
+        run: |
+          docker compose \
+            -f compose.control.yaml \
+            down --volumes --remove-orphans || true
+
+      - name: Remove demonstration environment
+        if: always()
+        run: |
+          docker compose \
+            -f compose.yaml \
+            -f compose.target-integration.yaml \
+            down --volumes --remove-orphans || true
+
+          docker network rm opsproof-integration || true

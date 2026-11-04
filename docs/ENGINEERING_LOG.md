@@ -41,3 +41,82 @@ Pending local execution and review.
 
 Validate the development foundation and implement
 the first controlled workload and incident experiment.
+
+---
+
+## 2026-11-04: Independent Control Plane
+
+### Objective
+
+Implement an independent OpsProof control plane that can create,
+execute, verify, and record bounded reliability experiments
+against the previously implemented demonstration workload.
+
+### Architecture
+
+- Authenticated FastAPI control API
+- Dedicated PostgreSQL experiment and audit storage
+- Separate Redis Streams work queue
+- PostgreSQL transactional outbox and dispatcher
+- Restricted action worker
+- Independent evidence verification worker
+- Isolated demonstration and control-plane persistence
+- Explicit Docker integration network
+- Versioned Alembic database migrations
+
+### Engineering Decisions
+
+1. Separate the control plane from the application under test.
+2. Use a shared Python package with independently running processes.
+3. Keep PostgreSQL authoritative for experiment state.
+4. Use Redis Streams for at-least-once work delivery.
+5. Apply deterministic idempotency keys to sandbox job submissions.
+6. Prevent arbitrary shell, Docker, or Kubernetes execution.
+7. Require independent verification before reporting experiment success.
+8. Bind the local control API to loopback and require an API key.
+9. Keep database and Redis ports unpublished.
+10. Preserve raw evidence and unsuccessful experiment outcomes.
+
+### First Supported Experiment
+
+Scenario: queue-burst
+
+Behavior:
+- Accept a bounded experiment request.
+- Record the experiment durably.
+- Publish work through the transactional outbox.
+- Submit jobs through the demonstration API.
+- Verify completed jobs independently.
+- Preserve an experiment event timeline.
+
+This scenario validates the initial control-plane integration.
+It does not establish automatic incident recovery or AI diagnosis.
+
+### Verification
+
+Implementation supplied for local execution.
+
+Pending:
+- Python dependency resolution
+- Ruff and unit tests
+- Docker image build
+- Database migrations
+- End-to-end experiment verification
+- GitHub Actions integration run
+
+Do not mark these checks as passed until observed.
+
+### Known Limitations
+
+- Single action-worker and evidence-worker execution model
+- Initial local API-key authentication
+- Only the queue-burst scenario is available
+- Redis delivery remains at least once
+- Production-grade distributed worker concurrency is not yet established
+- AI, Kubernetes runbooks, incident correlation, and the operations UI
+  remain part of subsequent locked milestones
+
+### Next Work
+
+Verify the independent control-plane implementation and continue
+with the professional operations UI, telemetry, and incident model.

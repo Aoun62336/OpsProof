@@ -1,0 +1,174 @@
+name: opsproof-control
+
+x-control-build: &control-build
+  context: ./apps/control-plane
+  dockerfile: Dockerfile
+
+x-control-env: &control-env
+  OPSPROOF_CONTROL_DATABASE_URL: "postgresql://opsproof:${OPSPROOF_CONTROL_DB_PASSWORD:?Create the control-plane password}@control-db:5432/opsproof"
+  OPSPROOF_CONTROL_REDIS_URL: "redis://control-redis:6379/0"
+  OPSPROOF_CONTROL_TARGET_URL: "http://opsproof-demo-api:8080"
+
+services:
+  control-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: opsproof
+      POSTGRES_DB: opsproof
+      POSTGRES_PASSWORD: "${OPSPROOF_CONTROL_DB_PASSWORD:?Create the control-plane password}"
+    volumes:
+      - control-pg-data:/var/lib/postgresql
+    networks:
+      - control-private
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U opsproof -d opsproof
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    mem_limit: 384m
+    restart: unless-stopped
+
+  control-redis:
+    image: redis:8-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - control-redis-data:/data
+    networks:
+      - control-private
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    mem_limit: 192m
+    restart: unless-stopped
+
+  control-migrate:
+    build: *control-build
+    image: opsproof-control:local
+    environment: *control-env
+    entrypoint: ["alembic"]
+    command: ["upgrade", "head"]
+    depends_on:
+      control-db:
+        condition: service_healthy
+    networks:
+      - control-private
+    restart: "no"
+
+  control-api:
+    build: *control-build
+    image: opsproof-control:local
+    environment:
+      <<: *control-env
+      OPSPROOF_CONTROL_API_KEY: "${OPSPROOF_CONTROL_API_KEY:?Create the control API key}"
+    command: ["api"]
+    depends_on:
+      control-migrate:
+        condition: service_completed_successfully
+      control-redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8090:8080"
+    networks:
+      - control-private
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 192m
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=3).close()"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  control-dispatcher:
+    build: *control-build
+    image: opsproof-control:local
+    environment: *control-env
+    command: ["dispatch"]
+    depends_on:
+      control-migrate:
+        condition: service_completed_successfully
+      control-redis:
+        condition: service_healthy
+    networks:
+      - control-private
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    restart: unless-stopped
+
+  evidence-worker:
+    build: *control-build
+    image: opsproof-control:local
+    environment: *control-env
+    command: ["evidence"]
+    depends_on:
+      control-migrate:
+        condition: service_completed_successfully
+      control-redis:
+        condition: service_healthy
+    networks:
+      - control-private
+      - opsproof-integration
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 192m
+    restart: unless-stopped
+
+  action-worker:
+    build: *control-build
+    image: opsproof-control:local
+    environment: *control-env
+    command: ["action"]
+    depends_on:
+      control-migrate:
+        condition: service_completed_successfully
+      control-redis:
+        condition: service_healthy
+    networks:
+      - control-private
+      - opsproof-integration
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 192m
+    restart: unless-stopped
+
+networks:
+  control-private: {}
+
+  opsproof-integration:
+    external: true
+    name: opsproof-integration
+
+volumes:
+  control-pg-data:
+  control-redis-data:
