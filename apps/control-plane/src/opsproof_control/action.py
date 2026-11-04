@@ -4,7 +4,7 @@ import logging
 import time
 from uuid import UUID
 
-import httpx
+import httpx2 as httpx
 
 from .config import settings
 from .db import pool
