@@ -1,0 +1,66 @@
+# Optional observability configuration for the demo workload.
+
+x-demo-otel: &demo-otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_LOGS_EXPORTER: otlp
+  OTEL_METRICS_EXPORTER: none
+
+  OTEL_PYTHON_LOG_AUTO_INSTRUMENTATION: "true"
+
+  OTEL_PYTHON_FASTAPI_EXCLUDED_URLS: "metrics,health/live"
+
+  OTEL_TRACES_SAMPLER: parentbased_traceidratio
+  OTEL_TRACES_SAMPLER_ARG: "0.25"
+
+services:
+  api:
+    entrypoint:
+      - opentelemetry-instrument
+      - python
+      - -m
+      - opsproof_demo
+
+    environment:
+      <<: *demo-otel
+      OTEL_SERVICE_NAME: opsproof-demo-api
+
+    networks:
+      opsproof-telemetry:
+        aliases:
+          - opsproof-demo-api
+
+  dispatcher:
+    entrypoint:
+      - opentelemetry-instrument
+      - python
+      - -m
+      - opsproof_demo
+
+    environment:
+      <<: *demo-otel
+      OTEL_SERVICE_NAME: opsproof-demo-dispatcher
+
+    networks:
+      - opsproof-telemetry
+
+  worker:
+    entrypoint:
+      - opentelemetry-instrument
+      - python
+      - -m
+      - opsproof_demo
+
+    environment:
+      <<: *demo-otel
+      OTEL_SERVICE_NAME: opsproof-demo-worker
+
+    networks:
+      - opsproof-telemetry
+
+networks:
+  opsproof-telemetry:
+    external: true
+    name: opsproof-telemetry

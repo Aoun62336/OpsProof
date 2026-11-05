@@ -2,6 +2,9 @@ import type {
   CreateExperiment,
   Experiment,
   ExperimentEvent,
+  Incident,
+  IncidentEvent,
+  IncidentStatus,
   Session,
   Summary,
 } from "./types";
@@ -158,4 +161,24 @@ export function createExperiment(
     },
     body: JSON.stringify(payload),
   });
+}
+
+export function getIncidents(
+  status?: IncidentStatus,
+): Promise<Incident[]> {
+  const query = status
+    ? `?status=${status}&limit=50`
+    : "?limit=50";
+
+  return request<Incident[]>(
+    `/incidents${query}`,
+  );
+}
+
+export function getIncidentEvents(
+  fingerprint: string,
+): Promise<IncidentEvent[]> {
+  return request<IncidentEvent[]>(
+    `/incidents/${encodeURIComponent(fingerprint)}/events`,
+  );
 }

@@ -8,11 +8,14 @@ from fastapi import FastAPI, Header, HTTPException, status
 from .config import settings
 from .contracts import CreateJob, JobCounts, JobDetails
 from .db import pool
+from .metrics import install_metrics
 
 app = FastAPI(
     title="OpsProof Demo Workload",
     version="0.1.0",
 )
+
+install_metrics(app)
 
 
 @app.get("/health/live")

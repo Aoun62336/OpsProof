@@ -28,6 +28,15 @@ def main() -> None:
         format=("%(asctime)s %(levelname)s %(name)s %(message)s"),
     )
 
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    if not any(isinstance(handler, logging.StreamHandler) for handler in root_logger.handlers):
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+        )
+        root_logger.addHandler(console_handler)
+
     if args.role == "api":
         uvicorn.run(
             "opsproof_control.api:app",

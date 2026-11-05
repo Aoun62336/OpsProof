@@ -1,0 +1,21 @@
+apiVersion: 1
+
+datasources:
+  - name: OpsProof Prometheus
+    uid: opsproof-prometheus
+    type: prometheus
+    access: proxy
+    isDefault: true
+    url: http://prometheus:9090
+
+  - name: OpsProof Loki
+    uid: opsproof-loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+
+  - name: OpsProof Tempo
+    uid: opsproof-tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200

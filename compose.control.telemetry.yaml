@@ -1,0 +1,82 @@
+# Optional observability configuration for the control plane.
+
+x-control-otel: &control-otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_LOGS_EXPORTER: otlp
+  OTEL_METRICS_EXPORTER: none
+
+  OTEL_PYTHON_LOG_AUTO_INSTRUMENTATION: "true"
+
+  OTEL_PYTHON_FASTAPI_EXCLUDED_URLS: "metrics,health/live,api/v1/auth"
+
+  OTEL_TRACES_SAMPLER: parentbased_traceidratio
+  OTEL_TRACES_SAMPLER_ARG: "0.25"
+
+services:
+  control-api:
+    entrypoint:
+      - opentelemetry-instrument
+      - python
+      - -m
+      - opsproof_control
+
+    environment:
+      <<: *control-otel
+      OTEL_SERVICE_NAME: opsproof-control-api
+
+      OPSPROOF_CONTROL_ALERT_WEBHOOK_TOKEN: "${OPSPROOF_CONTROL_ALERT_WEBHOOK_TOKEN:?Generate webhook token}"
+
+    networks:
+      opsproof-telemetry:
+        aliases:
+          - opsproof-control-api
+
+  control-dispatcher:
+    entrypoint:
+      - opentelemetry-instrument
+      - python
+      - -m
+      - opsproof_control
+
+    environment:
+      <<: *control-otel
+      OTEL_SERVICE_NAME: opsproof-control-dispatcher
+
+    networks:
+      - opsproof-telemetry
+
+  evidence-worker:
+    entrypoint:
+      - opentelemetry-instrument
+      - python
+      - -m
+      - opsproof_control
+
+    environment:
+      <<: *control-otel
+      OTEL_SERVICE_NAME: opsproof-evidence-worker
+
+    networks:
+      - opsproof-telemetry
+
+  action-worker:
+    entrypoint:
+      - opentelemetry-instrument
+      - python
+      - -m
+      - opsproof_control
+
+    environment:
+      <<: *control-otel
+      OTEL_SERVICE_NAME: opsproof-action-worker
+
+    networks:
+      - opsproof-telemetry
+
+networks:
+  opsproof-telemetry:
+    external: true
+    name: opsproof-telemetry

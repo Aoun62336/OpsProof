@@ -1,0 +1,77 @@
+name: OpsProof Observability Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: observability-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  configuration:
+    name: Monitoring Configuration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    env:
+      OPSPROOF_DB_PASSWORD: ci-placeholder
+      OPSPROOF_CONTROL_DB_PASSWORD: ci-placeholder
+      OPSPROOF_CONTROL_API_KEY: ci-placeholder
+      OPSPROOF_CONTROL_ALERT_WEBHOOK_TOKEN: ci-placeholder
+      OPSPROOF_GRAFANA_ADMIN_PASSWORD: ci-placeholder
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Prepare placeholder local secret file
+        run: |
+          mkdir -p .runtime/observability
+          printf '%s\n' "ci-placeholder" \
+            > .runtime/observability/webhook-token
+
+      - name: Validate observability Compose
+        run: |
+          docker compose \
+            -f compose.observability.yaml \
+            config --quiet
+
+      - name: Validate demo telemetry Compose
+        run: |
+          docker compose \
+            -f compose.yaml \
+            -f compose.target-integration.yaml \
+            -f compose.demo.telemetry.yaml \
+            config --quiet
+
+      - name: Validate control telemetry Compose
+        run: |
+          docker compose \
+            -f compose.control.yaml \
+            -f compose.control.telemetry.yaml \
+            config --quiet
+
+      - name: Validate Prometheus configuration and rules
+        run: |
+          docker run --rm \
+            --entrypoint /bin/promtool \
+            -v "$PWD/observability:/etc/prometheus:ro" \
+            prom/prometheus:v3.15.1 \
+            check config /etc/prometheus/prometheus.yml
+
+      - name: Validate Grafana dashboard JSON
+        run: |
+          python3 -m json.tool \
+            observability/grafana/dashboards/operations.json \
+            > /dev/null

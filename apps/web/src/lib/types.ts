@@ -42,3 +42,25 @@ export interface CreateExperiment {
   count: number;
   duration_ms: number;
 }
+
+export type IncidentStatus =
+  | "firing"
+  | "resolved";
+
+export interface Incident {
+  fingerprint: string;
+  name: string;
+  target: string;
+  severity: string;
+  summary: string;
+  status: IncidentStatus;
+  started_at: string;
+  last_seen_at: string;
+  resolved_at: string | null;
+}
+
+export interface IncidentEvent {
+  id: number;
+  status: IncidentStatus;
+  created_at: string;
+}

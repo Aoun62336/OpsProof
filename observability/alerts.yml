@@ -1,0 +1,32 @@
+groups:
+  - name: opsproof-local
+    rules:
+      - alert: OpsProofDemoAPIUnavailable
+        expr: up{job="opsproof-demo-api"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: >-
+            Demo API metrics endpoint has been
+            unavailable for 30 seconds
+
+      - alert: OpsProofDemoDependenciesUnavailable
+        expr: opsproof_demo_dependencies_ready == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: >-
+            The demo API cannot verify PostgreSQL
+            or Redis readiness
+
+      - alert: OpsProofDemoQueueBacklog
+        expr: opsproof_demo_jobs{state="queued"} > 0
+        for: 45s
+        labels:
+          severity: warning
+        annotations:
+          summary: >-
+            Demo jobs remain queued beyond the
+            local experiment threshold

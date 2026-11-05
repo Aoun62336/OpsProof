@@ -23,6 +23,8 @@ from .contracts import (
     RunView,
 )
 from .db import pool, redis_client
+from .incidents import router as incident_router
+from .metrics import install_metrics
 from .store import enqueue, event
 
 app = FastAPI(
@@ -30,7 +32,10 @@ app = FastAPI(
     version="0.2.0",
 )
 
+install_metrics(app)
+
 app.include_router(auth_router)
+app.include_router(incident_router)
 
 
 class SummaryView(BaseModel):

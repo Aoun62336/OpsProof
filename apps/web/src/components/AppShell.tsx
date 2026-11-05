@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  ShieldAlert,
   X,
 } from "lucide-react";
 
@@ -27,6 +28,12 @@ const links = [
     path: "/",
     icon: LayoutDashboard,
     end: true,
+  },
+  {
+    label: "Incidents",
+    path: "/incidents",
+    icon: ShieldAlert,
+    end: false,
   },
   {
     label: "Experiments",

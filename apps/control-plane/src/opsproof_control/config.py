@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str
     api_key: str = ""
+    alert_webhook_token: str = ""
     target_url: str = "http://opsproof-demo-api:8080"
     action_stream: str = "opsproof:actions:v1"
     evidence_stream: str = "opsproof:evidence:v1"

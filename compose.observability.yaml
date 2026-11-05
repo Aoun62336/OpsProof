@@ -1,0 +1,135 @@
+name: opsproof-observability
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.1
+
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=24h
+      - --storage.tsdb.retention.size=512MB
+
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+
+    ports:
+      - "127.0.0.1:9090:9090"
+
+    networks:
+      - opsproof-telemetry
+
+    mem_limit: 512m
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.2
+
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./.runtime/observability/webhook-token:/etc/alertmanager/webhook-token:ro
+      - alertmanager-data:/alertmanager
+
+    ports:
+      - "127.0.0.1:9093:9093"
+
+    networks:
+      - opsproof-telemetry
+
+    mem_limit: 128m
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.164.1
+
+    command:
+      - --config=/etc/otelcol/config.yaml
+
+    volumes:
+      - ./observability/otel-collector.yml:/etc/otelcol/config.yaml:ro
+
+    networks:
+      - opsproof-telemetry
+
+    mem_limit: 256m
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.7.8
+
+    command:
+      - -config.file=/etc/loki/local.yaml
+
+    volumes:
+      - ./observability/loki.yml:/etc/loki/local.yaml:ro
+      - loki-data:/loki
+
+    ports:
+      - "127.0.0.1:3100:3100"
+
+    networks:
+      - opsproof-telemetry
+
+    mem_limit: 512m
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:3.1.1
+
+    command:
+      - -config.file=/etc/tempo/config.yaml
+
+    volumes:
+      - ./observability/tempo.yml:/etc/tempo/config.yaml:ro
+      - tempo-data:/var/tempo
+
+    ports:
+      - "127.0.0.1:3200:3200"
+
+    networks:
+      - opsproof-telemetry
+
+    mem_limit: 512m
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.2.4
+
+    environment:
+      GF_SECURITY_ADMIN_USER: opsproof
+      GF_SECURITY_ADMIN_PASSWORD: "${OPSPROOF_GRAFANA_ADMIN_PASSWORD:?Set Grafana password}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+    ports:
+      - "127.0.0.1:3000:3000"
+
+    networks:
+      - opsproof-telemetry
+
+    mem_limit: 512m
+    restart: unless-stopped
+
+networks:
+  opsproof-telemetry:
+    external: true
+    name: opsproof-telemetry
+
+volumes:
+  prometheus-data:
+  alertmanager-data:
+  loki-data:
+  tempo-data:
+  grafana-data:

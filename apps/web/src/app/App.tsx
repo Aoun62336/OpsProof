@@ -5,6 +5,7 @@ import { AppShell } from "../components/AppShell";
 import { getSession, logout } from "../lib/api";
 import { LoginPage } from "../pages/LoginPage";
 import { OverviewPage } from "../pages/OverviewPage";
+import { IncidentsPage } from "../pages/IncidentsPage";
 import { ExperimentsPage } from "../pages/ExperimentsPage";
 import { ExperimentDetailPage } from "../pages/ExperimentDetailPage";
 import { ReportsPage } from "../pages/ReportsPage";
@@ -75,6 +76,11 @@ export default function App() {
       <AppShell onSignOut={signOut}>
         <Routes>
           <Route path="/" element={<OverviewPage />} />
+
+          <Route
+            path="/incidents"
+            element={<IncidentsPage />}
+          />
 
           <Route
             path="/experiments"

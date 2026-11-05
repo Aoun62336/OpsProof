@@ -129,3 +129,63 @@ Implemented Milestone.txt UI parts A?L in order: fonts, temporary OP identity, s
 Validation: control Ruff and 17 tests passed; frontend lint, 3 unit tests and build passed; supplied five Playwright tests passed after correcting login-hint contrast and an ambiguous link selector. A supplemental real-browser run verified all four required viewport sizes, real experiment creation, event history, JSON export, CSRF rejection and logout. The logout check exposed an existing cache-clear issue; removing non-auth queries instead preserves the session observer and returns the login screen. A browser regression test now covers this.
 
 Integration: `scripts/verify_control.py` passed all six assertions. Docker Desktop needed startup and the existing integration network needed recreation. No volumes were deleted. Local evidence: `.runtime/redesign/` and `.runtime/control-first-run.json`. No cloud or GitHub Actions run is claimed.
+
+---
+
+## 2026-11-05: Observability and Incident Detection
+
+### Objective
+
+Introduce real telemetry collection, automated alert evaluation,
+durable incident registration, and evidence-backed local
+fault-detection experiments.
+
+### Architecture
+
+- Prometheus for application and workload metrics
+- Alertmanager for alert notification
+- OpenTelemetry Collector for logs and traces
+- Loki for application logs
+- Tempo for request traces
+- Grafana for investigation and dashboarding
+- Authenticated incident ingestion in the control plane
+- PostgreSQL incident state and transition history
+- Forest & Porcelain incident registry UI
+
+### Engineering Decisions
+
+- Preserve independent application and control-plane persistence.
+- Use an explicit telemetry network.
+- Keep monitoring services local and separately deployable.
+- Do not provide Docker socket access to monitoring services.
+- Use bounded Prometheus labels.
+- Avoid false healthy metrics when dependencies are unavailable.
+- Authenticate alert ingestion with a separate credential.
+- Deduplicate repeated alert notifications.
+- Preserve firing and resolved state transitions.
+- Separate alert resolution from verified workload recovery.
+- Measure actual fault-detection and restoration delays.
+- Use fixed, reviewed component versions.
+
+### Verification
+
+Executed:
+- Backend contract tests pass (12/12).
+- Backend deduplication & webhook tests pass.
+- Frontend unit tests pass (4/4, including honest empty-state).
+- Frontend production build succeeds (Vite + TypeScript).
+- Frontend lint (oxlint) clean with 0 warnings/errors.
+- Control plane and demo workload lint (Ruff) clean with 0 warnings/errors.
+- Observability and telemetry Compose files syntax-validated.
+- Prometheus configuration and alert rules configured.
+
+### Limitations
+
+- Local Compose environment, not production traffic.
+- No EKS deployment in this work package.
+- No production availability SLO claim.
+- Distributed trace propagation across Redis Streams
+  requires separate verification.
+- Full Kubernetes incident correlation remains pending.
+- AI diagnosis is not yet evaluated.
+- Alert delivery alone is not automated remediation.

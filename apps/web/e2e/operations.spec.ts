@@ -168,3 +168,29 @@ test(
     ).toBeHidden();
   },
 );
+
+test(
+  "incident registry is accessible",
+  async ({ page }) => {
+    await signIn(page);
+
+    await page
+      .getByRole("link", {
+        name: "Incidents",
+      })
+      .click();
+
+    await expect(
+      page.getByRole("heading", {
+        name: "Incidents",
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    await expect(
+      page.getByText(
+        /Detection is not the same as recovery/i,
+      ),
+    ).toBeVisible();
+  },
+);
