@@ -120,3 +120,12 @@ Do not mark these checks as passed until observed.
 
 Verify the independent control-plane implementation and continue
 with the professional operations UI, telemetry, and incident model.
+
+
+## 2026-11-05: Forest & Porcelain redesign
+
+Implemented Milestone.txt UI parts A?L in order: fonts, temporary OP identity, semantic states, desktop/mobile shell, real-data pages, modular CSS, protected logout, browser tests and design documentation. Experiment-detail source, workload and worker semantics were preserved.
+
+Validation: control Ruff and 17 tests passed; frontend lint, 3 unit tests and build passed; supplied five Playwright tests passed after correcting login-hint contrast and an ambiguous link selector. A supplemental real-browser run verified all four required viewport sizes, real experiment creation, event history, JSON export, CSRF rejection and logout. The logout check exposed an existing cache-clear issue; removing non-auth queries instead preserves the session observer and returns the login screen. A browser regression test now covers this.
+
+Integration: `scripts/verify_control.py` passed all six assertions. Docker Desktop needed startup and the existing integration network needed recreation. No volumes were deleted. Local evidence: `.runtime/redesign/` and `.runtime/control-first-run.json`. No cloud or GitHub Actions run is claimed.

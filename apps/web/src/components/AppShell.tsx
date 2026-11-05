@@ -1,7 +1,15 @@
-import { useState, type ReactNode } from "react";
-import { NavLink } from "react-router-dom";
 import {
-  Activity,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+
+import {
+  NavLink,
+  useLocation,
+} from "react-router-dom";
+
+import {
   ArrowUpRight,
   BookOpenText,
   FlaskConical,
@@ -13,7 +21,7 @@ import {
 
 import { Brand } from "./Brand";
 
-const navigation = [
+const links = [
   {
     label: "Overview",
     path: "/",
@@ -27,25 +35,67 @@ const navigation = [
     end: false,
   },
   {
-    label: "Evidence reports",
+    label: "Evidence",
     path: "/reports",
     icon: BookOpenText,
     end: false,
   },
 ];
 
-interface Props {
-  children: ReactNode;
-  onSignOut: () => Promise<void>;
+function NavItems({
+  onNavigate,
+}: {
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav className="primary-nav" aria-label="Main navigation">
+      <p className="nav-kicker">WORKSPACE</p>
+
+      {links.map(({ label, path, icon: Icon, end }) => (
+        <NavLink
+          key={path}
+          to={path}
+          end={end}
+          onClick={onNavigate}
+          className={({ isActive }) =>
+            `nav-link${isActive ? " nav-link--active" : ""}`
+          }
+        >
+          <Icon size={18} aria-hidden="true" />
+          <span>{label}</span>
+        </NavLink>
+      ))}
+    </nav>
+  );
 }
 
 export function AppShell({
   children,
   onSignOut,
-}: Props) {
-  const [menuOpen, setMenuOpen] = useState(false);
+}: {
+  children: ReactNode;
+  onSignOut: () => Promise<void>;
+}) {
+  const drawer = useRef<HTMLDialogElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
+
+  const location = useLocation();
+
+  const section =
+    location.pathname === "/"
+      ? "Overview"
+      : location.pathname.startsWith("/experiments")
+        ? "Experiments"
+        : location.pathname.startsWith("/reports")
+          ? "Evidence"
+          : "Workspace";
+
+  function closeDrawer() {
+    drawer.current?.close();
+  }
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -54,88 +104,45 @@ export function AppShell({
     try {
       await onSignOut();
     } catch {
-      setSignOutError("Could not end the session. Try again.");
+      setSignOutError(
+        "Sign out failed. Check your connection and try again.",
+      );
     } finally {
       setSigningOut(false);
     }
   }
 
   return (
-    <div className="app-layout">
+    <div className="app-shell">
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
 
-      {menuOpen && (
-        <button
-          className="sidebar-backdrop"
-          type="button"
-          aria-label="Close navigation"
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
-
+      {/* Persistent desktop navigation */}
       <aside
-        className={`sidebar ${menuOpen ? "sidebar--open" : ""}`}
-        aria-label="Application sidebar"
+        className="sidebar"
+        aria-label="Workspace sidebar"
       >
-        <div className="sidebar__top">
+        <div className="sidebar__brand">
           <Brand />
-
-          <button
-            className="icon-button sidebar__close"
-            type="button"
-            aria-label="Close navigation"
-            onClick={() => setMenuOpen(false)}
-          >
-            <X size={18} />
-          </button>
         </div>
 
-        <nav className="primary-nav" aria-label="Main navigation">
-          <span className="nav-label">WORKSPACE</span>
+        <NavItems />
 
-          {navigation.map((item) => {
-            const Icon = item.icon;
-
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={item.end}
-                onClick={() => setMenuOpen(false)}
-                className={({ isActive }) =>
-                  `nav-link ${isActive ? "nav-link--active" : ""}`
-                }
-              >
-                <Icon size={18} aria-hidden="true" />
-                <span>{item.label}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        <div className="sidebar__section">
-          <span className="nav-label">PLATFORM INTEGRATIONS</span>
-
-          <div className="integration-note">
-            <Activity size={17} aria-hidden="true" />
-            <div>
-              <strong>Incident intelligence</strong>
-              <p>
-                Telemetry and Kubernetes integrations will appear
-                when connected.
-              </p>
-            </div>
+        <div className="sidebar__lower">
+          <div className="sidebar-context">
+            <span className="nav-kicker">TARGET</span>
+            <strong>Local sandbox</strong>
+            <span>
+              Only configured integrations are shown as available.
+            </span>
           </div>
-        </div>
 
-        <div className="sidebar__bottom">
           <a
-            className="docs-link"
             href="https://github.com/Aoun62336"
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noreferrer"
+            className="sidebar-link"
           >
             GitHub profile
             <ArrowUpRight size={15} aria-hidden="true" />
@@ -148,51 +155,113 @@ export function AppShell({
           )}
 
           <button
-            className="signout-button"
-            type="button"
+            className="sidebar-signout"
             onClick={handleSignOut}
             disabled={signingOut}
+            type="button"
           >
-            <LogOut size={17} aria-hidden="true" />
-            {signingOut ? "Signing out..." : "Sign out"}
+            <LogOut size={16} aria-hidden="true" />
+            {signingOut ? "Signing out…" : "Sign out"}
           </button>
         </div>
       </aside>
 
+      {/* Native accessible modal navigation on mobile */}
+      <dialog
+        ref={drawer}
+        className="mobile-drawer"
+        aria-label="Workspace navigation"
+        onClose={() => trigger.current?.focus()}
+        onClick={(event) => {
+          if (event.target === drawer.current) {
+            closeDrawer();
+          }
+        }}
+      >
+        <div className="mobile-drawer__content">
+          <div className="mobile-drawer__head">
+            <Brand />
+
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Close navigation"
+              onClick={closeDrawer}
+              autoFocus
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <NavItems onNavigate={closeDrawer} />
+
+          <div className="mobile-drawer__bottom">
+            <span>Local sandbox · Development</span>
+
+            <button
+              type="button"
+              className="sidebar-signout"
+              disabled={signingOut}
+              onClick={() => {
+                closeDrawer();
+                void handleSignOut();
+              }}
+            >
+              <LogOut size={16} aria-hidden="true" />
+              Sign out
+            </button>
+          </div>
+        </div>
+      </dialog>
+
+      {/* Main application */}
       <div className="workspace">
         <header className="topbar">
-          <button
-            className="icon-button mobile-menu"
-            type="button"
-            aria-label="Open navigation"
-            onClick={() => setMenuOpen(true)}
-          >
-            <Menu size={20} />
-          </button>
+          <div className="topbar__left">
+            <button
+              ref={trigger}
+              type="button"
+              className="icon-button mobile-menu"
+              aria-label="Open navigation"
+              onClick={() => drawer.current?.showModal()}
+            >
+              <Menu size={21} />
+            </button>
 
-          <div className="topbar__context">
-            <span className="context-label">ENVIRONMENT</span>
-            <span className="context-value">Local control plane</span>
+            <div className="topbar__mobile-brand">
+              <Brand compact />
+            </div>
+
+            <div className="topbar__breadcrumbs">
+              <span>WORKSPACE</span>
+              <span aria-hidden="true">/</span>
+              <strong>{section}</strong>
+            </div>
           </div>
 
           <div className="topbar__right">
-            <span className="connection-indicator">
-              <span className="connection-indicator__dot" />
-              Authenticated session
+            <span className="topbar__environment">
+              <span
+                className="environment-square"
+                aria-hidden="true"
+              />
+              Local sandbox
             </span>
 
-            <span className="topbar__version">
-              v0.2 development
+            <span className="topbar__session">
+              Operator session
             </span>
           </div>
         </header>
 
-        <main id="main-content" className="main-content">
+        <main className="main-content" id="main-content">
           {children}
         </main>
 
         <footer className="workspace-footer">
-          <span>OpsProof · Evidence before assumption</span>
+          <span>
+            OpsProof · Cloud Reliability & Safe Operations
+          </span>
           <span>Local development environment</span>
         </footer>
       </div>

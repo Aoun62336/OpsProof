@@ -1,29 +1,41 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+
 import {
   ArrowRight,
-  CheckCircle2,
-  CircleAlert,
-  FlaskConical,
-  Layers3,
+  Clock3,
+  ExternalLink,
+  ShieldCheck,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
-import type { ReactNode } from "react";
 
 import { RunStatus } from "../components/RunStatus";
-import { getSummary } from "../lib/api";
-import { formatDate, shortId } from "../lib/format";
 
+import {
+  getSummary,
+  getExperimentEvents,
+} from "../lib/api";
+
+import {
+  formatDate,
+  shortId,
+  titleCase,
+} from "../lib/format";
 
 export function OverviewPage() {
-  const query = useQuery({
+  const summary = useQuery({
     queryKey: ["overview"],
     queryFn: getSummary,
     refetchInterval: 15_000,
     retry: 1,
   });
 
-  const data = query.data;
+  // Do not display cached measurements as current
+  // when the last request has failed.
+  const data = summary.isError
+    ? undefined
+    : summary.data;
 
   const active = data
     ? data.counts.queued +
@@ -31,14 +43,42 @@ export function OverviewPage() {
       data.counts.verifying
     : 0;
 
+  const latestVerified = data?.recent.find(
+    (run) => run.status === "succeeded",
+  );
+
+  const trail = useQuery({
+    queryKey: [
+      "experiment-events",
+      latestVerified?.id,
+    ],
+
+    queryFn: () =>
+      getExperimentEvents(latestVerified!.id),
+
+    enabled: Boolean(latestVerified),
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  const hasAttention = Boolean(
+    data &&
+      (active > 0 || data.counts.failed > 0),
+  );
+
   return (
-    <div className="page">
-      <div className="page-heading">
+    <div className="page overview-page">
+      <header className="page-header">
         <div>
-          <p className="eyebrow">OPERATIONS OVERVIEW</p>
-          <h1>Know what failed. Prove what recovered.</h1>
+          <p className="overline">
+            CONTROL PLANE / LOCAL
+          </p>
+
+          <h1>Operations</h1>
+
           <p className="page-description">
-            Investigate with evidence. Operate with control.
+            Current work, recorded outcomes, and the
+            evidence behind them.
           </p>
         </div>
 
@@ -46,53 +86,42 @@ export function OverviewPage() {
           className="button button--primary"
           to="/experiments"
         >
-          <FlaskConical size={17} aria-hidden="true" />
           New experiment
+          <ArrowRight
+            size={17}
+            aria-hidden="true"
+          />
         </Link>
-      </div>
+      </header>
 
-      <div className="environment-banner">
-        <div className="environment-banner__icon">
-          <Layers3 size={20} aria-hidden="true" />
-        </div>
-
-        <div>
-          <strong>Local control-plane workspace</strong>
-          <p>
-            Dashboard measurements come from recorded
-            experiment state. Kubernetes telemetry is not
-            connected to this view yet.
-          </p>
-        </div>
-
-        <span className="environment-banner__label">
-          DEVELOPMENT
-        </span>
-      </div>
-
-      {query.isPending && (
+      {summary.isPending && (
         <p className="state-message" role="status">
-          Loading recorded experiment data...
+          Loading operational records…
         </p>
       )}
 
-      {query.isError && (
+      {summary.isError && (
         <div className="error-panel" role="alert">
-          <CircleAlert size={20} aria-hidden="true" />
+          <AlertTriangle
+            size={19}
+            aria-hidden="true"
+          />
 
           <div>
-            <strong>Could not retrieve the overview.</strong>
+            <strong>Records unavailable</strong>
+
             <p>
-              Check the control API and its database connection.
+              Could not reach the control API.
+              No operational status can be inferred.
             </p>
           </div>
 
           <button
-            type="button"
             className="button button--secondary"
-            onClick={() => void query.refetch()}
+            onClick={() => void summary.refetch()}
+            type="button"
           >
-            <RefreshCw size={15} />
+            <RefreshCw size={16} />
             Retry
           </button>
         </div>
@@ -100,208 +129,281 @@ export function OverviewPage() {
 
       {data && (
         <>
-          <div className="metric-grid">
-            <Metric
-              label="Recorded experiments"
-              value={data.total}
-              description="All stored experiment records"
-              icon={<Layers3 size={19} />}
-            />
+          <section
+            className="attention"
+            aria-labelledby="attention-title"
+          >
+            <div className="attention__heading">
+              <p className="overline overline--light">
+                OPERATIONAL PRIORITY
+              </p>
 
-            <Metric
-              label="Succeeded"
-              value={data.counts.succeeded}
-              description="Completed with successful verification"
-              icon={<CheckCircle2 size={19} />}
-              tone="positive"
-            />
+              <h2 id="attention-title">
+                {hasAttention
+                  ? "Work requiring review"
+                  : "No unresolved experiment records"}
+              </h2>
 
-            <Metric
-              label="In progress"
-              value={active}
-              description="Queued, running or verifying"
-              icon={<FlaskConical size={19} />}
-            />
+              <p>
+                {hasAttention
+                  ? "Review active or unsuccessful experiments before proceeding with new changes."
+                  : "This describes recorded experiment states only, not the health of unconnected infrastructure."}
+              </p>
+            </div>
 
-            <Metric
-              label="Failed"
-              value={data.counts.failed}
-              description="Recorded unsuccessful runs"
-              icon={<CircleAlert size={19} />}
-              tone="critical"
-            />
-          </div>
+            <div className="attention__summary">
+              <div>
+                <span>Active runs</span>
+                <strong>{active}</strong>
+              </div>
 
-          <div className="dashboard-grid">
-            <section className="panel">
+              <div>
+                <span>Failed runs</span>
+                <strong>{data.counts.failed}</strong>
+              </div>
+
+              <Link to="/experiments">
+                Inspect experiments
+                <ArrowRight
+                  size={15}
+                  aria-hidden="true"
+                />
+              </Link>
+            </div>
+          </section>
+
+          <section
+            className="metrics-row"
+            aria-label="Recorded experiment summary"
+          >
+            <div>
+              <span>All recorded</span>
+              <strong>
+                {data.total.toLocaleString()}
+              </strong>
+              <small>Experiment records</small>
+            </div>
+
+            <div>
+              <span>Verified</span>
+              <strong>
+                {data.counts.succeeded.toLocaleString()}
+              </strong>
+              <small>Successful outcomes</small>
+            </div>
+
+            <div>
+              <span>Awaiting execution</span>
+              <strong>
+                {data.counts.queued.toLocaleString()}
+              </strong>
+              <small>Queued runs</small>
+            </div>
+
+            <div>
+              <span>Evidence snapshot</span>
+              <strong className="metrics-row__date">
+                {formatDate(data.generated_at)}
+              </strong>
+              <small>Last API response</small>
+            </div>
+          </section>
+
+          <div className="overview-columns">
+            <section
+              className="panel activity-panel"
+              aria-labelledby="activity-title"
+            >
               <div className="panel-header">
                 <div>
-                  <h2>Recent experiments</h2>
+                  <p className="overline">
+                    01 / ACTIVITY
+                  </p>
+
+                  <h2 id="activity-title">
+                    Recent experiments
+                  </h2>
+
                   <p>
-                    Latest recorded execution and verification
-                    outcomes
+                    Latest records from the
+                    control-plane database
                   </p>
                 </div>
 
                 <Link
-                  className="text-link"
+                  className="subtle-link"
                   to="/experiments"
                 >
-                  View all
-                  <ArrowRight size={15} />
+                  See all
+                  <ArrowRight size={16} />
                 </Link>
               </div>
 
               {data.recent.length === 0 ? (
                 <div className="empty-state">
-                  <FlaskConical size={24} />
+                  <Clock3
+                    size={25}
+                    aria-hidden="true"
+                  />
 
-                  <h3>No experiments recorded</h3>
+                  <strong>No runs recorded</strong>
 
                   <p>
-                    Start a controlled experiment to create
-                    the first evidence record.
+                    Create an experiment to begin
+                    collecting evidence.
                   </p>
 
                   <Link to="/experiments">
-                    Open experiment console
+                    Open experiments
                   </Link>
                 </div>
               ) : (
-                <div className="table-scroll">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Experiment</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Created</th>
-                        <th scope="col">
-                          <span className="sr-only">Open</span>
-                        </th>
-                      </tr>
-                    </thead>
+                <div className="activity-list">
+                  {data.recent.map((run) => (
+                    <Link
+                      to={`/experiments/${run.id}`}
+                      key={run.id}
+                      className="activity-row"
+                    >
+                      <div className="activity-row__identity">
+                        <strong>
+                          {titleCase(run.scenario)}
+                        </strong>
 
-                    <tbody>
-                      {data.recent.map((run) => (
-                        <tr key={run.id}>
-                          <td>
-                            <span className="table-primary">
-                              {run.scenario}
-                            </span>
-                            <span className="table-secondary mono">
-                              {shortId(run.id)}
-                            </span>
-                          </td>
+                        <small className="mono">
+                          {shortId(run.id)} ·{" "}
+                          {formatDate(run.created_at)}
+                        </small>
+                      </div>
 
-                          <td>
-                            <RunStatus status={run.status} />
-                          </td>
+                      <RunStatus status={run.status} />
 
-                          <td className="muted">
-                            {formatDate(run.created_at)}
-                          </td>
-
-                          <td>
-                            <Link
-                              className="row-link"
-                              to={`/experiments/${run.id}`}
-                              aria-label={`View experiment ${shortId(run.id)}`}
-                            >
-                              <ArrowRight size={17} />
-                            </Link>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      <ArrowRight
+                        size={17}
+                        className="activity-row__arrow"
+                        aria-hidden="true"
+                      />
+                    </Link>
+                  ))}
                 </div>
               )}
             </section>
 
-            <section className="panel context-panel">
+            <section
+              className="panel verification-panel"
+              aria-labelledby="trail-title"
+            >
               <div className="panel-header">
                 <div>
-                  <h2>Operational context</h2>
-                  <p>Current integration coverage</p>
+                  <p className="overline">
+                    02 / EVIDENCE
+                  </p>
+
+                  <h2 id="trail-title">
+                    Verification trail
+                  </h2>
+
+                  <p>
+                    Events recorded by the
+                    independent workers
+                  </p>
                 </div>
+
+                <ShieldCheck
+                  size={21}
+                  aria-hidden="true"
+                />
               </div>
 
-              <div className="context-item">
-                <span className="context-item__label">
-                  Control-plane data
-                </span>
-                <strong className="text-success">
-                  Available
-                </strong>
-              </div>
+              {!latestVerified && (
+                <div className="empty-state empty-state--left">
+                  <p>
+                    No successfully verified experiment
+                    appears in the latest records.
+                  </p>
+                </div>
+              )}
 
-              <div className="context-item">
-                <span className="context-item__label">
-                  Kubernetes telemetry
-                </span>
-                <strong className="muted">
-                  Not connected
-                </strong>
-              </div>
+              {latestVerified && (
+                <>
+                  <div className="verification-reference">
+                    <span>LATEST VERIFIED RUN</span>
 
-              <div className="context-item">
-                <span className="context-item__label">
-                  Incident detection
-                </span>
-                <strong className="muted">
-                  Not connected
-                </strong>
-              </div>
+                    <strong className="mono">
+                      {shortId(latestVerified.id)}
+                    </strong>
 
-              <div className="context-item">
-                <span className="context-item__label">
-                  Evidence snapshot
-                </span>
-                <strong className="mono context-date">
-                  {formatDate(data.generated_at)}
-                </strong>
-              </div>
+                    <RunStatus
+                      status={latestVerified.status}
+                    />
+                  </div>
 
-              <p className="context-footnote">
-                Unavailable telemetry is never interpreted as
-                healthy service status.
-              </p>
+                  {trail.isPending && (
+                    <p
+                      className="state-message"
+                      role="status"
+                    >
+                      Loading event history…
+                    </p>
+                  )}
+
+                  {trail.isError && (
+                    <p
+                      className="inline-error"
+                      role="alert"
+                    >
+                      Event history is unavailable;
+                      verification details could not
+                      be retrieved.
+                    </p>
+                  )}
+
+                  {trail.data && (
+                    <ol className="verification-trail">
+                      {trail.data.slice(-4).map((item) => (
+                        <li key={item.id}>
+                          <span
+                            className="trail-dot"
+                            aria-hidden="true"
+                          />
+
+                          <div>
+                            <strong>
+                              {titleCase(item.type)}
+                            </strong>
+
+                            <time dateTime={item.created_at}>
+                              {formatDate(item.created_at)}
+                            </time>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+
+                  <Link
+                    className="subtle-link"
+                    to={`/experiments/${latestVerified.id}`}
+                  >
+                    Inspect full evidence
+                    <ExternalLink
+                      size={15}
+                      aria-hidden="true"
+                    />
+                  </Link>
+                </>
+              )}
             </section>
           </div>
+
+          <p className="scope-note">
+            <span aria-hidden="true">◦</span>{" "}
+            Scope: local experiment records only.
+            Kubernetes, incident detection and cloud
+            telemetry are not yet connected.
+          </p>
         </>
       )}
     </div>
-  );
-}
-
-
-function Metric({
-  label,
-  value,
-  description,
-  icon,
-  tone = "neutral",
-}: {
-  label: string;
-  value: number;
-  description: string;
-  icon: ReactNode;
-  tone?: "neutral" | "positive" | "critical";
-}) {
-  return (
-    <section className={`metric-card metric-card--${tone}`}>
-      <div className="metric-card__top">
-        <span>{label}</span>
-        <span className="metric-card__icon" aria-hidden="true">
-          {icon}
-        </span>
-      </div>
-
-      <strong className="metric-card__value">
-        {value.toLocaleString()}
-      </strong>
-
-      <p>{description}</p>
-    </section>
   );
 }

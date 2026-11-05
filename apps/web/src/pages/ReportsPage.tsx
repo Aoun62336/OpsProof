@@ -1,74 +1,85 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+
 import {
+  ArrowRight,
   Download,
   FileJson2,
   RefreshCw,
 } from "lucide-react";
 
 import { RunStatus } from "../components/RunStatus";
+
 import {
   getExperimentEvents,
   getExperiments,
 } from "../lib/api";
+
 import {
   formatDate,
   isTerminal,
   shortId,
+  titleCase,
 } from "../lib/format";
 
+import type { Experiment } from "../lib/types";
 
 export function ReportsPage() {
   const [exportError, setExportError] = useState("");
-  const [exporting, setExporting] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<
+    string | null
+  >(null);
 
-  const query = useQuery({
+  const runs = useQuery({
     queryKey: ["report-experiments"],
     queryFn: () => getExperiments(50),
     retry: 1,
   });
 
-  const completedRuns = (query.data ?? []).filter(
-    (run) => isTerminal(run.status),
-  );
+  const completed = (
+    runs.isError ? [] : runs.data ?? []
+  ).filter((run) => isTerminal(run.status));
 
-  async function exportReport(
-    run: (typeof completedRuns)[number],
-  ) {
-    setExportError("");
+  async function exportReport(run: Experiment) {
     setExporting(run.id);
+    setExportError("");
 
     try {
       const events = await getExperimentEvents(run.id);
 
-      const evidence = {
+      const report = {
         schema_version: "opsproof-evidence/v1",
-        exported_at: new Date().toISOString(),
         source: "local-control-plane",
+        exported_at: new Date().toISOString(),
         experiment: run,
         events,
       };
 
       const blob = new Blob(
-        [JSON.stringify(evidence, null, 2)],
-        { type: "application/json" },
+        [JSON.stringify(report, null, 2)],
+        {
+          type: "application/json",
+        },
       );
 
       const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
+      const anchor = document.createElement("a");
 
-      link.href = url;
-      link.download = `opsproof-${shortId(run.id)}.json`;
+      anchor.href = url;
+      anchor.download = `opsproof-${shortId(run.id)}.json`;
 
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
 
-      URL.revokeObjectURL(url);
+      window.setTimeout(
+        () => URL.revokeObjectURL(url),
+        1_000,
+      );
     } catch {
       setExportError(
-        "Could not export the evidence. Retry after checking the API.",
+        "Evidence export failed. Check the control API and retry.",
       );
     } finally {
       setExporting(null);
@@ -77,24 +88,38 @@ export function ReportsPage() {
 
   return (
     <div className="page">
-      <div className="page-heading">
+      <header className="page-header">
         <div>
-          <p className="eyebrow">EVIDENCE ARCHIVE</p>
-          <h1>Every result has a record.</h1>
+          <p className="overline">
+            AUDIT & EVIDENCE
+          </p>
+
+          <h1>Evidence archive</h1>
 
           <p className="page-description">
-            Inspect completed experiments and preserve
-            their recorded outcomes.
+            Inspectable results, including
+            unsuccessful experiments.
           </p>
         </div>
-      </div>
+      </header>
 
-      <section className="panel">
+      <section
+        className="panel"
+        aria-labelledby="reports-title"
+      >
         <div className="panel-header">
           <div>
-            <h2>Completed experiment records</h2>
+            <p className="overline">
+              RECORDED OUTCOMES
+            </p>
+
+            <h2 id="reports-title">
+              Completed and failed runs
+            </h2>
+
             <p>
-              Terminal experiments among the latest 50 records
+              Terminal records among the latest
+              50 experiments
             </p>
           </div>
 
@@ -102,9 +127,9 @@ export function ReportsPage() {
             className="icon-button"
             type="button"
             aria-label="Refresh reports"
-            onClick={() => void query.refetch()}
+            onClick={() => void runs.refetch()}
           >
-            <RefreshCw size={17} />
+            <RefreshCw size={18} />
           </button>
         </div>
 
@@ -114,87 +139,90 @@ export function ReportsPage() {
           </p>
         )}
 
-        {query.isPending && (
+        {runs.isPending && (
           <p className="state-message" role="status">
-            Loading evidence records...
+            Loading evidence…
           </p>
         )}
 
-        {query.isError && (
+        {runs.isError && (
           <div className="error-panel" role="alert">
-            Could not load report history.
+            Evidence records are unavailable.
+
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={() => void runs.refetch()}
+            >
+              Retry
+            </button>
           </div>
         )}
 
-        {query.isSuccess && completedRuns.length === 0 && (
+        {runs.isSuccess && completed.length === 0 && (
           <div className="empty-state">
-            <FileJson2 size={26} />
+            <FileJson2 size={24} />
 
-            <h3>No completed reports yet</h3>
+            <strong>No completed records</strong>
 
             <p>
-              Once an experiment reaches a terminal state,
-              its recorded result will be available here.
+              Completed or failed experiments
+              will appear here.
             </p>
           </div>
         )}
 
-        {completedRuns.length > 0 && (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">Experiment</th>
-                  <th scope="col">Outcome</th>
-                  <th scope="col">Completed</th>
-                  <th scope="col">Evidence</th>
-                </tr>
-              </thead>
+        {completed.length > 0 && (
+          <div className="report-list">
+            {completed.map((run) => (
+              <div className="report-row" key={run.id}>
+                <div className="report-row__identity">
+                  <Link
+                    to={`/experiments/${run.id}`}
+                    className="report-row__title"
+                  >
+                    {titleCase(run.scenario)}
 
-              <tbody>
-                {completedRuns.map((run) => (
-                  <tr key={run.id}>
-                    <td>
-                      <Link
-                        className="table-primary table-link"
-                        to={`/experiments/${run.id}`}
-                      >
-                        {run.scenario}
-                      </Link>
+                    <ArrowRight
+                      size={14}
+                      aria-hidden="true"
+                    />
+                  </Link>
 
-                      <span className="table-secondary mono">
-                        {shortId(run.id)}
-                      </span>
-                    </td>
+                  <small className="mono">
+                    {shortId(run.id)} ·{" "}
+                    {formatDate(run.completed_at)}
+                  </small>
+                </div>
 
-                    <td>
-                      <RunStatus status={run.status} />
-                    </td>
+                <RunStatus status={run.status} />
 
-                    <td className="muted">
-                      {formatDate(run.completed_at)}
-                    </td>
+                <button
+                  className="button button--secondary button--small"
+                  type="button"
+                  onClick={() => void exportReport(run)}
+                  disabled={exporting === run.id}
+                >
+                  <Download
+                    size={15}
+                    aria-hidden="true"
+                  />
 
-                    <td>
-                      <button
-                        className="button button--small button--secondary"
-                        type="button"
-                        onClick={() => void exportReport(run)}
-                        disabled={exporting === run.id}
-                      >
-                        <Download size={15} />
-                        {exporting === run.id
-                          ? "Exporting..."
-                          : "Export JSON"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  {exporting === run.id
+                    ? "Exporting…"
+                    : "Export JSON"}
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </section>
+
+      <p className="scope-note">
+        Exports preserve the current API record and event
+        history. They are not signed or immutable evidence
+        archives.
+      </p>
     </div>
   );
 }

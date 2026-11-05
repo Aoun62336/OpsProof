@@ -60,7 +60,9 @@ export default function App() {
   async function signOut() {
     await logout();
 
-    queryClient.clear();
+    queryClient.removeQueries({
+      predicate: (query) => query.queryKey[0] !== "auth",
+    });
 
     queryClient.setQueryData(
       ["auth", "session"],

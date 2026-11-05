@@ -3,33 +3,60 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+
+import {
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
+
+import {
+  Link,
+  useNavigate,
+} from "react-router-dom";
+
 import {
   ArrowRight,
   FlaskConical,
   RefreshCw,
+  ShieldCheck,
 } from "lucide-react";
 
 import { RunStatus } from "../components/RunStatus";
+
 import {
   createExperiment,
   getExperiments,
 } from "../lib/api";
-import { formatDate, shortId } from "../lib/format";
-import type { RunStatus as RunStatusType } from "../lib/types";
 
+import {
+  formatDate,
+  shortId,
+  titleCase,
+} from "../lib/format";
+
+import type {
+  CreateExperiment,
+  RunStatus as Status,
+} from "../lib/types";
+
+const statuses: Status[] = [
+  "queued",
+  "running",
+  "verifying",
+  "succeeded",
+  "failed",
+];
 
 export function ExperimentsPage() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-
   const [count, setCount] = useState(5);
   const [duration, setDuration] = useState(250);
   const [filter, setFilter] = useState("all");
 
-  // Preserve the same key when retrying an ambiguous request.
   const pendingKey = useRef<string | null>(null);
+
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const runs = useQuery({
     queryKey: ["experiments", 50],
@@ -44,12 +71,14 @@ export function ExperimentsPage() {
         pendingKey.current = crypto.randomUUID();
       }
 
+      const payload: CreateExperiment = {
+        scenario: "queue-burst",
+        count,
+        duration_ms: duration,
+      };
+
       return createExperiment(
-        {
-          scenario: "queue-burst",
-          count,
-          duration_ms: duration,
-        },
+        payload,
         pendingKey.current,
       );
     },
@@ -61,6 +90,7 @@ export function ExperimentsPage() {
         queryClient.invalidateQueries({
           queryKey: ["experiments"],
         }),
+
         queryClient.invalidateQueries({
           queryKey: ["overview"],
         }),
@@ -70,10 +100,29 @@ export function ExperimentsPage() {
     },
   });
 
+  const visible = (
+    runs.isError ? [] : runs.data ?? []
+  ).filter(
+    (run) =>
+      filter === "all" || run.status === filter,
+  );
+
+  function changeParams(update: () => void) {
+    pendingKey.current = null;
+    create.reset();
+    update();
+  }
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!Number.isInteger(count) || count < 1 || count > 8) {
+    if (create.isPending) return;
+
+    if (
+      !Number.isInteger(count) ||
+      count < 1 ||
+      count > 8
+    ) {
       return;
     }
 
@@ -88,34 +137,51 @@ export function ExperimentsPage() {
     create.mutate();
   }
 
-  const filtered = (runs.data ?? []).filter(
-    (run) => filter === "all" || run.status === filter,
-  );
-
   return (
     <div className="page">
-      <div className="page-heading">
+      <header className="page-header">
         <div>
-          <p className="eyebrow">RELIABILITY EXPERIMENTS</p>
-          <h1>Controlled tests. Verifiable outcomes.</h1>
+          <p className="overline">
+            CONTROLLED EXECUTION
+          </p>
+
+          <h1>Experiments</h1>
+
           <p className="page-description">
-            Execute bounded scenarios and preserve the evidence
-            behind each result.
+            Run bounded scenarios. Review the recorded
+            outcome, not just the action.
           </p>
         </div>
-      </div>
+      </header>
 
-      <div className="experiment-grid">
-        <section className="panel experiment-config">
+      <div className="experiments-layout">
+        <section
+          className="panel experiment-config"
+          aria-labelledby="new-run-title"
+        >
           <div className="panel-header">
             <div>
-              <h2>New experiment</h2>
-              <p>Currently supported sandbox scenario</p>
+              <p className="overline">
+                01 / CREATE
+              </p>
+
+              <h2 id="new-run-title">
+                New experiment
+              </h2>
+
+              <p>Local sandbox only</p>
             </div>
-            <FlaskConical size={20} className="muted" />
+
+            <FlaskConical
+              size={21}
+              aria-hidden="true"
+            />
           </div>
 
-          <form className="experiment-form" onSubmit={submit}>
+          <form
+            className="experiment-form"
+            onSubmit={submit}
+          >
             <div className="field">
               <label htmlFor="scenario">
                 Scenario
@@ -125,61 +191,85 @@ export function ExperimentsPage() {
                 id="scenario"
                 value="queue-burst"
                 readOnly
-                aria-describedby="scenario-help"
+                aria-describedby="scenario-note"
               />
 
-              <p id="scenario-help" className="field-help">
-                Submits background jobs to the isolated
-                demonstration workload.
+              <p
+                id="scenario-note"
+                className="field-help"
+              >
+                Submit bounded jobs to the demo workload.
               </p>
             </div>
 
-            <div className="field">
-              <label htmlFor="job-count">
-                Job count
-              </label>
+            <div className="form-two-col">
+              <div className="field">
+                <label htmlFor="job-count">
+                  Job count
+                </label>
 
-              <input
-                id="job-count"
-                type="number"
-                min={1}
-                max={8}
-                step={1}
-                value={count}
-                onChange={(event) => {
-                  setCount(Number(event.target.value));
-                  pendingKey.current = null;
-                }}
-                required
-              />
+                <input
+                  id="job-count"
+                  type="number"
+                  min="1"
+                  max="8"
+                  step="1"
+                  value={count}
+                  required
+                  onChange={(event) =>
+                    changeParams(() =>
+                      setCount(Number(event.target.value)),
+                    )
+                  }
+                />
+
+                <p className="field-help">
+                  1–8 jobs
+                </p>
+              </div>
+
+              <div className="field">
+                <label htmlFor="duration">
+                  Duration per job
+                </label>
+
+                <input
+                  id="duration"
+                  type="number"
+                  min="50"
+                  max="750"
+                  step="1"
+                  value={duration}
+                  required
+                  onChange={(event) =>
+                    changeParams(() =>
+                      setDuration(
+                        Number(event.target.value),
+                      ),
+                    )
+                  }
+                />
+
+                <p className="field-help">
+                  50–750 ms
+                </p>
+              </div>
             </div>
 
-            <div className="field">
-              <label htmlFor="duration">
-                Processing duration (ms)
-              </label>
-
-              <input
-                id="duration"
-                type="number"
-                min={50}
-                max={750}
-                step={1}
-                value={duration}
-                onChange={(event) => {
-                  setDuration(Number(event.target.value));
-                  pendingKey.current = null;
-                }}
-                required
+            <div className="safety-note">
+              <ShieldCheck
+                size={18}
+                aria-hidden="true"
               />
-            </div>
 
-            <div className="execution-note">
-              <strong>Execution boundary</strong>
               <p>
-                This scenario submits bounded demonstration
-                jobs. It does not modify Kubernetes resources
-                or perform fault injection.
+                <strong>Execution boundary</strong>
+
+                <span>
+                  No Kubernetes changes, shell execution
+                  or fault injection. This is a controlled
+                  demo workload.
+                </span>
               </p>
             </div>
 
@@ -187,28 +277,44 @@ export function ExperimentsPage() {
               <p className="inline-error" role="alert">
                 {create.error instanceof Error
                   ? create.error.message
-                  : "Could not create experiment."}
+                  : "Could not submit experiment."}
               </p>
             )}
 
             <button
-              className="button button--primary"
+              className="button button--primary button--full"
               type="submit"
               disabled={create.isPending}
             >
-              <FlaskConical size={17} />
               {create.isPending
-                ? "Submitting..."
+                ? "Submitting…"
                 : "Run experiment"}
+
+              <ArrowRight
+                size={17}
+                aria-hidden="true"
+              />
             </button>
           </form>
         </section>
 
-        <section className="panel experiment-history">
+        <section
+          className="panel experiment-history"
+          aria-labelledby="history-title"
+        >
           <div className="panel-header">
             <div>
-              <h2>Experiment history</h2>
-              <p>Latest 50 records from PostgreSQL</p>
+              <p className="overline">
+                02 / HISTORY
+              </p>
+
+              <h2 id="history-title">
+                Recorded runs
+              </h2>
+
+              <p>
+                Most recent 50 experiments
+              </p>
             </div>
 
             <button
@@ -223,7 +329,7 @@ export function ExperimentsPage() {
 
           <div className="table-toolbar">
             <label htmlFor="status-filter">
-              Filter status
+              Status
             </label>
 
             <select
@@ -233,18 +339,13 @@ export function ExperimentsPage() {
                 setFilter(event.target.value)
               }
             >
-              <option value="all">All statuses</option>
-              {(
-                [
-                  "queued",
-                  "running",
-                  "verifying",
-                  "succeeded",
-                  "failed",
-                ] as RunStatusType[]
-              ).map((status) => (
+              <option value="all">
+                All states
+              </option>
+
+              {statuses.map((status) => (
                 <option key={status} value={status}>
-                  {status}
+                  {titleCase(status)}
                 </option>
               ))}
             </select>
@@ -252,73 +353,67 @@ export function ExperimentsPage() {
 
           {runs.isPending && (
             <p className="state-message" role="status">
-              Loading experiments...
+              Loading experiments…
             </p>
           )}
 
           {runs.isError && (
             <div className="error-panel" role="alert">
-              Could not load experiment history.
+              <p>
+                Experiment history is unavailable.
+              </p>
+
+              <button
+                className="button button--secondary"
+                type="button"
+                onClick={() => void runs.refetch()}
+              >
+                Retry
+              </button>
             </div>
           )}
 
-          {runs.isSuccess && filtered.length === 0 && (
+          {runs.isSuccess && visible.length === 0 && (
             <div className="empty-state">
               <FlaskConical size={24} />
-              <h3>No matching experiments</h3>
+
+              <strong>No matching runs</strong>
+
               <p>
-                Create a new run or change the status filter.
+                Start an experiment or change
+                the status filter.
               </p>
             </div>
           )}
 
-          {filtered.length > 0 && (
-            <div className="table-scroll">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Run</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Created</th>
-                    <th scope="col">
-                      <span className="sr-only">Open</span>
-                    </th>
-                  </tr>
-                </thead>
+          {visible.length > 0 && (
+            <div className="activity-list activity-list--inside">
+              {visible.map((run) => (
+                <Link
+                  key={run.id}
+                  className="activity-row"
+                  to={`/experiments/${run.id}`}
+                >
+                  <span className="activity-row__identity">
+                    <strong>
+                      {titleCase(run.scenario)}
+                    </strong>
 
-                <tbody>
-                  {filtered.map((run) => (
-                    <tr key={run.id}>
-                      <td>
-                        <span className="table-primary">
-                          {run.scenario}
-                        </span>
-                        <span className="table-secondary mono">
-                          {shortId(run.id)}
-                        </span>
-                      </td>
+                    <small className="mono">
+                      {shortId(run.id)} ·{" "}
+                      {formatDate(run.created_at)}
+                    </small>
+                  </span>
 
-                      <td>
-                        <RunStatus status={run.status} />
-                      </td>
+                  <RunStatus status={run.status} />
 
-                      <td className="muted">
-                        {formatDate(run.created_at)}
-                      </td>
-
-                      <td>
-                        <Link
-                          className="row-link"
-                          to={`/experiments/${run.id}`}
-                          aria-label={`Open experiment ${shortId(run.id)}`}
-                        >
-                          <ArrowRight size={17} />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                  <ArrowRight
+                    size={17}
+                    className="activity-row__arrow"
+                    aria-hidden="true"
+                  />
+                </Link>
+              ))}
             </div>
           )}
         </section>

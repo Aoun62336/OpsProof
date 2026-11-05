@@ -168,7 +168,7 @@ def login(
     return {"authenticated": True, "csrf_token": csrf_token}
 
 
-@router.post("/logout")
+@router.post("/logout", dependencies=[Depends(authorize)])
 def logout(
     request: Request,
     response: Response,

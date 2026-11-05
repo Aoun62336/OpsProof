@@ -1,4 +1,8 @@
-import { useState, type FormEvent } from "react";
+import {
+  useState,
+  type FormEvent,
+} from "react";
+
 import { useMutation } from "@tanstack/react-query";
 import { ArrowRight, LockKeyhole } from "lucide-react";
 
@@ -6,13 +10,11 @@ import { Brand } from "../components/Brand";
 import { login } from "../lib/api";
 import type { Session } from "../lib/types";
 
-interface Props {
-  onAuthenticated: (session: Session) => void;
-}
-
 export function LoginPage({
   onAuthenticated,
-}: Props) {
+}: {
+  onAuthenticated: (session: Session) => void;
+}) {
   const [accessKey, setAccessKey] = useState("");
 
   const mutation = useMutation({
@@ -27,35 +29,82 @@ export function LoginPage({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!accessKey.trim()) return;
-
-    mutation.mutate(accessKey);
+    if (accessKey.trim()) {
+      mutation.mutate(accessKey);
+    }
   }
 
   return (
     <div className="login-layout">
-      <div className="login-panel">
+      <section
+        className="login-story"
+        aria-label="About OpsProof"
+      >
         <Brand />
 
-        <div className="login-panel__content">
-          <div className="eyebrow">
-            <LockKeyhole size={15} aria-hidden="true" />
-            PRIVATE OPERATIONS WORKSPACE
-          </div>
-
-          <h1>
-            Evidence over
-            <span className="login-heading-accent">
-              {" "}assumptions.
-            </span>
-          </h1>
-
-          <p className="login-description">
-            Investigate operational behavior, run controlled
-            experiments and verify outcomes with recorded evidence.
+        <div className="login-story__main">
+          <p className="overline overline--light">
+            CLOUD RELIABILITY & SAFE OPERATIONS
           </p>
 
-          <form className="login-form" onSubmit={submit}>
+          <h1>
+            Every recovery <em>deserves proof.</em>
+          </h1>
+
+          <p>
+            Investigate failures, run controlled operations
+            and verify outcomes against recorded evidence.
+          </p>
+
+          <div
+            className="login-principles"
+            aria-label="Platform approach"
+          >
+            <span>
+              01 <strong>Observe</strong>
+            </span>
+            <span>
+              02 <strong>Act</strong>
+            </span>
+            <span>
+              03 <strong>Verify</strong>
+            </span>
+          </div>
+        </div>
+
+        <p className="login-story__footer">
+          OpsProof / Engineering workspace / v0.2
+        </p>
+      </section>
+
+      <section
+        className="login-access"
+        aria-labelledby="login-title"
+      >
+        <div className="login-access__card">
+          <div className="login-access__mark">
+            <LockKeyhole
+              size={21}
+              aria-hidden="true"
+            />
+          </div>
+
+          <p className="overline">OPERATOR ACCESS</p>
+
+          <h2 id="login-title">
+            Enter your workspace
+          </h2>
+
+          <p className="login-access__intro">
+            Private access to the local control plane.
+            Your management key is never stored in browser
+            storage.
+          </p>
+
+          <form
+            onSubmit={submit}
+            className="login-form"
+          >
             <label htmlFor="access-key">
               Operator access key
             </label>
@@ -64,24 +113,19 @@ export function LoginPage({
               id="access-key"
               type="password"
               autoComplete="off"
+              minLength={8}
+              required
+              spellCheck={false}
               value={accessKey}
               onChange={(event) =>
                 setAccessKey(event.target.value)
               }
-              required
-              minLength={8}
-              spellCheck={false}
             />
-
-            <p className="field-help">
-              Use your locally configured control-plane key.
-              It is not stored in browser storage.
-            </p>
 
             {mutation.isError && (
               <p className="inline-error" role="alert">
-                Authentication failed. Check your access key
-                and control-plane connection.
+                Could not authenticate. Check your key
+                and connection.
               </p>
             )}
 
@@ -91,40 +135,21 @@ export function LoginPage({
               disabled={mutation.isPending}
             >
               {mutation.isPending
-                ? "Verifying access..."
+                ? "Verifying access…"
                 : "Enter workspace"}
 
-              <ArrowRight size={17} aria-hidden="true" />
+              <ArrowRight
+                size={17}
+                aria-hidden="true"
+              />
             </button>
           </form>
-        </div>
 
-        <div className="login-panel__footer">
-          <span>OpsProof v0.2</span>
-          <span>Controlled access · Local environment</span>
-        </div>
-      </div>
-
-      <div className="login-aside" aria-hidden="true">
-        <div className="login-aside__graphic">
-          <div className="signal-line signal-line--one" />
-          <div className="signal-line signal-line--two" />
-          <div className="signal-line signal-line--three" />
-        </div>
-
-        <div className="login-aside__copy">
-          <span className="eyebrow">
-            CLOUD RELIABILITY VERIFICATION
-          </span>
-
-          <h2>Know what failed. Prove what recovered.</h2>
-
-          <p>
-            A disciplined workspace for operational evidence,
-            safe decisions and reproducible reliability engineering.
+          <p className="login-access__hint">
+            Local environment · Session expires after 8 hours
           </p>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

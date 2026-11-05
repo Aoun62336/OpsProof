@@ -1,37 +1,39 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  --canvas: #0d1219;
-  --sidebar: #101721;
-  --surface: #171f2a;
-  --surface-raised: #1d2835;
-  --surface-hover: #253343;
+  /* Brand foundations */
+  --forest: #121d19;
+  --forest-deep: #0c1510;
+  --forest-soft: #30453a;
 
-  --border: #354455;
-  --border-muted: #283747;
+  --porcelain: #f2f0e9;
+  --paper: #fcfaf6;
 
-  --text: #f1f5f9;
-  --text-secondary: #bcc9d6;
-  --text-muted: #a3b3c4;
+  --ink: #202a25;
+  --ink-soft: #52645a;
+  --ink-muted: #66746b;
 
-  --accent: #93c5fd;
-  --accent-hover: #b4d6ff;
-  --accent-soft: #1d354b;
+  --line: #d7dbd2;
+  --line-strong: #bec7bc;
 
-  --healthy: #77dbba;
-  --warning: #f4cc83;
-  --critical: #ff9a9e;
-  --info: #97c4ff;
+  --accent: #30453a;
+  --accent-hover: #1b3026;
+  --bronze: #b18f75;
 
-  --font-ui: "Geist Variable", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
+  /* Operational semantics */
+  --queued: #525862;
+  --running: #245bdb;
+  --verifying: #7137b8;
+  --succeeded: #0f7b46;
+  --failed: #be263a;
+  --warning: #a75a00;
 
-  --radius-sm: 6px;
-  --radius-md: 9px;
-  --radius-lg: 12px;
+  /* Typography */
+  --font-ui: "Instrument Sans Variable", system-ui, sans-serif;
+  --font-editorial: "Newsreader Variable", Georgia, serif;
+  --font-code: "IBM Plex Mono", Consolas, monospace;
 
-  --sidebar-width: 244px;
-  --topbar-height: 68px;
-
-  --transition-fast: 150ms ease;
+  /* Layout */
+  --radius: 10px;
+  --sidebar-width: 242px;
 }

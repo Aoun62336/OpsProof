@@ -64,3 +64,9 @@ def test_correct_api_key_accepted(monkeypatch) -> None:
     # 503 is acceptable here because the DB is not running in unit tests;
     # 401 would mean auth failed which is what we are guarding against.
     assert response.status_code != 401
+
+
+def test_logout_requires_authentication() -> None:
+    with TestClient(api.app) as client:
+        response = client.post("/api/v1/auth/logout")
+    assert response.status_code == 401
