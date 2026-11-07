@@ -20,9 +20,20 @@ def main():
         )
 
     def patch(kind, name, ns, body):
+        path = ROOT / ".runtime/m5/gitops-trial-patch.json"
+        path.write_text(json.dumps(body), encoding="utf-8")
         subprocess.run(
-            [*kube, "patch", kind, name, "-n", ns, "--type=merge", "--patch-file", "-"],
-            input=json.dumps(body),
+            [
+                *kube,
+                "patch",
+                kind,
+                name,
+                "-n",
+                ns,
+                "--type=merge",
+                "--patch-file",
+                str(path),
+            ],
             text=True,
             check=True,
         )

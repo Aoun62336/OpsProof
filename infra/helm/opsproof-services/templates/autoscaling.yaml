@@ -9,6 +9,11 @@ spec:
   cooldownPeriod: 120
   minReplicaCount: {{ .Values.autoscaling.keda.minReplicas }}
   maxReplicaCount: {{ .Values.autoscaling.keda.maxReplicas }}
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 120
   triggers:
     - type: redis-streams
       metadata:
