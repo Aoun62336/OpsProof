@@ -8,14 +8,21 @@ verifying recovery, and measuring reliability outcomes.
 
 ## Project Status
 
-Development foundation in progress.
+Milestones 1-4 have a working source implementation and recorded local
+acceptance tests. The post-M4 safety-closure changes have also passed the real
+Python 3.14 suites, Docker recovery/shutdown drills and application-log telemetry
+checks. See
+[the current closure report](docs/operations/M4_ACCEPTANCE_CLOSURE_2026-11-07.md)
+and [the preceding local validation](docs/operations/M4_LOCAL_VALIDATION_REPORT.md).
 
-No production deployment, reliability improvement, AI diagnosis
-accuracy, or benchmark outcome is claimed at this stage.
+Milestones 5–7 (Kubernetes/GitOps, six-scenario benchmarking, cost-gated AWS
+verification and public release) remain outstanding. No production deployment,
+measured reliability improvement, live AI model qualification or AWS EKS
+verification is claimed.
 
 ## Architecture
 
-The planned platform includes:
+The implemented foundation and planned extensions include:
 
 - React and TypeScript operations console
 - FastAPI control service

@@ -8,6 +8,7 @@ import httpx2 as httpx
 
 from .config import settings
 from .db import pool
+from .evidence_contracts import exact_job_status, required_job_ids
 from .shutdown import ShutdownRequested, checkpoint, stopping
 from .store import event, fail
 from .streams import consume
@@ -46,12 +47,12 @@ def verify(run_id: UUID) -> None:
             (run_id,),
         ).fetchone()
 
-    if ev is None:
+    try:
+        job_ids = required_job_ids(ev["details"] if ev else None, row["count"])
+    except ValueError as exc:
         with pool().connection() as conn:
-            fail(conn, run_id, "No jobs_processed event found")
+            fail(conn, run_id, f"Invalid submitted-job evidence: {exc}")
         return
-
-    job_ids: list[str] = ev["details"]["job_ids"]
 
     try:
         deadline = time.monotonic() + VERIFY_TIMEOUT_S
@@ -77,7 +78,7 @@ def verify(run_id: UUID) -> None:
                     checkpoint()
                     resp = http.get(f"/api/v1/jobs/{job_id}")
                     resp.raise_for_status()
-                    statuses.append(resp.json()["status"])
+                    statuses.append(exact_job_status(resp.json(), job_id))
 
                 completed = sum(1 for s in statuses if s == "completed")
                 failed_count = sum(1 for s in statuses if s == "failed")
@@ -98,34 +99,32 @@ def verify(run_id: UUID) -> None:
         }
 
         with pool().connection() as conn:
-            if failed_count > 0:
+            if failed_count > 0 or completed != len(job_ids):
                 fail(
                     conn,
                     run_id,
-                    f"{failed_count} of {len(job_ids)} jobs failed",
+                    f"Exact-job verification unsuccessful: {completed} completed, "
+                    f"{failed_count} failed of {len(job_ids)} expected",
                 )
             else:
                 from psycopg.types.json import Jsonb
 
-                conn.execute(
+                updated = conn.execute(
                     """
                     UPDATE experiments
                     SET status = 'succeeded',
                         result = %s,
                         completed_at = now()
-                    WHERE id = %s
+                    WHERE id = %s AND status = 'verifying'
+                    RETURNING id
                     """,
                     (
                         Jsonb(new_result),
                         run_id,
                     ),
-                )
-                event(
-                    conn,
-                    run_id,
-                    "verified",
-                    {"completed": completed},
-                )
+                ).fetchone()
+                if updated:
+                    event(conn, run_id, "verified", {"completed": completed})
 
     except Exception as exc:
         logger.exception(

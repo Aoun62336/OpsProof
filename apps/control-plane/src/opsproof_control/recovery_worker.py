@@ -9,7 +9,8 @@ from psycopg.types.json import Jsonb
 
 from .config import settings
 from .db import pool
-from .diagnosis import Snapshot
+from .diagnosis import Diagnosis, Snapshot, allowed_recovery
+from .investigation_worker import collect
 from .operations import recovery_event
 from .shutdown import checkpoint
 
@@ -89,27 +90,71 @@ def execute_next_recovery() -> None:
         ):
             _finish(recovery_id, uncertain, "Incident or experiment no longer eligible")
             return
+        if not investigation or investigation["status"] != "ready":
+            _finish(recovery_id, uncertain, "Ready investigation no longer available")
+            return
         snapshot = Snapshot.model_validate(investigation["snapshot"])
-        if not snapshot.job_ids or len(snapshot.job_ids) != experiment["count"]:
+        baseline = Diagnosis.model_validate(investigation["baseline"])
+        if (
+            snapshot.incident_fingerprint != row["incident_fingerprint"]
+            or snapshot.run_id != row["run_id"]
+            or not snapshot.job_ids
+            or len(snapshot.job_ids) != experiment["count"]
+            or len(set(snapshot.job_ids)) != len(snapshot.job_ids)
+        ):
             _finish(recovery_id, uncertain, "Exact linked job evidence missing")
             return
+
+        # The stored proposal is not execution authority. Recollect all policy
+        # evidence, including a real recent Prometheus sample, on every attempt.
+        fresh = collect(incident, row["run_id"])
+        permitted, _ = allowed_recovery(fresh, baseline)
+        if (
+            not permitted
+            or fresh.incident_fingerprint != row["incident_fingerprint"]
+            or fresh.run_id != row["run_id"]
+            or fresh.job_ids != snapshot.job_ids
+            or len(fresh.job_ids) != experiment["count"]
+        ):
+            _finish(recovery_id, uncertain, "Fresh execution-time policy evidence not established")
+            return
+
+        # Incident and experiment may change while the read-only collector runs.
+        with pool().connection() as conn:
+            current_incident = conn.execute(
+                "SELECT status FROM incidents WHERE fingerprint=%s",
+                (row["incident_fingerprint"],),
+            ).fetchone()
+            current_run = conn.execute(
+                "SELECT status FROM experiments WHERE id=%s", (row["run_id"],)
+            ).fetchone()
+        if (
+            not current_incident
+            or current_incident["status"] != "firing"
+            or not current_run
+            or current_run["status"] != "verifying"
+        ):
+            _finish(recovery_id, uncertain, "Incident or experiment changed during collection")
+            return
+
         with httpx.Client(base_url=config.target_url, timeout=5, trust_env=False) as client:
-            if row["attempts"] == 1:
-                response = client.get(
-                    "/api/v1/internal/worker-state",
-                    headers={
-                        "X-OpsProof-Inspect-Key": config.inspection_key,
-                    },
-                )
-                response.raise_for_status()
-                state = response.json()
-                if (
-                    state.get("paused") is not True
-                    or type(state.get("ttl_seconds")) is not int
-                    or not 30 < state["ttl_seconds"] <= 480
-                ):
-                    _finish(recovery_id, "failed", "Fresh bounded worker hold not confirmed")
-                    return
+            # A retry never blindly clears a newly held worker. If the prior
+            # response was lost after applying the action, missing hold evidence
+            # remains indeterminate rather than being credited as a success.
+            response = client.get(
+                "/api/v1/internal/worker-state",
+                headers={"X-OpsProof-Inspect-Key": config.inspection_key},
+            )
+            response.raise_for_status()
+            state = response.json()
+            if (
+                not isinstance(state, dict)
+                or state.get("paused") is not True
+                or type(state.get("ttl_seconds")) is not int
+                or not 30 < state["ttl_seconds"] <= 480
+            ):
+                _finish(recovery_id, uncertain, "Fresh bounded worker hold not confirmed")
+                return
             # Expiry is checked again immediately before the actuator request.
             if datetime.now(UTC) >= row["expires_at"]:
                 _finish(recovery_id, "indeterminate", "Approval expired before actuator request")
@@ -122,9 +167,13 @@ def execute_next_recovery() -> None:
                 json={"recovery_id": str(recovery_id)},
             )
             response.raise_for_status()
-            result = response.json().get("result")
+            body = response.json()
+            result = body.get("result") if isinstance(body, dict) else None
+        if result == "not_paused":
+            _finish(recovery_id, uncertain, "Actuator confirmed no active worker hold")
+            return
         if result not in ("applied", "replayed"):
-            _finish(recovery_id, uncertain, "Actuator did not acknowledge a resume")
+            _finish(recovery_id, "indeterminate", "Actuator acknowledgment is unrecognized")
             return
         with pool().connection() as conn:
             updated = conn.execute(

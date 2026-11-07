@@ -1,4 +1,4 @@
-"""Verify an instrumented demo trace and a marked OTLP log through Grafana.
+"""Verify a real demo trace, a real worker log, and the OTLP pipeline.
 
 Run from the repository root with the full local Compose stack running.
 Uses only the standard library and the existing control-api container as a
@@ -132,36 +132,57 @@ def main():
         expected = {trace_id, base64.b64encode(bytes.fromhex(trace_id)).decode()}
         return any(span.get("traceId") in expected for span in spans)
 
-    def log_url(base):
+    def log_url(base, service, needle):
+        # Values are locally generated UUID markers, not arbitrary user input.
+        query = '{service_name="' + service + '"} |= "' + needle + '"'
         return (
             base
             + "/loki/api/v1/query_range?"
             + urlencode(
                 {
-                    "query": '{service_name="opsproof-verification"} |= "'
-                    + marker
-                    + '"',
+                    "query": query,
                     "start": str(started - 1_000_000_000),
                     "end": str(time.time_ns()),
-                    "limit": 10,
+                    "limit": 20,
                 }
             )
         )
 
-    def has_log(base, request_headers=None):
-        data = get(log_url(base), request_headers)
+    def has_log(base, service, needle, request_headers=None):
+        data = get(log_url(base, service, needle), request_headers)
         return data.get("status") == "success" and any(
-            marker in value[1]
+            needle in value[1]
             for stream in data["data"]["result"]
             for value in stream["values"]
         )
+
+    # Unlike the synthetic collector probe, this job must be processed by the
+    # real demo Redis Streams worker and emit its normal application log.
+    job_request = Request(
+        "http://127.0.0.1:8088/api/v1/jobs",
+        data=json.dumps({"duration_ms": 50}).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "Idempotency-Key": f"otel-worker-log-{uuid4()}",
+        },
+        method="POST",
+    )
+    with urlopen(job_request, timeout=5) as response:
+        job = json.load(response)
+    job_id = str(job["id"])
+    eventually(
+        lambda: get(f"http://127.0.0.1:8088/api/v1/jobs/{job_id}").get("status")
+        == "completed",
+        "one real bounded demo job completed",
+    )
 
     eventually(
         lambda: has_trace(f"http://127.0.0.1:3200/api/traces/{trace_id}"),
         "instrumented demo trace retrieved from Tempo",
     )
     eventually(
-        lambda: has_log("http://127.0.0.1:3100"), "marked log retrieved from Loki"
+        lambda: has_log("http://127.0.0.1:3100", "opsproof-verification", marker),
+        "marked synthetic OTLP log retrieved from Loki",
     )
     proxy = "http://127.0.0.1:3000/api/datasources/proxy/uid/"
     eventually(
@@ -169,8 +190,16 @@ def main():
         "same trace retrieved through authenticated Grafana datasource",
     )
     eventually(
-        lambda: has_log(proxy + "opsproof-loki", headers),
-        "same log retrieved through authenticated Grafana datasource",
+        lambda: has_log(proxy + "opsproof-loki", "opsproof-verification", marker, headers),
+        "same synthetic log retrieved through authenticated Grafana datasource",
+    )
+    eventually(
+        lambda: has_log("http://127.0.0.1:3100", "opsproof-demo-worker", job_id),
+        "real demo worker completion log retrieved from Loki",
+    )
+    eventually(
+        lambda: has_log(proxy + "opsproof-loki", "opsproof-demo-worker", job_id, headers),
+        "same real worker log retrieved through authenticated Grafana datasource",
     )
     output = ROOT / ".runtime" / "observability-verification.json"
     output.parent.mkdir(exist_ok=True)
@@ -182,6 +211,10 @@ def main():
                 "log_marker": marker,
                 "trace_source": "instrumented demo GET /api/v1/stats",
                 "log_source": "explicit synthetic OTLP verification record",
+                "worker_log_source": "real opsproof-demo-worker completed job message",
+                "worker_job_id": job_id,
+                "worker_log_loki": "passed",
+                "worker_log_grafana": "passed",
                 "tempo": "passed",
                 "loki": "passed",
                 "grafana_datasources": "passed",

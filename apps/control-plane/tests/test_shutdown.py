@@ -84,7 +84,7 @@ def test_evidence_shutdown_does_not_fail_experiment(monkeypatch):
     monkeypatch.setattr(evidence, "settings", lambda: SimpleNamespace(target_url="http://unused"))
     conn = MagicMock()
     conn.execute.return_value.fetchone.side_effect = [
-        {"status": "verifying"},
+        {"status": "verifying", "count": 1},
         {"details": {"job_ids": [str(uuid4())]}},
     ]
     db = MagicMock()
