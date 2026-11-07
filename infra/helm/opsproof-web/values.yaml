@@ -2,7 +2,7 @@ image:
   repository: opsproof-web
   tag: ""
   pullPolicy: IfNotPresent
-releaseMarker: foundation
+releaseMarker: gitops-verified
 resources:
   requests: {cpu: 20m, memory: 32Mi}
   limits: {cpu: 200m, memory: 128Mi}

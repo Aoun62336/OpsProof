@@ -165,15 +165,23 @@ def render(repo, revision, tag, allow_local=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-url", default=default_repo())
-    parser.add_argument("--local", action="store_true", help="use only the fixed in-cluster read-only Git server")
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="use only the fixed in-cluster read-only Git server",
+    )
     parser.add_argument("--revision", required=True, help="full remote Git SHA")
     parser.add_argument(
         "--tag", required=True, help="published or locally resolvable image tag"
     )
     args = parser.parse_args()
     try:
-        output = render(LOCAL_REPO if args.local else args.repo_url, args.revision, args.tag,
-                        allow_local=args.local)
+        output = render(
+            LOCAL_REPO if args.local else args.repo_url,
+            args.revision,
+            args.tag,
+            allow_local=args.local,
+        )
     except ValueError as exc:
         print(f"GitOps manifest rejected: {exc}", file=sys.stderr)
         sys.exit(2)

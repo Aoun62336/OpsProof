@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keda-redis-metrics
+  namespace: opsproof-demo
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: opsproof-redis
+      app.kubernetes.io/instance: demo-deps
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: keda}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: keda-operator}
+      ports: [{port: 6379, protocol: TCP}]
