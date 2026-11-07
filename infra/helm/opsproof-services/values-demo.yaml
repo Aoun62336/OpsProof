@@ -1,0 +1,4 @@
+component: demo
+image:
+  repository: opsproof-demo
+  tag: ""

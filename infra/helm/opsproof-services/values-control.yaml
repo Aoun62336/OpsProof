@@ -1,0 +1,4 @@
+component: control
+image:
+  repository: opsproof-control
+  tag: ""

@@ -1,0 +1,110 @@
+# Policy set requires CNI NetworkPolicy support and live connectivity tests.
+# Install after Stage 2/3 smoke, not before verifying DNS and service selectors.
+# Same-namespace app traffic is presently allowed to keep migrations and
+# durable queues correct. Cross-namespace access is explicitly targeted.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: opsproof-default-deny, namespace: opsproof-demo}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: opsproof-default-deny, namespace: opsproof-control}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: opsproof-default-deny, namespace: opsproof-ui}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: opsproof-namespace-traffic, namespace: opsproof-demo}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{podSelector: {}}]
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: opsproof-control}
+          podSelector:
+            matchLabels: {app.kubernetes.io/part-of: opsproof}
+      ports: [{port: 8080, protocol: TCP}]
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: opsproof-observability}
+      ports: [{port: 8080, protocol: TCP}]
+  egress:
+    - to: [{podSelector: {}}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+      ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: opsproof-observability}
+      ports: [{port: 4318, protocol: TCP}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: opsproof-namespace-traffic, namespace: opsproof-control}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{podSelector: {}}]
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: opsproof-ui}
+      ports: [{port: 8080, protocol: TCP}]
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: opsproof-observability}
+      ports: [{port: 8080, protocol: TCP}]
+  egress:
+    - to: [{podSelector: {}}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+      ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: opsproof-demo}
+          podSelector:
+            matchLabels: {opsproof.io/role: api}
+      ports: [{port: 8080, protocol: TCP}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: opsproof-observability}
+      ports: [{port: 4318, protocol: TCP}, {port: 9090, protocol: TCP}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: opsproof-web-traffic, namespace: opsproof-ui}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: opsproof-web}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: opsproof-gateway}
+      ports: [{port: 8080, protocol: TCP}]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: opsproof-control}
+          podSelector:
+            matchLabels: {opsproof.io/role: api}
+      ports: [{port: 8080, protocol: TCP}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+      ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]

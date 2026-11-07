@@ -184,3 +184,22 @@ The integration network should contain the demo API and the workers that need to
 First inspect its recorded status and worker logs. Do not immediately delete the database, Redis volumes, or messages. They may contain the information needed to diagnose the failure.
 
 In particular, an unacknowledged Redis message is not automatically evidence of a bug. It may be a message awaiting recovery after an interrupted consumer. Investigate the underlying state before resetting anything.
+
+## Milestone 5 foundation
+
+The supplied foundation is implemented locally with guarded bootstrap, separate Helm
+services and storage, role-scoped secrets, production Nginx, Gateway configuration,
+GitOps manifest generation, disabled autoscalers, and reproducible source checks.
+**M5 is not accepted:** live deployment requires the measured resource gate to pass;
+controller trials and restricted Kubernetes recovery remain outstanding.
+
+- [Acceptance report](docs/operations/M5_ACCEPTANCE_REPORT_2026-11-07.md)
+- Source checks: `python scripts/m5/validate_source.py` (Python, PyYAML, uv, Node, Helm required).
+- Upstream Gateway check: `python scripts/m5/validate_gateway.py`.
+- Resource gate: `python scripts/m5/preflight.py`.
+- Local bootstrap: `python scripts/m5/bootstrap.py`.
+- Foundation deployment: `python scripts/m5/deploy_foundation.py`.
+- Exact-job Kubernetes smoke: `python scripts/m5/smoke.py`.
+
+The scripts use an isolated local kubeconfig; they never target the default AWS context.
+Do not delete PVCs or the cluster as an automatic cleanup step.

@@ -1,0 +1,8 @@
+image:
+  repository: opsproof-web
+  tag: ""
+  pullPolicy: IfNotPresent
+releaseMarker: foundation
+resources:
+  requests: {cpu: 20m, memory: 32Mi}
+  limits: {cpu: 200m, memory: 128Mi}

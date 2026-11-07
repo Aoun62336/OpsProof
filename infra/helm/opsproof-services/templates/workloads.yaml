@@ -1,0 +1,46 @@
+{{- include "opsproof.validate" . -}}
+{{- $root := . -}}
+{{- $roles := list "api" "dispatch" -}}
+{{- if eq .Values.component "demo" -}}
+{{- $roles = append $roles "worker" -}}
+{{- else -}}
+{{- $roles = append (append $roles "evidence") "action" -}}
+{{- end -}}
+{{- range $role := $roles }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $root.Release.Name }}-{{ $role }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $root.Release.Name }}-{{ $role }}
+  labels: {app.kubernetes.io/part-of: opsproof, app.kubernetes.io/instance: {{ $root.Release.Name }}, opsproof.io/role: {{ $role }}}
+spec:
+  {{- if not (or (and (eq $role "api") $root.Values.autoscaling.hpa.enabled) (and (eq $role "worker") $root.Values.autoscaling.keda.enabled)) }}
+  replicas: {{ if eq $role "api" }}{{ $root.Values.api.replicas }}{{ else if eq $role "worker" }}{{ $root.Values.worker.replicas }}{{ else }}1{{ end }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels: {app.kubernetes.io/instance: {{ $root.Release.Name }}, opsproof.io/role: {{ $role }}}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/part-of: opsproof, app.kubernetes.io/instance: {{ $root.Release.Name }}, opsproof.io/role: {{ $role }}}
+    spec:
+{{ include "opsproof.pod" (dict "root" $root "role" $role) | indent 6 }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-api
+  labels: {app.kubernetes.io/part-of: opsproof, app.kubernetes.io/instance: {{ .Release.Name }}}
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/instance: {{ .Release.Name }}, opsproof.io/role: api}
+  ports:
+    - {name: http, port: 8080, targetPort: http}

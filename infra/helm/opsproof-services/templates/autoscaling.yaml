@@ -1,0 +1,47 @@
+{{- if and (eq .Values.component "demo") .Values.autoscaling.keda.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata: {name: {{ .Release.Name }}-worker-lag}
+spec:
+  scaleTargetRef:
+    name: {{ .Release.Name }}-worker
+  pollingInterval: 15
+  cooldownPeriod: 120
+  minReplicaCount: {{ .Values.autoscaling.keda.minReplicas }}
+  maxReplicaCount: {{ .Values.autoscaling.keda.maxReplicas }}
+  triggers:
+    - type: redis-streams
+      metadata:
+        address: demo-deps-redis.opsproof-demo.svc.cluster.local:6379
+        stream: "opsproof:jobs"
+        consumerGroup: "opsproof-workers"
+        lagCount: {{ .Values.autoscaling.keda.lagCount | quote }}
+        activationLagCount: "0"
+    - type: redis-streams
+      metadata:
+        address: demo-deps-redis.opsproof-demo.svc.cluster.local:6379
+        stream: "opsproof:jobs"
+        consumerGroup: "opsproof-workers"
+        pendingEntriesCount: {{ .Values.autoscaling.keda.lagCount | quote }}
+{{- end }}
+{{- if .Values.autoscaling.hpa.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: {name: {{ .Release.Name }}-api-cpu}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Release.Name }}-api
+  minReplicas: {{ .Values.autoscaling.hpa.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: {{ .Values.autoscaling.hpa.cpuUtilization }}}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 120
+{{- end }}

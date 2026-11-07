@@ -1,0 +1,6 @@
+apiVersion: v2
+name: opsproof-web
+description: Public local-only routing to the authenticated OpsProof operator console
+type: application
+version: 0.1.0
+appVersion: "1.0"

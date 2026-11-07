@@ -5,12 +5,12 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 10_000 },
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: process.env.OPSPROOF_E2E_BASE_URL ?? "http://127.0.0.1:5173",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
+  webServer: process.env.OPSPROOF_E2E_BASE_URL ? undefined : {
     command: "npm run dev",
     url: "http://127.0.0.1:5173",
     reuseExistingServer: !process.env.CI,

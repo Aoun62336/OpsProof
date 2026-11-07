@@ -1,0 +1,12 @@
+postgres:
+  image: postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+  storage: 2Gi
+  storageClassName: local-path
+  requests: {cpu: 100m, memory: 160Mi}
+  limits: {cpu: 750m, memory: 512Mi}
+redis:
+  image: redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
+  storage: 1Gi
+  storageClassName: local-path
+  requests: {cpu: 25m, memory: 64Mi}
+  limits: {cpu: 300m, memory: 256Mi}

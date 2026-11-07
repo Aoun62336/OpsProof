@@ -1,0 +1,38 @@
+component: "" # must be demo or control
+image:
+  repository: "" # explicit local imported or published immutable image
+  tag: ""
+  pullPolicy: IfNotPresent
+telemetry:
+  enabled: false
+  endpoint: http://otel-collector.opsproof-observability.svc.cluster.local:4318
+recoveryEnabled: false
+aiEnabled: false
+prometheusUrl: http://prometheus.opsproof-observability.svc.cluster.local:9090
+demoTargetUrl: http://demo-api.opsproof-demo.svc.cluster.local:8080
+cookieOrigins: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,http://127.0.0.1:8081
+api:
+  replicas: 1
+  resources:
+    requests: {cpu: 50m, memory: 96Mi}
+    limits: {cpu: 400m, memory: 256Mi}
+dispatcher:
+  resources:
+    requests: {cpu: 20m, memory: 64Mi}
+    limits: {cpu: 200m, memory: 192Mi}
+worker:
+  replicas: 1
+  resources:
+    requests: {cpu: 25m, memory: 72Mi}
+    limits: {cpu: 350m, memory: 256Mi}
+autoscaling:
+  keda:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    lagCount: 2
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 2
+    cpuUtilization: 70
