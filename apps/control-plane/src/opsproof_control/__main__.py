@@ -6,7 +6,9 @@ import logging
 import uvicorn
 
 from .action import run as run_action
+from .db import pool, redis_client
 from .evidence import run as run_evidence
+from .shutdown import lifecycle
 from .streams import dispatcher
 
 
@@ -44,12 +46,16 @@ def main() -> None:
             port=8080,
             workers=1,
         )
-    elif args.role == "dispatch":
-        dispatcher()
-    elif args.role == "evidence":
-        run_evidence()
-    elif args.role == "action":
-        run_action()
+    else:
+        with lifecycle():
+            try:
+                runners = {"dispatch": dispatcher, "evidence": run_evidence, "action": run_action}
+                runners[args.role]()
+            finally:
+                if redis_client.cache_info().currsize:
+                    redis_client().close()
+                if pool.cache_info().currsize:
+                    pool().close()
 
 
 if __name__ == "__main__":

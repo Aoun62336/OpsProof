@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     stream_name: str = "opsproof:jobs"
     consumer_group: str = "opsproof-workers"
 
+    inspection_key: str = ""
+    recovery_key: str = ""
+
     max_attempts: int = 3
     lease_seconds: int = 15
 

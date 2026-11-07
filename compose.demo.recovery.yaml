@@ -1,0 +1,6 @@
+# Demo-only inspection and resume; worker receives neither credential.
+services:
+  api:
+    environment:
+      OPSPROOF_INSPECTION_KEY: "${OPSPROOF_INSPECTION_KEY:?Prepare inspection key}"
+      OPSPROOF_RECOVERY_KEY: "${OPSPROOF_RECOVERY_KEY:?Prepare recovery key}"

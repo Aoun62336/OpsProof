@@ -20,7 +20,8 @@ storage:
     local:
       path: /var/tempo/blocks
 
-compactor:
+# Tempo 3.1.1 keeps the retention policy under the backend worker.
+backend_worker:
   compaction:
     block_retention: 24h
 

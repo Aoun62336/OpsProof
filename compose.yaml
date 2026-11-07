@@ -104,6 +104,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     mem_limit: 192m
     restart: unless-stopped
+    stop_grace_period: 30s
 
   worker:
     build: *demo-build
@@ -122,7 +123,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     mem_limit: 192m
     restart: unless-stopped
-    stop_grace_period: 15s
+    stop_grace_period: 30s
 
 volumes:
   pg-data:

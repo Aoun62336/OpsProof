@@ -119,6 +119,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     mem_limit: 128m
     restart: unless-stopped
+    stop_grace_period: 30s
 
   evidence-worker:
     build: *control-build
@@ -140,6 +141,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     mem_limit: 192m
     restart: unless-stopped
+    stop_grace_period: 30s
 
   action-worker:
     build: *control-build
@@ -161,6 +163,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     mem_limit: 192m
     restart: unless-stopped
+    stop_grace_period: 30s
 
 networks:
   control-private: {}

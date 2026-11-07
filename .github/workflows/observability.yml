@@ -55,6 +55,14 @@ jobs:
             -f compose.demo.telemetry.yaml \
             config --quiet
 
+      - name: Validate Collector and Tempo with their pinned binaries
+        run: |
+          docker network create opsproof-telemetry
+          docker compose -f compose.observability.yaml run --rm --no-deps \
+            otel-collector validate --config=/etc/otelcol/config.yaml
+          docker compose -f compose.observability.yaml run --rm --no-deps \
+            tempo -config.file=/etc/tempo/config.yaml -config.verify=true
+
       - name: Validate control telemetry Compose
         run: |
           docker compose \

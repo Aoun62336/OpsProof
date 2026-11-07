@@ -8,12 +8,13 @@ import httpx2 as httpx
 
 from .config import settings
 from .db import pool
+from .shutdown import ShutdownRequested, checkpoint, stopping
 from .store import event, fail
 from .streams import consume
 
 logger = logging.getLogger(__name__)
 
-VERIFY_TIMEOUT_S = 90
+VERIFY_TIMEOUT_S = 240
 POLL_INTERVAL_S = 2
 
 
@@ -61,6 +62,7 @@ def verify(run_id: UUID) -> None:
             trust_env=False,
         ) as http:
             while True:
+                checkpoint()
                 if time.monotonic() > deadline:
                     with pool().connection() as conn:
                         fail(
@@ -72,6 +74,7 @@ def verify(run_id: UUID) -> None:
 
                 statuses = []
                 for job_id in job_ids:
+                    checkpoint()
                     resp = http.get(f"/api/v1/jobs/{job_id}")
                     resp.raise_for_status()
                     statuses.append(resp.json()["status"])
@@ -83,7 +86,7 @@ def verify(run_id: UUID) -> None:
                 if pending == 0:
                     break
 
-                time.sleep(POLL_INTERVAL_S)
+                stopping.wait(POLL_INTERVAL_S)
 
         new_result = {
             "job_ids": job_ids,
@@ -138,8 +141,32 @@ def verify(run_id: UUID) -> None:
 
 
 def run() -> None:
-    consume(
-        settings().evidence_stream,
-        "evidence-workers",
-        verify,
-    )
+    """Keep incident review responsive while experiment verification waits."""
+    from threading import Thread
+
+    from .investigation_worker import process_next_investigation
+    from .recovery_worker import verify_next_recovery
+
+    def review_loop() -> None:
+        while not stopping.is_set():
+            try:
+                process_next_investigation()
+                checkpoint()
+                verify_next_recovery()
+            except ShutdownRequested:
+                return
+            except Exception:
+                logger.exception("Investigation/recovery verification tick failed")
+            stopping.wait(1)
+
+    review = Thread(target=review_loop, name="evidence-review")
+    review.start()
+    try:
+        consume(
+            settings().evidence_stream,
+            "evidence-workers",
+            verify,
+        )
+    finally:
+        stopping.set()
+        review.join()

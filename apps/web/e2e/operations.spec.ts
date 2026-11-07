@@ -40,6 +40,29 @@ async function signIn(
   ).toBeVisible();
 }
 
+test("investigation workspace is accessible and rejects mutation without CSRF", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/incidents/0000000000000000/investigate");
+  await expect(page.getByRole("heading", { name: "Investigation", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Linked experiment")).toBeVisible();
+  await expect(page.getByText("Paid model calls are disabled.")).toBeVisible();
+  const status = await page.evaluate(async () => {
+    const response = await fetch("/api/v1/investigations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": "browser-csrf-check" },
+      body: JSON.stringify({ incident_fingerprint: "0000000000000000" }),
+    });
+    return response.status;
+  });
+  expect(status).toBe(403);
+  const result = await new AxeBuilder({ page }).analyze();
+  expect(result.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const mobileResult = await new AxeBuilder({ page }).analyze();
+  expect(mobileResult.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual([]);
+});
+
 test("logout rejects invalid CSRF and returns to login", async ({ page }) => {
   await signIn(page);
   const status = await page.evaluate(async () => {

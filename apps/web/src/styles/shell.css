@@ -272,7 +272,7 @@
   gap: 14px;
   padding: 17px clamp(22px, 3vw, 46px);
   border-top: 1px solid var(--line);
-  color: var(--ink-muted);
+  color: var(--ink-soft);
   font-size: 11px;
 }
 

@@ -10,6 +10,15 @@ class Settings(BaseSettings):
     redis_url: str
     api_key: str = ""
     alert_webhook_token: str = ""
+    inspection_key: str = ""
+    recovery_key: str = ""
+    recovery_enabled: bool = False
+    prometheus_url: str = "http://prometheus:9090"
+    ai_enabled: bool = False
+    ai_daily_limit: int = 10
+    ai_provider: str = "gemini"
+    ai_model: str = "gemini-2.5-flash-lite"
+    ai_api_key: str = ""
     target_url: str = "http://opsproof-demo-api:8080"
     action_stream: str = "opsproof:actions:v1"
     evidence_stream: str = "opsproof:evidence:v1"

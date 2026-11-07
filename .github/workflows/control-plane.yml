@@ -124,6 +124,11 @@ jobs:
           uv run --no-project --python 3.14 \
             python scripts/verify_control.py
 
+      - name: Verify Milestone 4 authentication boundaries
+        run: |
+          uv run --no-project --python 3.14 \
+            python scripts/verify_m4_security.py
+
       - name: Show logs if validation failed
         if: failure()
         run: |

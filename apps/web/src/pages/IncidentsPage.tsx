@@ -1,6 +1,7 @@
 import {
   useState,
 } from "react";
+import { Link } from "react-router-dom";
 
 import {
   useQuery,
@@ -330,6 +331,10 @@ function IncidentRow({
         </small>
       </div>
 
+      <Link className="incident-row__action"
+        to={`/incidents/${encodeURIComponent(incident.fingerprint)}/investigate`}>
+        Investigate <ArrowRight size={15} aria-hidden="true" />
+      </Link>
       <button
         className="incident-row__action"
         type="button"

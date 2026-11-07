@@ -10,6 +10,8 @@ from redis.exceptions import ResponseError
 
 from .config import settings
 from .db import pool
+from .shutdown import checkpoint, stopping
+from .worker_control import HOLD_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -154,55 +156,69 @@ def run() -> None:
 
     group_ready = False
 
-    while True:
-        try:
-            if not group_ready:
-                try:
-                    redis_client.xgroup_create(
-                        config.stream_name,
-                        config.consumer_group,
-                        id="0",
-                        mkstream=True,
-                    )
+    try:
+        while not stopping.is_set():
+            try:
+                if not group_ready:
+                    try:
+                        redis_client.xgroup_create(
+                            config.stream_name,
+                            config.consumer_group,
+                            id="0",
+                            mkstream=True,
+                        )
 
-                except ResponseError as exc:
-                    if "BUSYGROUP" not in str(exc):
-                        raise
+                    except ResponseError as exc:
+                        if "BUSYGROUP" not in str(exc):
+                            raise
 
-                group_ready = True
+                    group_ready = True
 
-            claimed = redis_client.xautoclaim(
-                config.stream_name,
-                config.consumer_group,
-                consumer,
-                min_idle_time=config.lease_seconds * 1000,
-                start_id="0-0",
-                count=4,
-            )
+                if redis_client.get(HOLD_KEY):
+                    stopping.wait(0.5)
+                    continue
 
-            entries = claimed[1]
-
-            if not entries:
-                delivered = redis_client.xreadgroup(
+                checkpoint()
+                claimed = redis_client.xautoclaim(
+                    config.stream_name,
                     config.consumer_group,
                     consumer,
-                    {config.stream_name: ">"},
-                    count=1,
-                    block=1500,
+                    min_idle_time=config.lease_seconds * 1000,
+                    start_id="0-0",
+                    count=4,
                 )
 
-                entries = delivered[0][1] if delivered else []
+                entries = claimed[1]
 
-            for message_id, fields in entries:
-                process_entry(
-                    redis_client,
-                    message_id,
-                    fields,
-                )
+                checkpoint()
+                if not entries:
+                    delivered = redis_client.xreadgroup(
+                        config.consumer_group,
+                        consumer,
+                        {config.stream_name: ">"},
+                        count=1,
+                        block=1500,
+                    )
 
-        except Exception:
-            group_ready = False
+                    entries = delivered[0][1] if delivered else []
 
-            logger.exception("worker iteration failed; retrying")
+                for message_id, fields in entries:
+                    checkpoint()
+                    while redis_client.get(HOLD_KEY):
+                        checkpoint()
+                        stopping.wait(0.5)
+                    checkpoint()
+                    process_entry(
+                        redis_client,
+                        message_id,
+                        fields,
+                    )
 
-            time.sleep(1)
+            except Exception:
+                group_ready = False
+
+                logger.exception("worker iteration failed; retrying")
+
+                stopping.wait(1)
+    finally:
+        redis_client.close()

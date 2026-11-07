@@ -189,3 +189,157 @@ Executed:
 - Full Kubernetes incident correlation remains pending.
 - AI diagnosis is not yet evaluated.
 - Alert delivery alone is not automated remediation.
+
+## 2026-11-05: Milestone 4, AI Investigation and Safe Recovery
+
+### Objective
+
+Introduce evidence-driven incident investigation,
+a deterministic diagnosis baseline, optional AI
+evaluation, and controlled operator-approved
+demo-workload recovery.
+
+### Architecture
+
+- Existing authenticated FastAPI control API
+- Independent evidence and action workers
+- PostgreSQL investigation and recovery state
+- PostgreSQL recovery audit events
+- Existing Redis Streams experiment pipeline
+- Separate durable recovery requests
+- Bounded demo-worker hold
+- Fixed, idempotent demo-worker resume actuator
+- Deterministic diagnosis and policy checks
+- Optional structured-output AI evaluation
+- Forest & Porcelain investigation interface
+
+### Safety Decisions
+
+- No arbitrary shell execution
+- No Docker socket access
+- No arbitrary Kubernetes actions
+- No AI-authorized recovery
+- No unrestricted target selection
+- Recovery disabled by default
+- AI disabled by default
+- Separate inspection and recovery credentials
+- Explicit operator approval
+- Short-lived evidence and approval validity
+- Revalidation before execution
+- Idempotent action handling
+- Independent post-action verification
+- Indeterminate outcome for uncertain results
+
+### Engineering Implementation
+
+- Added migration 0004
+- Added investigation persistence and API
+- Added deterministic diagnosis rules
+- Added bounded evidence snapshots
+- Added optional model provider adapter
+- Added recovery request lifecycle
+- Added restricted recovery execution
+- Added independent recovery verification
+- Added worker hold/resume controls
+- Added investigation UI and API client support
+- Extended unit and security tests
+- Extended CI authentication checks
+- Added operational runbook and results template
+
+### Verification
+
+Local execution completed on 2026-11-06: control lint/format and 67 tests passed;
+demo lint/format and 18 tests passed; web lint, 4 tests, TypeScript/Vite build and
+8 browser tests passed. Migration 0004 is applied. The original experiment flow
+passed before and after the real Prometheus/Alertmanager recovery trial.
+
+Recovery b7c6ca3e-66d6-4356-9be1-91bbdd9fc198 succeeded after one actuator attempt,
+independent verification of five exact jobs, experiment success, hold removal and
+alert resolution. Live rejection, stale approval, expiry, idempotency, invalid
+credentials, CSRF and disabled-feature checks also passed. AI remained disabled.
+Both runtime flags were restored to false after the drill.
+
+The full telemetry stack remains blocked by the existing collector image
+otel/opentelemetry-collector-contrib:0.164.1 (no such manifest). A pre-existing shell
+footer contrast defect was recorded, without unrelated UI changes. The existing Tempo config also rejects its compactor field under the pinned
+3.1.1 image. Human populated UI review and remote CI remain pending. See the M4 runbook and trial results for
+reconstruction choices, exact commands, measurements and acceptance boundaries.
+
+Record the actual results for:
+
+- Python lint and formatting
+- Python unit tests
+- Browser tests and accessibility checks
+- Existing experiment integration
+- Incident detection
+- Diagnosis evidence
+- Approval rejection and expiry
+- Recovery execution
+- Idempotency handling
+- Exact-job verification
+- Alert resolution
+- Audit history
+- Resource consumption
+- AI comparison, if enabled
+
+### Known Limitations
+
+- Local demonstration workload only
+- Synthetic bounded worker pause
+- No arbitrary process restart
+- No production traffic
+- No two-person authorization
+- No production MTTR claim
+- No automatic generalized rollback
+- Small curated AI benchmark
+- AI disabled unless explicitly configured
+- Kubernetes and GitOps remediation planned later
+
+### Completion Criteria
+
+Milestone 4 is complete only when the required
+security, regression, runtime and recovery checks
+have passed and the evidence is recorded.
+
+## 2026-11-06: Authorized telemetry and accessibility corrections
+
+Resolved the three issues recorded above without changing the deployment design:
+pinned the verified Collector 0.164.0 manifest digest, used Tempo 3.1.1's exact
+`backend_worker.compaction.block_retention` schema with the original 24h value,
+and reused the existing accessible ink-soft color for the footer. Corrected the
+initial top-level compaction recommendation after the actual 3.1.1 binary rejected
+it; latest documentation must not substitute for version-specific validation.
+
+Collector and Tempo native validation passed, and all six monitoring services ran
+with zero restarts. A real instrumented demo trace and marked synthetic log were
+retrieved from their backends and through authenticated Grafana datasource queries.
+Added a reproducible standard-library verification script and native configuration
+checks to the existing observability CI workflow. Restored full-page axe scanning
+and added a mobile scan; all eight browser tests, four web unit tests, lint/build,
+original workload regression and authentication smoke checks passed.
+
+See the updated M4 runbook and trial report for commands, exact artifact digest,
+version-specific sources and evidence. Remote CI, human populated UI review and
+long-duration retention testing are not claimed as performed.
+
+## 2026-11-07: Cooperative worker termination and local acceptance
+
+Fixed the five background roles that previously ignored SIGTERM as container PID 1.
+Signal handlers request cooperative stop; dispatchers finish their outbox transaction,
+the demo worker finishes its current bounded job, and interrupted control work stays
+durable and unacknowledged for retry. Long read-only/submission loops use safe
+checkpoints that bypass business-failure handlers. The evidence review thread is
+joined before Redis and PostgreSQL resources close. Compose now allows 30 seconds
+for normal worker shutdown. APIs, approval rules, persistent data and credentials
+are unchanged by the shutdown fix.
+
+Added signal, acknowledgement, action interruption and thread-join regression tests,
+and scripts/verify_shutdown.py for the real container stop/restart drill. Final unit
+suites passed: 75 control, 23 demo; web lint/build, 4 unit tests and 8 browser tests
+passed. Live active demo/evidence/action shutdowns exited 0 and resumed their exact
+jobs with one attempt each. Fresh browser-driven recovery and independent proof,
+telemetry delivery, authentication checks and deterministic benchmark passed.
+
+See docs/operations/M4_LOCAL_VALIDATION_REPORT.md for exact trials, cleanup results,
+and remaining remote-CI/paid-provider/long-duration scope. The old SIGINT workaround
+is superseded by docs/operations/WORKER_SHUTDOWN.md.

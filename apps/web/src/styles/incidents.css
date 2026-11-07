@@ -55,7 +55,7 @@
 
 .incident-row {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-columns: 36px minmax(0, 1fr) auto auto;
   align-items: start;
   gap: 15px;
   padding: 19px 4px;

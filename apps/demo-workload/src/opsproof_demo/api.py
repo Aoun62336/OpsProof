@@ -1,19 +1,52 @@
 """HTTP API for creating and inspecting background jobs."""
 
+from secrets import compare_digest
 from uuid import UUID, uuid4
 
 import redis
-from fastapi import FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, status
+from pydantic import BaseModel, ConfigDict
 
 from .config import settings
 from .contracts import CreateJob, JobCounts, JobDetails
 from .db import pool
 from .metrics import install_metrics
+from .worker_control import hold_state, resume_worker
 
 app = FastAPI(
     title="OpsProof Demo Workload",
     version="0.1.0",
 )
+
+
+class ResumeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    recovery_id: UUID
+
+
+def require_inspection(x_opsproof_inspect_key: str | None = Header(default=None)) -> None:
+    expected = settings().inspection_key
+    if not expected or not compare_digest(x_opsproof_inspect_key or "", expected):
+        raise HTTPException(status_code=401, detail="Inspection key required")
+
+
+def require_recovery(x_opsproof_recovery_key: str | None = Header(default=None)) -> None:
+    expected = settings().recovery_key
+    if not expected or not compare_digest(x_opsproof_recovery_key or "", expected):
+        raise HTTPException(status_code=401, detail="Recovery key required")
+
+
+@app.get("/api/v1/internal/worker-state", dependencies=[Depends(require_inspection)])
+def worker_state() -> dict[str, bool | int]:
+    with redis.Redis.from_url(settings().redis_url, socket_timeout=3) as client:
+        return hold_state(client)
+
+
+@app.post("/api/v1/internal/worker/resume", dependencies=[Depends(require_recovery)])
+def worker_resume(payload: ResumeBody) -> dict[str, str]:
+    with redis.Redis.from_url(settings().redis_url, socket_timeout=3) as client:
+        return {"result": resume_worker(client, payload.recovery_id)}
+
 
 install_metrics(app)
 

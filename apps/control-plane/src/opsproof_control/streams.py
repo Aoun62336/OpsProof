@@ -2,7 +2,6 @@
 
 import logging
 import os
-import time
 from collections.abc import Callable
 from uuid import UUID
 
@@ -10,6 +9,7 @@ from redis import Redis
 from redis.exceptions import ResponseError
 
 from .db import pool, redis_client
+from .shutdown import checkpoint, stopping
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,7 @@ def messages(
     )
     entries = claimed[1]
 
+    checkpoint()
     if not entries:
         delivered = redis.xreadgroup(
             group,
@@ -64,7 +65,7 @@ def messages(
 
 def dispatcher() -> None:
     """Read the control-plane outbox and publish to Redis Streams."""
-    while True:
+    while not stopping.is_set():
         try:
             redis = redis_client()
 
@@ -95,24 +96,25 @@ def dispatcher() -> None:
                     )
 
             if row is None:
-                time.sleep(0.4)
+                stopping.wait(0.4)
 
         except Exception:
             logger.exception("outbox dispatch failed; retrying")
-            time.sleep(1)
+            stopping.wait(1)
 
 
 def consume(
     stream: str,
     group: str,
     handler: Callable[[UUID], None],
+    tick: Callable[[], None] | None = None,
 ) -> None:
     """Generic consumer loop for a Redis Stream consumer group."""
     redis = redis_client()
     consumer = f"{os.getenv('HOSTNAME', 'worker')}-{os.getpid()}"
     group_ready = False
 
-    while True:
+    while not stopping.is_set():
         try:
             if not group_ready:
                 ensure_group(redis, stream, group)
@@ -121,6 +123,7 @@ def consume(
             entries = messages(redis, stream, group, consumer)
 
             for message_id, fields in entries:
+                checkpoint()
                 run_id = UUID(fields["run_id"])
                 try:
                     handler(run_id)
@@ -135,4 +138,10 @@ def consume(
         except Exception:
             group_ready = False
             logger.exception("consumer iteration failed; retrying")
-            time.sleep(1)
+            stopping.wait(1)
+
+        if tick is not None and not stopping.is_set():
+            try:
+                tick()
+            except Exception:
+                logger.exception("Secondary durable work failed; retrying")

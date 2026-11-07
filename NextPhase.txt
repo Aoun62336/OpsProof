@@ -1,0 +1,3995 @@
+OpsProof | Milestone 4: AI Investigation, Safe Recovery & Security
+Implementation begins · Based on OpsProof(2).zip · November 5, 2026
+
+We are moving beyond detecting incidents to a more demanding question:
+
+Can OpsProof investigate a failure, recommend an evidence-backed response, execute a narrowly authorized recovery, and independently establish whether it worked?
+
+That is the objective of Milestone 4.
+1. What the existing code supports
+I reviewed the source again before planning the implementation. Your current system already has:
+- A PostgreSQL-backed incident registry with deduplicated firing/resolved alert transitions.
+- A control API with API-key authentication, browser sessions and CSRF protection.
+- An independent action worker and evidence worker connected through Redis Streams and a transactional outbox.
+- A bounded queue-burst experiment that creates demo jobs and verifies their final states.
+- Prometheus metrics for API requests, dependencies, experiment states and demo job states.
+- The approved Forest & Porcelain interface, including the Incidents page.
+We will extend those components rather than introduce a second control plane or rebuild the existing application.
+
+There is one prerequisite: the uploaded archive did not independently establish that the complete Milestone 3 alerting and telemetry fault drills passed. We can implement Milestone 4 now, but operational recovery must remain disabled until those integration checks pass.
+2. The architecture we will implement
+Detected incident
+
+Alertmanager → authenticated OpsProof incident registry
+
+
+Evidence snapshot
+
+Known incident facts, bounded metrics, freshness checks
+
+
+Deterministic diagnosis
+
+Testable rules, no model cost, can abstain
+
+
+Optional AI diagnosis
+
+Structured hypothesis, bounded input, independently evaluated
+
+
+
+
+Policy gate and operator approval
+
+Strict allowlist, current evidence, expiry, kill switch
+
+
+Restricted action worker → Independent evidence worker
+
+Execute bounded operation → verify actual outcome → preserve audit trail
+
+
+The model will never approve or execute an operational action. AI output is a hypothesis to inspect, not an authorization credential.
+The initial recovery capability
+For the local demo, we will implement a controlled recovery of a deliberately paused background worker. This will use a narrowly scoped demo-only control endpoint rather than mounting /var/run/docker.sock or granting cloud credentials.
+
+The scenario will be:
+1. Deliberately pause the demo worker's consumption of new jobs.
+2. Create a bounded backlog and observe the corresponding incident.
+3. Collect evidence and request a recovery proposal.
+4. Require explicit operator approval.
+5. Let the restricted action worker resume job consumption.
+6. Let the independent evidence worker check that queued jobs actually completed.
+7. Record whether recovery was verified, failed or could not be established.
+This is a real controlled recovery of a deliberately paused worker, not a claim that OpsProof can restart an arbitrary crashed process. Restarting Kubernetes workloads and progressive rollback will require the restricted Kubernetes permissions introduced in Milestone 5.
+AI provider decision
+I checked current official documentation rather than choosing a model based on its name.
+
+For the initial comparison, we can evaluate Gemini 2.5 Flash-Lite against GPT-6 Luna, alongside the zero-cost deterministic baseline. Their published standard text prices are inexpensive relative to your budget, but pricing does not establish diagnostic accuracy.
+ai.google.dev+1
+
+
+Paid model access stays off by default. We will send only bounded, sanitized incident facts, not raw logs, secrets, tokens or unrestricted Prometheus results.
+
+We will benchmark correctness, abstention, unsupported claims, latency and estimated API cost before choosing a default. Structured JSON output helps enforce contracts but does not guarantee truthful reasoning.
+OpenAI API+1
+
+
+3. Implementation sequence
+We will use the existing repository at:
+
+~/Desktop/opsproof
+
+The work is organized into five substantial parts:
+Part	Deliverable
+A	Durable investigation and recovery records
+B	Deterministic diagnosis and optional AI evaluation
+C	Bounded recovery, approval and independent verification
+D	Forest & Porcelain incident investigation interface
+E	Tests, security gates, fault experiments and evidence
+
+No AWS resources are needed. We will reuse PostgreSQL, Redis, the existing workers, and the observability network.
+Step 1. Protect the current work
+In Git Bash:
+cd "$HOME/Desktop/opsproof"
+
+git status --short
+git branch --show-current
+git log -3 --oneline
+
+
+Make sure the work you completed is committed before creating the new feature branch.
+git switch -c feature/ai-investigation-safe-recovery
+
+
+If the branch already exists, switch to it rather than recreating it.
+Step 2. Add the database migration
+New file: apps/control-plane/alembic/versions/0004_investigation_recovery.py
+"""Incident investigations, governed recovery, and generic outbox tasks.Revision ID: 0004Revises: 0003"""import sqlalchemy as safrom sqlalchemy.dialects.postgresql import JSONBfrom alembic import oprevision = "0004"down_revision = "0003"branch_labels = Nonedepends_on = Nonedef upgrade() -> None:    op.alter_column(        "outbox",        "run_id",        existing_type=sa.UUID(),        nullable=True,    )    op.add_column(        "outbox",        sa.Column("task_id", sa.UUID(), nullable=True),    )    op.create_check_constraint(        "ck_outbox_single_identifier",        "outbox",        "(run_id IS NOT NULL) <> (task_id IS NOT NULL)",    )    op.create_table(
+
+
+
+Why this migration?
+We are introducing three durable concepts:
+- Investigations: Independent snapshots and diagnostic results.
+- Recovery requests: Explicit proposals with expiry, approval and terminal outcomes.
+- Recovery events: An append-only history of decisions and transitions.
+We also extend the existing transactional outbox so it can dispatch work for both experiments and new operational tasks.
+
+Every outbox row must reference either an experiment (run_id) or an operational task (task_id), never both.
+
+We are not replacing Redis Streams or introducing another queueing framework.
+
+4. Extend configuration and the existing outbox
+Step 3. Add settings
+Path: apps/control-plane/src/opsproof_control/config.py
+
+Inside the existing Settings class, directly after:
+evidence_stream: str = "opsproof:evidence:v1"
+
+
+
+Add:
+    investigation_stream: str = "opsproof:investigations:v1"    recovery_action_stream: str = "opsproof:recoveries:action:v1"    recovery_evidence_stream: str = "opsproof:recoveries:evidence:v1"    prometheus_url: str = "http://prometheus:9090"    ai_enabled: bool = False    ai_daily_limit: int = 10    gemini_api_key: str = ""    openai_api_key: str = ""    recovery_enabled: bool = False    demo_recovery_token: str = ""
+
+
+
+Preserve the existing database URL, Redis URL, authentication settings, target_url, and environment-prefix configuration.
+
+Why: AI and recovery are independently disabled by default. An available API key must not silently activate paid model calls or operational actions.
+Step 4. Generalize the outbox
+Path: apps/control-plane/src/opsproof_control/store.py
+
+Keep all existing functions.
+
+At the end, add:
+def enqueue_task(    conn: Connection,    stream: str,    task_id: UUID,) -> None:    """Use the existing durable outbox for non-experiment work."""    conn.execute(        """        INSERT INTO outbox (stream, task_id)        VALUES (%s, %s)        """,        (stream, task_id),    )
+
+
+
+Path: apps/control-plane/src/opsproof_control/streams.py
+
+Inside dispatcher(), find:
+SELECT id, stream, run_id
+FROM outbox
+
+
+Change it to:
+SELECT id, stream, run_id, task_id
+FROM outbox
+
+
+Find the existing Redis publication:
+redis.xadd(    row["stream"],    {"run_id": str(row["run_id"])},)
+
+
+
+Replace it with:
+redis.xadd(    row["stream"],    {        "run_id": str(            row["run_id"] or row["task_id"]        ),    },)
+
+
+
+The message field name stays run_id for compatibility with the existing generic consumer. For new task streams, it carries the task UUID.
+
+Why this design: We preserve the original transactional outbox and consumer behavior rather than creating an unrelated delivery mechanism for investigations and recovery.
+
+If PostgreSQL commits the approved request but Redis temporarily fails, the unpublished outbox record remains available for retry.
+
+Part B. Deterministic and AI diagnosis
+Step 5. Implement bounded evidence capture
+New file: apps/control-plane/src/opsproof_control/diagnosis.py
+"""Bounded evidence capture and transparent deterministic diagnosis.Neither evidence snapshots nor diagnostic hypotheses authorize actions."""from datetime import UTC, datetimefrom math import isfiniteimport httpx2 as httpxfrom pydantic import BaseModel, ConfigDictfrom .config import settingsALERTS = frozenset({    "OpsProofDemoAPIUnavailable",    "OpsProofDemoDependenciesUnavailable",    "OpsProofDemoQueueBacklog",})QUERIES = {    "demo_api_up": (        'last_over_time(up{job="opsproof-demo-api"}[30s])'    ),    "demo_dependencies_ready": (        "last_over_time(opsproof_demo_dependencies_ready[30s])"    ),    "queued_jobs": (        'last_over_time(opsproof_demo_jobs{state="queued"}[30s])'    ),}class Hypothesis(BaseModel):    model_config = ConfigDict(extra="forbid")
+
+
+
+Why this is not just a set of hardcoded answers
+The rules recognize specific monitored symptoms, but they also require supporting measurements.
+
+For example, seeing the OpsProofDemoQueueBacklog alert name alone does not establish that the worker is paused.
+
+The baseline requires a fresh positive queued-job measurement and a scrapeable API. Even then, it reports queue backlog, not an invented root cause.
+
+Missing, ambiguous or stale measurements cause the classifier to abstain.
+
+The last_over_time(...[30s]) expressions ensure that older metric samples are not silently treated as current evidence.
+Why we need this before AI
+A deterministic baseline provides a reference against which we can measure AI.
+
+If a paid model simply repeats the same known alert name with a more confident explanation, that is not necessarily an improvement.
+
+We need to measure whether it identifies additional correct information without inventing causes or recommending unsafe actions.
+
+Step 6. Implement the optional AI adapter
+New file: apps/control-plane/src/opsproof_control/ai_diagnosis.py
+"""Optional, bounded, non-actionable AI hypothesis comparison.Only normalized evidence is sent.No raw logs, annotations, credentials or execution tools."""import jsonfrom typing import Literalimport httpx2 as httpxfrom pydantic import BaseModel, ConfigDict, Fieldfrom .config import settingsClassification = Literal[    "api_unreachable",    "dependency_unready",    "queue_backlog",    "insufficient_evidence",]class ModelHypothesis(BaseModel):    model_config = ConfigDict(extra="forbid")    classification: Classification    explanation: str = Field(        min_length=1,        max_length=400,    )    checks: list[str] = Field(max_length=3)
+
+
+
+What this implementation protects
+The provider receives only recognized alert categories and bounded numeric telemetry.
+
+It does not receive:
+- Operator credentials or database connection strings.
+- Raw application logs.
+- Alert annotations containing arbitrary text.
+- Arbitrary commands, repository files or system prompts.
+- Docker or Kubernetes API access.
+The provider is never given tools to execute.
+
+Even if it returns malicious or unexpected fields, Pydantic rejects additional fields outside the defined model.
+
+OWASP's guidance emphasizes treating model output and retrieved data as untrusted and applying authorization in independent application code, rather than relying on prompts alone.
+GitHub
+
+
+One limitation: This first provider adapter records a bounded hypothesis, but does not yet capture complete provider-side token usage or response latency metadata. That must be added to the benchmark records before we make quantitative cost/performance comparisons. Do not claim measured AI savings from this code alone.
+
+Step 7. Queue investigations through the existing evidence worker
+New file: apps/control-plane/src/opsproof_control/investigation.py
+"""Authenticated investigation queue and read-oriented execution."""import loggingfrom datetime import datetimefrom typing import Literalfrom uuid import UUID, uuid4from fastapi import (    APIRouter,    Depends,    HTTPException,    Query,    status,)from psycopg.types.json import Jsonbfrom pydantic import BaseModel, ConfigDictfrom .ai_diagnosis import comparefrom .auth import authorizefrom .config import settingsfrom .db import poolfrom .diagnosis import capture, diagnosefrom .store import enqueue_tasklogger = logging.getLogger(__name__)router = APIRouter(    prefix="/api/v1",    tags=["Investigations"],    dependencies=[Depends(authorize)],)class StartInvestigation(BaseModel):    model_config = ConfigDict(extra="forbid")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+continue and complete
+
+
+
+
+
+
+
+
+
+
+
+
+I’ll finish Milestone 4 as one coherent implementation package, using the uploaded repository as the authority. I’ll first verify the current worker, incident, database and authentication contracts, then provide the diagnosis engine, AI benchmark, bounded recovery mechanism, policy/approval gates, independent verification, UI integration, tests and runbook. I’ll correct anything in the earlier outline that the actual code does not support, rather than forcing a new design onto it.
+
+Designed worker controls, refined pausing, and strengthened recovery evidence
+
+Inspected OpsProof archives, source files, controls, and milestone data
+
+
+
+
+Hardened the recovery workflow
+
+Planned investigation flow and state machine implementation
+
+Searched 5 websites
+
+
+
+
+Structured the implementation
+
+Implemented Milestone 4 reliability workflows, recovery APIs, worker controls, and safeguards
+
+
+
+
+The implementation is now using the actual PostgreSQL schema and worker roles from your archive. I’ve added a separate investigation/recovery state machine, a short-lived demo-worker hold with automatic expiry, and an idempotent resume operation. The evidence worker checks specific job IDs and the existing experiment result before marking a recovery successful. I’m validating the failure paths next, especially stale approvals, worker restarts, model-output trust, and cases where the alert resolves without a verified recovery.
+
+Reviewed OpsProof recovery, updated investigation UI/API, and tracked AI metrics
+
+
+
+
+I’ve completed the major backend design and source-level integration: investigations are created through the authenticated API, processed by the existing evidence worker, and stored with a deterministic diagnosis. Recovery requests are separate durable records with a 120-second approval window and a default-off kill switch. The action worker can only resume the demo worker using a dedicated credential; the evidence worker then checks the linked jobs, experiment verification, and alert resolution. I’m finishing the browser workflow, benchmark harness, tests, and exact startup sequence now.
+
+Validated TypeScript and Compose YAML, then benchmarked synthetic diagnostic cases
+
+
+
+
+Reviewed implementation risks, live-state safeguards, and transition handling
+
+Searched 1 website
+
+
+
+
+Reviewed and hardened OpsProof controls, implementation, tests, CI, and styles
+
+
+
+
+
+
+
+
+
+
+Milestone 4: Implementation decisions confirmed
+I have now checked the actual source in OpsProof(2).zip, including action.py, evidence.py, streams.py, both FastAPI applications, the incident tables, the Compose networks, and the current React routes.
+
+There are three important corrections to make to the earlier Milestone 4 outline.
+
+First, a paused worker is not the same as a stopped container. Your demo worker currently consumes Redis Streams continuously; it has no pause/resume control. We must implement an explicitly bounded, demo-only pause mechanism before claiming that an operator can recover it. This will not give OpsProof access to the Docker socket.
+
+Second, we must protect the existing experiment pipeline. Your current outbox uses a run_id foreign key to experiments, and the Redis consumer expects experiment UUIDs. We should not insert recovery messages into that structure without changing its contract. Instead, recovery approvals will live in a separate durable PostgreSQL state machine, with the existing restricted workers processing only the work permitted to them.
+
+Third, incident detection is not proof of root cause. A queue-backlog alert establishes that work is waiting; it does not prove the worker is paused. The diagnosis engine must confirm the pause state and the relevant job records before recommending the demo-worker resume action. Otherwise it must abstain.
+The safety contract
+Boundary	What it can do
+Control API	Authenticate operators, create investigations, record approvals and rejections
+Evidence worker	Read bounded evidence, run deterministic diagnosis, optionally evaluate AI, verify recovery
+Action worker	Execute one allowlisted demo recovery after checking authorization and live state
+Demo API	Expose narrowly scoped inspection and idempotent resume operations
+AI provider	Produce a structured, untrusted diagnosis hypothesis
+PostgreSQL	Persist investigation, approval, execution and verification history
+Redis	Hold the temporary, expiring demo-worker pause signal
+
+Recovery will be disabled by default. A valid operator login alone will not execute anything, and an AI suggestion will never bypass a policy check.
+
+This follows OWASP's guidance to enforce least privilege, treat model output as untrusted, and place approval enforcement at the actual action boundary.
+OWASP Cheat Sheet Series
+
+
+Part 1. Repository setup and bounded demo recovery
+We will retain the current services and add two small Compose overrides. No new database server, Redis server, Docker socket mount, or privileged container is required.
+Step 1. Create the milestone branch
+In Git Bash, from the project folder on your Desktop:
+cd "$HOME/Desktop/opsproof"
+
+git status --short
+git branch --show-current
+git log -3 --oneline
+
+
+Preserve any uncommitted work. When the tree is clean, run:
+git switch -c feature/ai-investigation-safe-recovery
+
+
+If the branch already exists, switch to it rather than recreating it.
+Step 2. Add narrowly scoped configuration
+File: apps/demo-workload/src/opsproof_demo/config.py
+
+In the existing Settings class, immediately before max_attempts, add:
+    inspection_key: str = ""    recovery_key: str = ""
+
+
+
+These become OPSPROOF_INSPECTION_KEY and OPSPROOF_RECOVERY_KEY through the existing Pydantic settings prefix.
+
+File: apps/control-plane/src/opsproof_control/config.py
+
+In the existing Settings class, after alert_webhook_token, add:
+    inspection_key: str = ""    recovery_key: str = ""    # This gate is enforced again inside the action worker.    recovery_enabled: bool = False    prometheus_url: str = "http://prometheus:9090"    # Model calls are explicit, disabled and capped by default.    ai_enabled: bool = False    ai_daily_limit: int = 10    ai_provider: str = "gemini"    ai_model: str = "gemini-2.5-flash-lite"    ai_api_key: str = ""
+
+
+
+Do not replace the existing database, Redis, browser-session or target settings.
+Step 3. Generate local credentials safely
+New file: scripts/prepare_recovery.py
+"""Prepare missing local credentials without printing secrets."""from pathlib import Pathfrom secrets import token_urlsafeROOT = Path(__file__).resolve().parents[1]ENV_FILE = ROOT / ".env"def main() -> None:    if not ENV_FILE.exists():        raise SystemExit(            "Root .env missing. Restore existing local "            "configuration before proceeding."        )    existing = ENV_FILE.read_text(        encoding="utf-8"    ).splitlines()    names = {        line.partition("=")[0].strip()        for line in existing        if line.strip()        and not line.lstrip().startswith("#")    }    additions = []    for key in (        "OPSPROOF_INSPECTION_KEY",        "OPSPROOF_RECOVERY_KEY",    ):        if key not in names:            additions.append(                f"{key}={token_urlsafe(32)}"
+
+
+
+Run:
+cd "$HOME/Desktop/opsproof"
+
+uv run --no-project --python 3.14 \
+  python scripts/prepare_recovery.py
+
+
+This is additive. It must not overwrite the previous .env or modify your existing credentials.
+
+If a named key exists but has an empty value, fill it locally before proceeding. Never paste its value into chat or Git.
+Step 4. Add a bounded worker-hold primitive
+We need a reproducible failure that is recoverable without Docker privileges.
+
+New file: apps/demo-workload/src/opsproof_demo/worker_control.py
+"""TTL-bounded, demo-only worker control and idempotent resume."""from uuid import UUIDfrom redis import RedisHOLD_KEY = "opsproof:demo:worker:hold:v1"REPLAY_PREFIX = "opsproof:demo:recovery:applied:"# Redis executes this operation atomically.## 0: No hold exists.# 1: Hold removed by this recovery request.# 2: This recovery request was already applied.## The replay marker expires automatically._RESUME_SCRIPT = """if redis.call('EXISTS', KEYS[2]) == 1 then    return 2endif redis.call('EXISTS', KEYS[1]) == 0 then    return 0endredis.call('DEL', KEYS[1])redis.call('SET', KEYS[2], 'applied', 'EX', 3600)return 1"""def hold_state(    redis: Redis,) -> dict[str, bool | int]:
+
+
+
+Redis supports expiring keys, and the hold will be created with an explicit TTL. The replay marker makes a retry of the same recovery ID recognizable if the worker loses the HTTP response after the operation was applied.
+Docs
+
+
+This is not a general Redis command executor. Both key patterns and the allowed operation are fixed in source.
+Step 5. Make the existing worker honor the hold
+File: apps/demo-workload/src/opsproof_demo/worker.py
+
+Add this import with the other local imports:
+from .worker_control import HOLD_KEY
+
+
+
+Inside the existing run() function, after the Redis consumer-group initialization and immediately before:
+claimed = redis_client.xautoclaim(
+
+
+
+add:
+            if redis_client.get(HOLD_KEY):                time.sleep(0.5)                continue
+
+
+
+Next, locate the existing message loop:
+            for message_id, fields in entries:                process_entry(
+
+
+
+Change that part to:
+            for message_id, fields in entries:                while redis_client.get(HOLD_KEY):                    time.sleep(0.5)                process_entry(
+
+
+
+Keep the original arguments to process_entry() unchanged.
+
+How this works: The worker finishes any job already in progress, then stops claiming and processing additional jobs while the hold exists. The Redis key expires automatically, so a forgotten fault injection cannot hold the worker indefinitely.
+
+This pause affects the demo workload only. No Kubernetes deployment or production service is touched.
+Step 6. Expose separate inspection and resume endpoints
+File: apps/demo-workload/src/opsproof_demo/api.py
+
+Add these imports near the existing imports:
+from secrets import compare_digestfrom fastapi import Dependsfrom pydantic import BaseModel, ConfigDictfrom redis import Redisfrom .worker_control import hold_state, resume_worker
+
+
+
+At the end of the file, add:
+class ResumeBody(BaseModel):    model_config = ConfigDict(extra="forbid")    recovery_id: UUIDdef require_inspection(    x_opsproof_inspect_key: str | None = Header(default=None),) -> None:    expected = settings().inspection_key    if (        not expected        or not compare_digest(            x_opsproof_inspect_key or "",            expected,        )    ):        raise HTTPException(            status_code=401,            detail="Inspection key required",        )def require_recovery(    x_opsproof_recovery_key: str | None = Header(default=None),) -> None:    expected = settings().recovery_key    if (        not expected        or not compare_digest(            x_opsproof_recovery_key or "",            expected,        )    ):
+
+
+
+The two credentials have different purposes. The evidence worker receives the inspection key. Only the action worker receives the recovery key.
+
+The browser receives neither.
+
+Part 2. Durable investigation and recovery records
+Step 7. Add the PostgreSQL migration
+Do not modify migrations 0001, 0002, or 0003. They have already been used by the earlier milestones.
+
+New file: apps/control-plane/alembic/versions/0004_investigations_recoveries.py
+"""Add investigations, controlled recovery, and audit records.Revision ID: 0004Revises: 0003"""import sqlalchemy as safrom alembic import opfrom sqlalchemy.dialects.postgresql import JSONB, UUIDrevision = "0004"down_revision = "0003"branch_labels = Nonedepends_on = Nonedef upgrade() -> None:    op.create_table(        "investigations",        sa.Column(            "id",            UUID(as_uuid=True),            primary_key=True,        ),        sa.Column(            "incident_fingerprint",            sa.String(64),            sa.ForeignKey("incidents.fingerprint"),            nullable=False,        ),        sa.Column(            "run_id",            UUID(as_uuid=True),            sa.ForeignKey("experiments.id"),        ),        sa.Column(
+
+
+
+Why these tables?
+investigations keeps a snapshot of what was observed and the deterministic/model interpretations at that time.
+
+recoveries has its own lifecycle:
+Pending approval
+Approved
+Running
+Verifying
+Terminal outcome
+
+The terminal outcome may be succeeded, failed, rejected, expired, or indeterminate.
+
+Indeterminate is essential. If an action was attempted but its effect cannot be established, reporting success would be false and reporting ordinary failure might also be misleading.
+
+recovery_events is the append-only audit trail. State changes and events are committed together in a PostgreSQL transaction.
+
+The partial unique index prevents two active recoveries targeting the same incident. PostgreSQL's row locks also support atomic claims by workers; SKIP LOCKED is intended for queue-like processing, not general-purpose snapshot consistency.
+postgresql.org
+
+
+Part 3. Deterministic diagnosis and policy
+Step 8. Create the evidence contract
+New file: apps/control-plane/src/opsproof_control/diagnosis.py
+"""Pure evidence contracts, deterministic diagnosis and policy."""from datetime import UTC, datetimefrom typing import Literalfrom uuid import UUIDfrom pydantic import BaseModel, ConfigDict, FieldCause = Literal[    "demo_worker_paused",    "api_unreachable",    "dependency_unavailable",    "queue_stalled_unknown",    "insufficient_evidence",]Action = Literal[    "resume_demo_worker",    "none",]EvidenceKey = Literal[    "alert",    "scrape",    "api",    "queue",    "worker_hold",    "job_ids",]class Snapshot(BaseModel):    model_config = ConfigDict(extra="forbid")    observed_at: datetime
+
+
+
+What this achieves
+The classifier does not invent reasons for arbitrary incidents.
+
+A backlog with no confirmed hold becomes queue_stalled_unknown. A down API does not automatically become a worker failure. An incomplete or stale snapshot cannot authorize a resume.
+
+The allowed_recovery() function is a pure policy decision. We can test it without Docker, PostgreSQL or AI.
+
+Notice that the deterministic diagnosis does not depend on model confidence. Even if an AI provider claims 99% confidence, this policy remains unchanged.
+
+Part 4. The evidence worker and optional AI
+Step 9. Collect real, bounded evidence
+New file: apps/control-plane/src/opsproof_control/investigation_worker.py
+"""Collect bounded incident evidence and run diagnoses."""import loggingfrom datetime import UTC, datetimefrom time import timefrom uuid import UUIDimport httpx2 as httpxfrom psycopg.types.json import Jsonbfrom .config import settingsfrom .db import poolfrom .diagnosis import Snapshot, deterministiclogger = logging.getLogger(__name__)def collect(    incident: dict,    run_id: UUID | None,) -> Snapshot:    config = settings()    errors: list[str] = []    jobs: list[UUID] = []    queued = None    processing = None    paused = None    ttl = None    api_ready = False    scrape_fresh = False    # Read experiment evidence from our own database.    if run_id is not None:        with pool().connection() as conn:
+
+
+
+Why the evidence collector is separate
+The control API does not need to join the demo integration network to investigate failures. The evidence worker already has the relevant network access.
+
+The collector does not trust an alert annotation saying “the worker stopped.” It checks the real demo worker-hold state and the durable job counts, then separately checks Prometheus scrape freshness.
+
+It also retains specific experiment job IDs instead of trying to prove recovery using only an aggregate queue count.
+
+A gap in evidence produces an unknown or unavailable state, not a fabricated zero.
+Step 10. Implement opt-in model comparison
+New file: apps/control-plane/src/opsproof_control/model_provider.py
+"""Bounded model comparison. Output never authorizes operations."""import jsonfrom time import perf_counterimport httpx2 as httpxfrom .config import settingsfrom .diagnosis import Diagnosis, SnapshotSYSTEM = (    "You are evaluating sanitized reliability evidence. "    "Return one JSON object matching the supplied schema. "    "Distinguish observations from hypotheses. "    "Abstain if the available evidence is insufficient. "    "Never invent metrics, log lines or citations. "    "The action field is advisory only.")SCHEMA = {    "type": "object",    "properties": {        "cause": {            "type": "string",            "enum": [                "demo_worker_paused",                "api_unreachable",                "dependency_unavailable",                "queue_stalled_unknown",                "insufficient_evidence",            ],        },        "action": {            "type": "string",
+
+
+
+Model-selection rules
+This adapter supports two provider APIs, but neither is considered the winner before a benchmark.
+
+For the first optional evaluation, gemini-2.5-flash-lite is a cost-conscious initial candidate. Its official pricing and structured-output support can be checked before you enable billing.
+ai.google.dev+1
+
+
+For OpenAI, configure an actual currently available API model identifier, not a guessed consumer product name. The earlier suggestion of “GPT-6 Luna” was not a verified API model ID, and should not be used in configuration. OpenAI's Responses API supports structured JSON-schema output for compatible models.
+OpenAI API Reference
+
+
+We will calculate actual cost from provider usage and the price applicable when a test is executed. The current code stores input tokens, output tokens and elapsed time. It does not invent accuracy or currency totals.
+
+One important privacy property: model_facts() does not send raw alert annotations, URLs, tokens, UUIDs, complete logs or arbitrary metric labels. It sends only bounded, allowlisted facts.
+
+The model receives no tools and cannot perform API calls on behalf of OpsProof. Structured output is still validated through Pydantic; a malformed response becomes a failed evaluation, not an executable instruction.
+
+Part 5. Authenticated investigation and approval API
+Step 11. Create the operations API
+New file: apps/control-plane/src/opsproof_control/operations.py
+"""Authenticated investigation and controlled recovery APIs."""from datetime import UTC, datetime, timedeltafrom typing import Literalfrom uuid import UUID, uuid4from fastapi import (    APIRouter,    Depends,    Header,    HTTPException,    Query,)from psycopg.errors import UniqueViolationfrom psycopg.types.json import Jsonbfrom pydantic import BaseModel, ConfigDict, Fieldfrom .auth import authorizefrom .config import settingsfrom .db import poolfrom .diagnosis import (    Diagnosis,    Snapshot,    allowed_recovery,)router = APIRouter(    prefix="/api/v1",    tags=["Investigations and recovery"],    dependencies=[Depends(authorize)],)class InvestigationRequest(BaseModel):    model_config = ConfigDict(extra="forbid")
+
+
+
+Step 12. Register the new router
+File: apps/control-plane/src/opsproof_control/api.py
+
+Add to the imports:
+from .operations import router as operations_router
+
+
+
+Immediately after:
+app.include_router(incident_router)
+
+
+
+add:
+app.include_router(operations_router)
+
+
+
+Leave all existing health, experiment, incident and authentication routes unchanged.
+Authorization rules
+The router inherits Depends(authorize), meaning it uses the existing API-key or browser-session authentication and the existing CSRF requirement for cookie-based mutations.
+
+A recovery cannot be approved without the exact confirmation payload. It also requires the kill switch, a recent eligible deterministic diagnosis, a still-firing incident, and a still-verifying experiment.
+
+The API never accepts a shell command, arbitrary target URL, container name, Kubernetes resource name, or model-generated tool arguments.
+
+AI diagnosis is intentionally not consulted when deciding whether a recovery is permitted.
+
+Part 6. Execute and independently verify a recovery
+Step 13. Create the recovery worker logic
+New file: apps/control-plane/src/opsproof_control/recovery_worker.py
+"""Restricted demo recovery and independent outcome verification."""import loggingfrom datetime import UTC, datetimefrom uuid import UUIDimport httpx2 as httpxfrom psycopg.types.json import Jsonbfrom .config import settingsfrom .db import poolfrom .operations import recovery_eventlogger = logging.getLogger(__name__)def _finish(    recovery_id: UUID,    status: str,    reason: str,) -> None:    with pool().connection() as conn:        updated = conn.execute(            """            UPDATE recoveries            SET status = %s,                error = %s,                completed_at = now()            WHERE id = %s              AND status = 'running'            RETURNING id            """,            (                status,                reason[:250],                recovery_id,
+
+
+
+Important limitation
+The resume_demo_worker action is idempotent for the same recovery ID. It is not generally reversible.
+
+It would be unsafe to call “pause worker again” an automatic rollback simply because a verification failed. That could create a second outage.
+
+In this milestone, failure handling is stop, report, preserve evidence, and require investigation. Automated GitOps rollback and Kubernetes remediation have their own verified mechanisms in the later locked milestones.
+Step 14. Allow the existing action worker to poll durable recovery requests
+File: apps/control-plane/src/opsproof_control/streams.py
+
+Find the existing consume() signature. Add an optional callback:
+def consume(    stream: str,    group: str,    handler: Callable[[UUID], None],    tick: Callable[[], None] | None = None,) -> None:
+
+
+
+Keep all existing consumer logic.
+
+At the end of the while True loop, after its outer except block, add:
+        if tick is not None:            try:                tick()            except Exception:                logger.exception(                    "Secondary durable work failed; retrying"                )
+
+
+
+The callback is optional, so the existing experiment-consumer contract remains valid.
+
+File: apps/control-plane/src/opsproof_control/action.py
+
+Replace only the existing final run() function:
+def run() -> None:    from .recovery_worker import execute_next_recovery    consume(        settings().action_stream,        "action-workers",        execute,        tick=execute_next_recovery,    )
+
+
+
+The existing execute() function is unchanged. Experiment messages still follow their original Redis Streams pipeline.
+
+Approved recoveries use a separate PostgreSQL claim rather than pretending to be experiment messages.
+Step 15. Keep diagnosis responsive during long experiment verification
+This is an important concurrency issue.
+
+Your current evidence.verify() waits for job completion. If we put investigation polling directly after that blocking function, the evidence worker could remain busy waiting for a paused worker and never process the very investigation needed to recover it.
+
+We must avoid that deadlock.
+
+File: apps/control-plane/src/opsproof_control/evidence.py
+
+Change:
+VERIFY_TIMEOUT_S = 90
+
+
+
+to:
+VERIFY_TIMEOUT_S = 240
+
+
+
+This is a documented change in the bounded verification window to accommodate alert detection and explicit approval during a recovery drill. It may increase the time before some unsuccessful experiments are classified as timed out. We will record this difference from the earlier 90-second baseline.
+
+Replace only its existing run() function:
+def run() -> None:    """Separate long-running verification from incident reviews."""    from threading import Thread    from .investigation_worker import process_next_investigation    from .recovery_worker import verify_next_recovery    def review_loop() -> None:        while True:            try:                process_next_investigation()                verify_next_recovery()            except Exception:                logger.exception(                    "Investigation/recovery verification tick failed"                )            time.sleep(1)    Thread(        target=review_loop,        name="evidence-review",        daemon=True,    ).start()    consume(        settings().evidence_stream,        "evidence-workers",        verify,    )
+
+
+
+This keeps the existing experiment-verification consumer and adds one bounded I/O-oriented review loop within the evidence worker process.
+
+We are not adding more Docker containers or another database. The evidence role remains separate from the restricted action role.
+
+Part 7. Compose integration and least-privilege configuration
+We will create two optional overrides. The existing Compose files remain unchanged.
+Step 16. Demo recovery configuration
+New file: compose.demo.recovery.yaml
+# Demo-only recovery interface.
+# No Docker socket or privileged container access.
+
+services:
+  api:
+    environment:
+      OPSPROOF_INSPECTION_KEY: "${OPSPROOF_INSPECTION_KEY:?Prepare inspection key}"
+      OPSPROOF_RECOVERY_KEY: "${OPSPROOF_RECOVERY_KEY:?Prepare recovery key}"
+
+
+The demo worker itself receives neither token. It only checks its internal Redis hold key.
+Step 17. Control-plane recovery configuration
+New file: compose.control.recovery.yaml
+# Recovery and model evaluation remain disabled by default.
+
+services:
+  control-api:
+    environment:
+      OPSPROOF_CONTROL_RECOVERY_ENABLED: "${OPSPROOF_CONTROL_RECOVERY_ENABLED:-false}"
+      OPSPROOF_CONTROL_AI_ENABLED: "${OPSPROOF_CONTROL_AI_ENABLED:-false}"
+      OPSPROOF_CONTROL_AI_DAILY_LIMIT: "${OPSPROOF_CONTROL_AI_DAILY_LIMIT:-10}"
+
+  evidence-worker:
+    environment:
+      OPSPROOF_CONTROL_INSPECTION_KEY: "${OPSPROOF_INSPECTION_KEY:?Prepare inspection key}"
+      OPSPROOF_CONTROL_PROMETHEUS_URL: "http://prometheus:9090"
+
+      OPSPROOF_CONTROL_AI_ENABLED: "${OPSPROOF_CONTROL_AI_ENABLED:-false}"
+      OPSPROOF_CONTROL_AI_PROVIDER: "${OPSPROOF_CONTROL_AI_PROVIDER:-gemini}"
+      OPSPROOF_CONTROL_AI_MODEL: "${OPSPROOF_CONTROL_AI_MODEL:-gemini-2.5-flash-lite}"
+      OPSPROOF_CONTROL_AI_API_KEY: "${OPSPROOF_CONTROL_AI_API_KEY:-}"
+
+  action-worker:
+    environment:
+      OPSPROOF_CONTROL_INSPECTION_KEY: "${OPSPROOF_INSPECTION_KEY:?Prepare inspection key}"
+      OPSPROOF_CONTROL_RECOVERY_KEY: "${OPSPROOF_RECOVERY_KEY:?Prepare recovery key}"
+      OPSPROOF_CONTROL_RECOVERY_ENABLED: "${OPSPROOF_CONTROL_RECOVERY_ENABLED:-false}"
+
+
+Why are credentials separated?
+The control API can accept an operator's request but cannot directly call the demo recovery actuator.
+
+The evidence worker can inspect the demo worker and call an optional model provider, but it does not receive the actuator key.
+
+The action worker receives the dedicated actuator key, but not the AI-provider key.
+
+This separation reduces the impact of a compromised component. It does not create complete operating-system-level isolation between all processes, but it is a meaningful enforcement boundary at the service/API level.
+Step 18. Validate the overrides
+In Git Bash:
+cd "$HOME/Desktop/opsproof"
+
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  config --quiet
+
+
+Then:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  config --quiet
+
+
+Do not print the full resolved Compose configuration into a public log, because environment values may include credentials.
+
+The stack still requires the existing opsproof-integration and opsproof-telemetry networks. Both are part of your earlier milestones.
+
+Part 8. Reproducible deterministic and AI evaluation
+A model comparison should not be based on one attractive explanation. We need a fixed dataset, expected labels, negative cases and a consistent scoring procedure.
+Step 19. Add the initial benchmark harness
+New file: apps/control-plane/src/opsproof_control/benchmark.py
+"""Curated synthetic diagnosis benchmark.This tests bounded classification behavior.It is not evidence of production incident accuracy."""import argparseimport jsonfrom datetime import UTC, datetimefrom uuid import UUIDfrom .diagnosis import Snapshot, deterministic# Labels are written explicitly, not derived at runtime.## Each case:# name, alert, scrape, api_ready, paused, queued,# linked_run, expected_cause, expected_actionCASES = [    (        "paused_with_linked_jobs",        "OpsProofDemoQueueBacklog",        True, True, True, 6, True,        "demo_worker_paused", "resume_demo_worker",    ),    (        "paused_without_link",        "OpsProofDemoQueueBacklog",        True, True, True, 4, False,        "demo_worker_paused", "none",    ),    (        "unpaused_backlog",        "OpsProofDemoQueueBacklog",        True, True, False, 4, True,
+
+
+
+The benchmark contains cases where the API is down, the worker is not paused, there is no queue, scrape data is missing, or the incident type is unsupported.
+
+Those examples are essential. A model that always recommends “resume the worker” might appear useful on one incident but would be unsafe across the larger set.
+Step 20. Run the free deterministic benchmark
+After rebuilding the control-plane image, run:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  exec -T evidence-worker \
+  python -m opsproof_control.benchmark \
+  --mode deterministic \
+  --max-cases 10
+
+
+The output contains per-case expected and predicted causes, action accuracy, and unsafe-action count.
+
+I executed the pure deterministic classifier against these ten curated cases in this environment and it matched their authored labels. That is a sanity check of a small synthetic dataset, not a measured 100% real-world diagnosis accuracy. We need additional unseen and recorded fault cases before making any broader claim.
+Step 21. Optional paid comparison
+Do not enable this yet unless you are satisfied with the actual deterministic and runtime results.
+
+For a controlled provider comparison, add the chosen provider's key locally to .env:
+OPSPROOF_CONTROL_AI_API_KEY=YOUR_PRIVATE_PROVIDER_KEY
+
+
+The placeholder above is explanatory. Use your real key only in your local file, not in chat or Git.
+
+Then update the feature flags:
+OPSPROOF_CONTROL_AI_ENABLED=true
+OPSPROOF_CONTROL_AI_PROVIDER=gemini
+OPSPROOF_CONTROL_AI_MODEL=gemini-2.5-flash-lite
+
+
+Recreate the evidence worker and control API with the existing overrides so they receive the updated values.
+
+Start with at most two cases:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  exec -T evidence-worker \
+  python -m opsproof_control.benchmark \
+  --mode ai \
+  --max-cases 2
+
+
+Inspect whether the responses are valid, whether there are any unsafe suggestions, and the token usage.
+
+If acceptable, increase the sample size gradually. Do not automatically run 100 paid requests.
+
+For the second provider, configure openai and a verified model ID accessible to your API account. Compare the same cases under the same evaluation criteria.
+What we will report
+We will record cause classification accuracy, action-selection accuracy, unsafe suggestion count, abstention behavior, latency and provider usage.
+
+We will not report a model as “better” solely because it writes a more convincing explanation.
+
+The fixed dataset is intentionally small. It is the initial engineering benchmark, not our final evaluation corpus. Milestone 6 will incorporate recorded fault experiments and more realistic unseen cases.
+
+Part 9. Extend the approved Forest & Porcelain UI
+We will add an investigation workspace without changing the approved brand, navigation shell, fonts or status palette.
+
+The existing Incidents page remains the entry point. Operators will open a specific incident, collect evidence, compare deterministic and optional AI findings, and review any eligible recovery proposal.
+Step 22. Add TypeScript contracts
+File: apps/web/src/lib/types.ts
+
+Append:
+export interface Investigation {
+  id: string;
+  incident_fingerprint: string;
+  run_id: string | null;
+  status: "queued" | "running" | "ready" | "failed";
+  snapshot: Record<string, unknown>;
+  baseline: Record<string, unknown>;
+
+  ai_status:
+    | "not_requested"
+    | "queued"
+    | "running"
+    | "ready"
+    | "failed";
+
+  ai_result: Record<string, unknown> | null;
+  ai_provider: string | null;
+  ai_model: string | null;
+  error: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface Recovery {
+  id: string;
+  investigation_id: string;
+  incident_fingerprint: string;
+  run_id: string;
+  action: "resume_demo_worker";
+
+  status:
+    | "pending_approval"
+    | "approved"
+    | "running"
+    | "verifying"
+    | "succeeded"
+    | "failed"
+    | "rejected"
+    | "expired"
+    | "indeterminate";
+
+  attempts: number;
+  created_at: string;
+  expires_at: string;
+  approved_at: string | null;
+  started_at: string | null;
+  verify_by: string | null;
+  completed_at: string | null;
+  result: Record<string, unknown>;
+  error: string | null;
+}
+
+export interface OperationalCapabilities {
+  recovery_enabled: boolean;
+  ai_enabled: boolean;
+  ai_provider: string;
+}
+
+
+Step 23. Extend the existing API client
+File: apps/web/src/lib/api.ts
+
+Append these functions. They reuse the existing request() helper, session cookie and CSRF behavior:
+export function getCapabilities(): Promise<
+  import("./types").OperationalCapabilities
+> {
+  return request("/capabilities");
+}
+
+export function listInvestigations(
+  fingerprint: string,
+): Promise<import("./types").Investigation[]> {
+  return request(
+    `/investigations?incident_fingerprint=${encodeURIComponent(fingerprint)}`,
+  );
+}
+
+export function requestInvestigation(
+  fingerprint: string,
+  runId: string | null,
+  key: string,
+): Promise<import("./types").Investigation> {
+  return request("/investigations", {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": key,
+    },
+    body: JSON.stringify({
+      incident_fingerprint: fingerprint,
+      run_id: runId,
+    }),
+  });
+}
+
+export function requestAiEvaluation(
+  id: string,
+): Promise<import("./types").Investigation> {
+  return request(
+    `/investigations/${encodeURIComponent(id)}/ai`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function listRecoveries(): Promise<
+  import("./types").Recovery[]
+> {
+  return request("/recoveries");
+}
+
+export function proposeRecovery(
+  investigationId: string,
+  key: string,
+): Promise<import("./types").Recovery> {
+  return request("/recoveries", {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": key,
+    },
+    body: JSON.stringify({
+      investigation_id: investigationId,
+    }),
+  });
+}
+
+export function approveRecovery(
+  id: string,
+): Promise<import("./types").Recovery> {
+  return request(
+    `/recoveries/${encodeURIComponent(id)}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        confirmation: "APPROVE DEMO WORKER RESUME",
+      }),
+    },
+  );
+}
+
+export function rejectRecovery(
+  id: string,
+): Promise<import("./types").Recovery> {
+  return request(
+    `/recoveries/${encodeURIComponent(id)}/reject`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function getRecoveryEvents(
+  id: string,
+): Promise<
+  {
+    id: number;
+    type: string;
+    details: Record<string, unknown>;
+    created_at: string;
+  }[]
+> {
+  return request(
+    `/recoveries/${encodeURIComponent(id)}/events`,
+  );
+}
+
+
+Step 24. Create the investigation workspace
+New file: apps/web/src/pages/InvestigationPage.tsx
+import { useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  ShieldCheck,
+} from "lucide-react";
+
+import {
+  approveRecovery,
+  getCapabilities,
+  getExperiments,
+  getRecoveryEvents,
+  listInvestigations,
+  listRecoveries,
+  proposeRecovery,
+  rejectRecovery,
+  requestAiEvaluation,
+  requestInvestigation,
+} from "../lib/api";
+
+import {
+  formatDate,
+  shortId,
+  titleCase,
+} from "../lib/format";
+
+
+const CONFIRM = "APPROVE DEMO WORKER RESUME";
+
+
+export function InvestigationPage() {
+  const { fingerprint = "" } = useParams<{
+    fingerprint: string;
+  }>();
+
+  const queryClient = useQueryClient();
+
+  const [runId, setRunId] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+
+  const investigationKey = useRef<string | null>(null);
+  const recoveryKey = useRef<string | null>(null);
+
+  const investigations = useQuery({
+    queryKey: ["investigations", fingerprint],
+    queryFn: () => listInvestigations(fingerprint),
+    refetchInterval: 5_000,
+  });
+
+  const latest = investigations.data?.[0];
+
+  const runs = useQuery({
+    queryKey: ["experiments", 50],
+    queryFn: () => getExperiments(50),
+  });
+
+  const capabilities = useQuery({
+    queryKey: ["capabilities"],
+    queryFn: getCapabilities,
+  });
+
+  const recoveries = useQuery({
+    queryKey: ["recoveries"],
+    queryFn: listRecoveries,
+    refetchInterval: 5_000,
+  });
+
+  const recovery = recoveries.data?.find(
+    (item) => item.investigation_id === latest?.id,
+  );
+
+  const events = useQuery({
+    queryKey: ["recovery-events", recovery?.id],
+    queryFn: () => getRecoveryEvents(recovery!.id),
+    enabled: Boolean(recovery),
+    refetchInterval: 5_000,
+  });
+
+  async function refresh() {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["investigations", fingerprint],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["recoveries"],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["recovery-events"],
+      }),
+    ]);
+  }
+
+  const create = useMutation({
+    mutationFn: () => {
+      investigationKey.current ??= crypto.randomUUID();
+
+      return requestInvestigation(
+        fingerprint,
+        runId || null,
+        investigationKey.current,
+      );
+    },
+
+    onSuccess: async () => {
+      investigationKey.current = null;
+      await refresh();
+    },
+  });
+
+  const propose = useMutation({
+    mutationFn: () => {
+      if (!latest) {
+        throw new Error("Investigation missing");
+      }
+
+      recoveryKey.current ??= crypto.randomUUID();
+
+      return proposeRecovery(
+        latest.id,
+        recoveryKey.current,
+      );
+    },
+
+    onSuccess: async () => {
+      recoveryKey.current = null;
+      await refresh();
+    },
+  });
+
+  const ai = useMutation({
+    mutationFn: () =>
+      requestAiEvaluation(latest!.id),
+    onSuccess: refresh,
+  });
+
+  const approve = useMutation({
+    mutationFn: () =>
+      approveRecovery(recovery!.id),
+
+    onSuccess: async () => {
+      setConfirmation("");
+      await refresh();
+    },
+  });
+
+  const reject = useMutation({
+    mutationFn: () =>
+      rejectRecovery(recovery!.id),
+    onSuccess: refresh,
+  });
+
+  const verifyingRuns = (runs.data ?? []).filter(
+    (run) => run.status === "verifying",
+  );
+
+  const baseline = latest?.baseline;
+  const snapshot = latest?.snapshot;
+
+  const allowed =
+    baseline?.action === "resume_demo_worker"
+    && latest?.status === "ready";
+
+  const problem =
+    create.error
+    || propose.error
+    || ai.error
+    || approve.error
+    || reject.error;
+
+  return (
+    <div className="page investigation-page">
+      <Link className="back-link" to="/incidents">
+        <ArrowLeft size={16} />
+        Incidents
+      </Link>
+
+      <header className="page-header">
+        <div>
+          <p className="overline">
+            EVIDENCE-DRIVEN INVESTIGATION
+          </p>
+
+          <h1>Investigate an incident</h1>
+
+          <p className="page-description mono">
+            {fingerprint}
+          </p>
+        </div>
+      </header>
+
+      {problem && (
+        <div className="error-panel" role="alert">
+          {problem instanceof Error
+            ? problem.message
+            : "Request failed"}
+        </div>
+      )}
+
+      <div className="investigation-layout">
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="overline">01 / CAPTURE</p>
+              <h2>Evidence snapshot</h2>
+              <p>Created by the evidence worker</p>
+            </div>
+          </div>
+
+          <label
+            className="investigation-label"
+            htmlFor="linked-run"
+          >
+            Linked experiment (optional)
+          </label>
+
+          <select
+            id="linked-run"
+            className="investigation-select"
+            value={runId}
+            onChange={(event) => {
+              setRunId(event.target.value);
+              investigationKey.current = null;
+              create.reset();
+            }}
+          >
+            <option value="">
+              No linked experiment
+            </option>
+
+            {verifyingRuns.map((run) => (
+              <option key={run.id} value={run.id}>
+                {run.scenario} · {shortId(run.id)}
+              </option>
+            ))}
+          </select>
+
+          <p className="scope-note">
+            Link a currently verifying queue-burst run
+            to enable exact-job recovery verification.
+            Other incidents can be diagnosed without a run.
+          </p>
+
+          <button
+            type="button"
+            className="button button--primary"
+            disabled={create.isPending || !fingerprint}
+            onClick={() => create.mutate()}
+          >
+            {create.isPending
+              ? "Recording…"
+              : "Start investigation"}
+          </button>
+
+          {investigations.isError && (
+            <p className="inline-error" role="alert">
+              Investigation records unavailable.
+            </p>
+          )}
+
+          {latest && (
+            <div className="investigation-summary">
+              <p className="overline">
+                LATEST INVESTIGATION
+              </p>
+
+              <strong>
+                {titleCase(latest.status)}
+              </strong>
+
+              <span className="mono">
+                {shortId(latest.id)} ·{" "}
+                {formatDate(latest.created_at)}
+              </span>
+
+              {latest.error && (
+                <p className="inline-error">
+                  {latest.error}
+                </p>
+              )}
+
+              {snapshot && (
+                <dl className="fact-list">
+                  <dt>Alert</dt>
+                  <dd>
+                    {String(
+                      snapshot.alert_name ?? "Unavailable",
+                    )}
+                  </dd>
+
+                  <dt>Scrape verified</dt>
+                  <dd>
+                    {snapshot.scrape_fresh === true
+                      ? "Yes"
+                      : "No"}
+                  </dd>
+
+                  <dt>Worker hold</dt>
+                  <dd>
+                    {snapshot.worker_paused === true
+                      ? "Confirmed"
+                      : snapshot.worker_paused === false
+                        ? "Not active"
+                        : "Unknown"}
+                  </dd>
+
+                  <dt>Queued jobs</dt>
+                  <dd>
+                    {typeof snapshot.queued === "number"
+                      ? snapshot.queued
+                      : "Unknown"}
+                  </dd>
+
+                  <dt>Observed at</dt>
+                  <dd>
+                    {typeof snapshot.observed_at === "string"
+                      ? formatDate(snapshot.observed_at)
+                      : "Not recorded"}
+                  </dd>
+                </dl>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="overline">
+                02 / DIAGNOSE
+              </p>
+
+              <h2>Deterministic baseline</h2>
+
+              <p>
+                Auditable rules before model output
+              </p>
+            </div>
+
+            <ShieldCheck
+              size={20}
+              aria-hidden="true"
+            />
+          </div>
+
+          {baseline && latest?.status === "ready" ? (
+            <div className="diagnosis-result">
+              <strong>
+                {titleCase(
+                  String(baseline.cause ?? "unknown"),
+                )}
+              </strong>
+
+              <p>
+                {String(
+                  baseline.explanation
+                  ?? "No explanation recorded",
+                )}
+              </p>
+
+              <span>
+                Recommendation:{" "}
+                {String(baseline.action ?? "none")}
+              </span>
+            </div>
+          ) : (
+            <p className="state-message">
+              A completed evidence snapshot is required.
+            </p>
+          )}
+
+          <div className="ai-panel">
+            <p className="overline">
+              OPTIONAL MODEL EVALUATION
+            </p>
+
+            <p>
+              AI output is an untrusted hypothesis
+              and cannot authorize recovery.
+            </p>
+
+            {capabilities.data?.ai_enabled
+              && latest?.status === "ready"
+              && latest.ai_status === "not_requested"
+              && (
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  disabled={ai.isPending}
+                  onClick={() => ai.mutate()}
+                >
+                  Evaluate model once
+                </button>
+              )}
+
+            {!capabilities.data?.ai_enabled && (
+              <p className="scope-note">
+                Paid model calls are disabled.
+              </p>
+            )}
+
+            {latest?.ai_status !== "not_requested" && (
+              <p>
+                Model status: {latest?.ai_status}
+              </p>
+            )}
+
+            {latest?.ai_result && (
+              <div className="diagnosis-result">
+                <strong>
+                  {titleCase(
+                    String(latest.ai_result.cause),
+                  )}
+                </strong>
+
+                <p>
+                  {String(
+                    latest.ai_result.explanation ?? "",
+                  )}
+                </p>
+
+                <small>
+                  Hypothesis only ·{" "}
+                  {latest.ai_provider} /{" "}
+                  {latest.ai_model}
+                </small>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <section className="panel recovery-panel">
+        <div className="panel-header">
+          <div>
+            <p className="overline">
+              03 / CONTROLLED ACTION
+            </p>
+
+            <h2>Demo-worker recovery</h2>
+
+            <p>
+              Policy-allowlisted, explicit approval,
+              independent verification
+            </p>
+          </div>
+        </div>
+
+        {!capabilities.data?.recovery_enabled && (
+          <p className="recovery-warning">
+            <AlertTriangle size={17} />
+            Recovery kill switch is off.
+            No action can execute.
+          </p>
+        )}
+
+        {allowed
+          && !recovery
+          && capabilities.data?.recovery_enabled
+          && (
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={() => propose.mutate()}
+              disabled={propose.isPending}
+            >
+              Propose worker resume
+            </button>
+          )}
+
+        {!allowed && (
+          <p className="scope-note">
+            An eligible, recent deterministic diagnosis
+            is required. AI cannot change this requirement.
+          </p>
+        )}
+
+        {recovery && (
+          <div className="recovery-summary">
+            <div className="recovery-meta">
+              <strong>
+                {titleCase(recovery.status)}
+              </strong>
+
+              <span className="mono">
+                {shortId(recovery.id)}
+              </span>
+
+              <span>
+                Expires:{" "}
+                {formatDate(recovery.expires_at)}
+              </span>
+            </div>
+
+            {recovery.status === "pending_approval" && (
+              <div className="approval-form">
+                <label htmlFor="confirmation">
+                  Type <strong>{CONFIRM}</strong> to approve
+                  this specific demo action
+                </label>
+
+                <input
+                  id="confirmation"
+                  value={confirmation}
+                  onChange={(event) =>
+                    setConfirmation(event.target.value)
+                  }
+                  autoComplete="off"
+                />
+
+                <div className="approval-actions">
+                  <button
+                    className="button button--primary"
+                    type="button"
+                    disabled={
+                      confirmation !== CONFIRM
+                      || approve.isPending
+                    }
+                    onClick={() => approve.mutate()}
+                  >
+                    Approve once
+                  </button>
+
+                  <button
+                    className="button button--secondary"
+                    type="button"
+                    disabled={reject.isPending}
+                    onClick={() => reject.mutate()}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {recovery.error && (
+              <p className="inline-error">
+                {recovery.error}
+              </p>
+            )}
+
+            {recovery.status === "succeeded" && (
+              <p className="verified-note">
+                <CheckCircle2 size={17} />
+                Exact jobs, experiment verification,
+                and alert resolution were checked.
+              </p>
+            )}
+
+            {events.data && events.data.length > 0 && (
+              <ol className="recovery-events">
+                {events.data.map((event) => (
+                  <li key={event.id}>
+                    <strong>
+                      {titleCase(event.type)}
+                    </strong>
+
+                    <time dateTime={event.created_at}>
+                      {formatDate(event.created_at)}
+                    </time>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+
+How the operator uses it
+The operator chooses a linked experiment, starts an investigation, and sees the deterministic finding when evidence collection completes.
+
+If AI is explicitly enabled, the operator may request one additional model evaluation. It appears separately and is labeled as a hypothesis.
+
+If the deterministic policy permits resume_demo_worker, the operator may create a proposal. The operator must then type the exact confirmation phrase before approval.
+
+Even after approval, the action worker independently checks the kill switch, incident and experiment states, and current worker hold.
+
+This is an actual approval workflow rather than a confirmation dialog that executes everything immediately.
+Step 25. Add the route
+File: apps/web/src/app/App.tsx
+
+Add:
+import { InvestigationPage } from "../pages/InvestigationPage";
+
+
+Inside the existing <Routes>:
+<Route
+  path="/incidents/:fingerprint/investigate"
+  element={<InvestigationPage />}
+/>
+
+
+Step 26. Link the existing incident records
+File: apps/web/src/pages/IncidentsPage.tsx
+
+Add:
+import { Link } from "react-router-dom";
+
+
+Inside IncidentRow, immediately before its existing History button, add:
+<Link
+  className="incident-row__action"
+  to={`/incidents/${encodeURIComponent(
+    incident.fingerprint,
+  )}/investigate`}
+>
+  Investigate
+  <ArrowRight
+    size={15}
+    aria-hidden="true"
+  />
+</Link>
+
+
+Keep the existing incident-history behavior unchanged.
+
+Step 27. Add the investigation styles
+New file: apps/web/src/styles/investigations.css
+.investigation-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 20px;
+}
+
+.investigation-page .panel {
+  min-width: 0;
+}
+
+.investigation-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.investigation-select,
+.approval-form input {
+  width: 100%;
+  min-height: 43px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+}
+
+.investigation-summary {
+  margin-top: 22px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+
+.investigation-summary > strong {
+  display: block;
+  font-size: 17px;
+  margin-bottom: 5px;
+}
+
+.investigation-summary > span {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+
+.fact-list {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 11px 20px;
+  padding-top: 19px;
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.fact-list dt {
+  color: var(--ink-soft);
+}
+
+.fact-list dd {
+  margin: 0;
+  font-weight: 630;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.diagnosis-result {
+  border-left: 3px solid var(--forest-soft);
+  background: #e9ede4;
+  padding: 16px;
+  margin: 12px 0 22px;
+}
+
+.diagnosis-result strong {
+  display: block;
+  font-size: 14px;
+}
+
+.diagnosis-result p {
+  margin: 7px 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.diagnosis-result span,
+.diagnosis-result small {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.ai-panel {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.ai-panel p:not(.overline) {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.recovery-panel {
+  margin-bottom: 18px;
+}
+
+.recovery-warning {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  color: #855000;
+  font-size: 13px;
+}
+
+.recovery-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.recovery-meta strong {
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.approval-form {
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: #f4f1e8;
+}
+
+.approval-form label {
+  display: block;
+  margin-bottom: 11px;
+  font-size: 13px;
+}
+
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.verified-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #075b31;
+  font-weight: 650;
+}
+
+.recovery-events {
+  margin: 22px 0 0;
+  padding: 14px 0 0 22px;
+  border-top: 1px solid var(--line);
+}
+
+.recovery-events li {
+  padding: 6px 0;
+  font-size: 12px;
+}
+
+.recovery-events time {
+  display: block;
+  color: var(--ink-soft);
+  font-family: var(--font-code);
+  font-size: 10px;
+}
+
+@media (max-width: 1000px) {
+  .investigation-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .approval-actions .button {
+    flex: 1;
+  }
+
+  .recovery-meta {
+    gap: 8px;
+  }
+}
+
+
+File: apps/web/src/styles/app.css
+
+Add at the end of the existing imports:
+@import "./investigations.css";
+
+
+Keep the existing Forest & Porcelain CSS modules.
+
+File: apps/web/src/styles/incidents.css
+
+Update the desktop .incident-row declaration to accommodate the new Investigate link alongside History:
+.incident-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto auto;
+  align-items: start;
+  gap: 15px;
+  padding: 19px 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+
+Preserve the existing mobile media query for .incident-row.
+
+No other branding, typography or palette changes are required.
+
+Part 10. Add tests before using the actuator
+Step 28. Deterministic diagnosis and policy tests
+New file: apps/control-plane/tests/test_diagnosis.py
+"""Fail-closed tests for deterministic diagnosis and policy."""        assert result.action == case[-1], case[0]def test_approval_rejects_stale_evidence() -> None:    snapshot = make_snapshot(CASES[0])    baseline = deterministic(snapshot)    snapshot.observed_at = (        datetime.now(UTC) - timedelta(minutes=2)    )    assert allowed_recovery(        snapshot,        baseline,    )[0] is Falsedef test_approval_rejects_foreign_target_and_resolved_alert() -> None:    snapshot = make_snapshot(CASES[0])    baseline = deterministic(snapshot)    snapshot.target = "external-production-system"    assert not allowed_recovery(        snapshot,        baseline,    )[0]    snapshot.target = "opsproof-demo-api"    snapshot.incident_status = "resolved"    assert not allowed_recovery(        snapshot,        baseline,    )[0]def test_approval_rejects_expiring_hold() -> None:    snapshot = make_snapshot(CASES[0])    baseline = deterministic(snapshot)    snapshot.hold_ttl_seconds = 2    assert not allowed_recovery(        snapshot,        baseline,    )[0]def test_model_input_contains_only_allowlisted_facts() -> None:    snapshot = make_snapshot(CASES[0])    snapshot.incident_fingerprint = "private-identifier"    snapshot.job_ids = [UUID(int=42)]    facts = model_facts(snapshot)    serialized = str(facts)    assert "private-identifier" not in serialized    assert str(UUID(int=42)) not in serialized    assert facts["linked_job_count"] == 1def test_resolved_incident_never_recommends_action() -> None:    snapshot = make_snapshot(        CASES[0],        status="resolved",    )
+
+
+
+These tests confirm that stale evidence, resolved incidents, unsupported targets and expiring holds cannot pass the pure policy.
+Step 29. Test the demo actuator independently
+New file: apps/demo-workload/tests/test_worker_control.py
+"""Bounded demo-worker control tests."""from unittest.mock import MagicMockfrom uuid import UUIDfrom opsproof_demo.worker_control import (    HOLD_KEY,    hold_state,    resume_worker,)def test_hold_requires_positive_ttl() -> None:    redis = MagicMock()    redis.ttl.return_value = 42    assert hold_state(redis) == {        "paused": True,        "ttl_seconds": 42,    }    redis.ttl.return_value = -2    assert hold_state(redis) == {        "paused": False,        "ttl_seconds": 0,    }def test_resume_is_idempotent_and_targets_only_demo_hold() -> None:    redis = MagicMock()    recovery_id = UUID(int=9)    redis.eval.return_value = 1    assert resume_worker(redis, recovery_id) == "applied"    assert redis.eval.call_args.args[2] == HOLD_KEY    redis.eval.return_value = 2    assert resume_worker(redis, recovery_id) == "replayed"    redis.eval.return_value = 0    assert resume_worker(redis, recovery_id) == "not_paused"
+
+
+
+These checks do not require a real Redis instance. They verify the application contract around the atomic operation and the replay outcomes. The later integration drill must also test the behavior against actual Redis.
+Step 30. Run Python formatting, lint and tests
+From your repository root:
+cd "$HOME/Desktop/opsproof"
+
+uv run --project apps/demo-workload \
+  ruff format apps/demo-workload
+
+uv run --project apps/demo-workload \
+  ruff check apps/demo-workload
+
+uv run --project apps/demo-workload \
+  pytest apps/demo-workload/tests -v
+
+
+Then:
+uv run --project apps/control-plane \
+  ruff format apps/control-plane
+
+uv run --project apps/control-plane \
+  ruff check apps/control-plane
+
+uv run --project apps/control-plane \
+  pytest apps/control-plane/tests -v
+
+
+If the formatter changes files, review those changes before staging.
+
+Your existing GitHub Actions workflows already include Ruff and pytest for both Python applications. The new test files will be discovered by the current test configuration without creating another workflow.
+Step 31. Verify frontend quality
+cd "$HOME/Desktop/opsproof/apps/web"
+
+npm run lint
+npm run test
+npm run build
+
+
+Then, with the backend running:
+npm run test:e2e
+
+
+The old browser tests must remain valid. We will not bypass them because the new investigation page is visually correct.
+
+Part 11. Run the complete system and verify real recovery
+Do not enable recovery until the Milestone 3 monitoring path has demonstrated working metrics collection, alert firing and resolution, and incident ingestion.
+Step 32. Complete the prerequisite verification
+Before performing recovery, confirm:
+- Prometheus successfully scrapes the demo and control APIs.
+- A stopped demo API produces a firing incident.
+- Restarting it produces a resolved transition for the same fingerprint.
+- Grafana displays real application metrics.
+- Loki and Tempo contain actual application telemetry.
+- Existing queue-burst experiments still pass.
+If the current monitoring environment cannot meet these conditions, keep the recovery kill switch off and correct the failing integration. We must not allow a missing monitoring system to be treated as safe evidence.
+Step 33. Prepare and start the full environment
+In Git Bash:
+cd "$HOME/Desktop/opsproof"
+
+uv run --no-project --python 3.14 \
+  python scripts/prepare_recovery.py
+
+
+Ensure both existing Docker networks are present:
+docker network inspect opsproof-integration >/dev/null 2>&1 \
+  || docker network create opsproof-integration
+
+docker network inspect opsproof-telemetry >/dev/null 2>&1 \
+  || docker network create opsproof-telemetry
+
+
+Start observability:
+docker compose \
+  -f compose.observability.yaml \
+  up -d
+
+
+Start the demo:
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  up -d --build --wait
+
+
+Start the control plane:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  up -d --build --wait
+
+
+The control-plane migration service should apply revision 0004.
+
+Verify it through the migration logs:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  logs --tail=80 control-migrate
+
+
+Check API readiness:
+curl -fsS http://127.0.0.1:8088/health/ready
+
+curl -fsS http://127.0.0.1:8090/health/ready
+
+
+Step 34. Verify the kill switch is off by default
+Open the Forest & Porcelain UI:
+
+http://127.0.0.1:5173
+
+Sign in normally.
+
+If the frontend is not running, start it from apps/web:
+npm run dev
+
+
+Navigate to Incidents and open any previously recorded incident's Investigate link.
+
+You should see the investigation interface, with recovery unavailable by default.
+
+That is the correct initial behavior.
+Step 35. Test the actuator authentication boundary
+Run this unauthenticated read request:
+curl -sS \
+  -o /dev/null \
+  -w "%{http_code}\n" \
+  http://127.0.0.1:8088/api/v1/internal/worker-state
+
+
+Expected HTTP status:
+401
+
+
+Now attempt an unauthenticated resume with a syntactically valid UUID:
+curl -sS \
+  -o /dev/null \
+  -w "%{http_code}\n" \
+  -X POST \
+  http://127.0.0.1:8088/api/v1/internal/worker/resume \
+  -H "Content-Type: application/json" \
+  --data '{"recovery_id":"00000000-0000-0000-0000-000000000001"}'
+
+
+Expected:
+401
+
+
+These requests must not alter the worker hold or create recovery markers.
+
+Do not expose the separate recovery key through the browser to test the positive path. The action worker will exercise that path during the authorized drill.
+Step 36. Explicitly enable only the demo recovery capability
+File: .env
+
+After verifying the prerequisites, change this existing line:
+OPSPROOF_CONTROL_RECOVERY_ENABLED=false
+
+
+to:
+OPSPROOF_CONTROL_RECOVERY_ENABLED=true
+
+
+Leave AI disabled:
+OPSPROOF_CONTROL_AI_ENABLED=false
+
+
+Recreate the components that enforce the recovery flag:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  up -d --no-deps --force-recreate \
+  control-api action-worker
+
+
+The action worker independently checks the flag. This is important because hiding a button in React is not a security control.
+
+Part 12. The controlled failure and recovery drill
+This must be a real test against the demo worker, not simulated incident rows in the UI.
+Step 37. Inject a bounded worker pause
+From the repository root:
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  exec -T redis \
+  redis-cli SET \
+  opsproof:demo:worker:hold:v1 \
+  1 EX 600 NX
+
+
+The EX 600 parameter limits the hold to 600 seconds.
+
+The NX parameter prevents an existing hold from being unintentionally extended by another test.
+
+Check the remaining TTL:
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  exec -T redis \
+  redis-cli TTL opsproof:demo:worker:hold:v1
+
+
+A positive value means the hold exists and has time remaining.
+
+Record the UTC time:
+date -u +"%Y-%m-%dT%H:%M:%SZ"
+
+
+Step 38. Create a bounded experiment
+Open:
+
+http://127.0.0.1:5173/experiments
+
+Create a small queue-burst run, for example five jobs at 250 ms each.
+
+Expected behavior:
+- The control-plane action worker submits jobs.
+- The demo API accepts them.
+- The demo worker does not consume them while held.
+- PostgreSQL records their queued state.
+- Prometheus observes the queue backlog.
+- The existing backlog alert should eventually fire.
+Do not submit multiple experiments unnecessarily. The recovery verification will use the exact job IDs recorded for the linked experiment.
+Step 39. Wait for an actual firing incident
+Open:
+
+http://127.0.0.1:9090/alerts
+
+Find:
+
+OpsProofDemoQueueBacklog
+
+Then open OpsProof's Incidents page:
+
+http://127.0.0.1:5173/incidents
+
+A firing incident should appear only after the real alert pipeline delivers it.
+
+If it does not, inspect Alertmanager's delivery logs and the control API logs. Do not invent an incident manually to satisfy the test.
+Step 40. Investigate the incident
+Select Investigate on the queue-backlog incident.
+
+Select the currently verifying experiment from the Linked experiment dropdown.
+
+Click Start investigation.
+
+The evidence worker should produce a snapshot with facts such as:
+Evidence	Expected observation during the drill
+Incident	Firing
+Alert name	OpsProofDemoQueueBacklog
+Demo API ready	Yes
+Prometheus scrape	Fresh and successful
+Queued jobs	Greater than zero
+Worker hold	Confirmed
+Linked experiment jobs	Actual recorded job IDs
+
+The deterministic diagnosis should identify the explicit demo-worker hold if every required fact is present.
+
+If any of those observations is missing, the action should not be authorized.
+Step 41. Propose and approve the recovery
+When eligible, click Propose worker resume.
+
+The proposal receives its own ID and expires after 120 seconds.
+
+Type exactly:
+APPROVE DEMO WORKER RESUME
+
+
+Click Approve once.
+
+At this point, the API records approval. The actual action is still executed separately by the restricted worker.
+
+Expected state progression:
+Pending approval
+Approved
+Running
+Verifying
+Succeeded, if proven
+
+The expected successful outcome requires all three independent observations:
+1. The linked jobs reached completed.
+2. The existing OpsProof experiment reached succeeded.
+3. The queue-backlog alert transitioned to resolved.
+If any requirement cannot be established within the verification deadline, the recovery must remain failed or indeterminate rather than appear successful.
+Step 42. Check the actual audit trail
+The UI should show recovery events similar to:
+proposed
+approved
+attempt_started
+action_acknowledged
+succeeded
+
+
+This is an expected sequence, not a claim that it has been observed.
+
+Check the resulting experiment and incident timelines as well. The recovery audit should agree with the existing experiment and Alertmanager evidence.
+
+Part 13. Record verification instead of claiming it
+Step 43. Add the final recovery evidence checker
+This script reads the existing authenticated API and will pass only if a successful recovery with the required audit transitions and outcome evidence actually exists.
+
+New file: scripts/verify_milestone4.py
+"""Verify a recorded recovery after the manual approval drill."""import jsonfrom datetime import UTC, datetimefrom pathlib import Pathfrom verify_control import requestOUTPUT = Path(".runtime/milestone4-verification.json")def main() -> None:    code, records = request(        "GET",        "/api/v1/recoveries",    )    if code != 200 or not isinstance(records, list):        raise RuntimeError(            "Recovery API unavailable"        )    succeeded = [        item        for item in records        if item["status"] == "succeeded"    ]    if not succeeded:        raise RuntimeError(            "No independently verified successful recovery recorded"        )    recovery = succeeded[0]    code, events = request(        "GET",        f"/api/v1/recover
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+please refresh your memory and read this chat and complete the remaining milestone 4 tasks
+
+
+
+
+
+
+
+
+
+
+
+
+Worked for 19m 13s
+
+
+
+
+
+Analysis paused
+
+
+
+OpsProof Milestone 4: Final implementation and verification
+Continuation from Step 31 · AI Investigation, Security & Controlled Recovery
+
+I have refreshed the conversation and inspected the source in OpsProof(2).zip, including both workers, the Redis Streams consumer, incident registry, Compose configuration, existing tests, and authenticated frontend client.
+
+We will not repeat Steps 1–31. Those instructions cover the investigation models, database migration, deterministic diagnosis, optional AI integration, controlled recovery workflow, and Forest & Porcelain investigation interface.
+
+This continuation completes the remaining work:
+1. Correct integration and safety gaps in the previous instructions.
+2. Start the complete Milestone 4 environment.
+3. Perform a genuine paused-worker incident and approved recovery.
+4. Test rejected, expired, repeated, and unauthorized operations.
+5. Verify the deterministic/AI evaluation process and spending boundaries.
+6. Record reproducible evidence, integrate CI checks, and commit.
+One distinction matters: the ZIP is our confirmed pre-Milestone-4 source baseline, while your execution of Steps 1–31 has not been independently inspected here. I will not claim that code passed on your laptop until we have actual results.
+Step 32. Correct the missing fault-injection mechanism
+The earlier instructions introduced resume_worker() but did not provide a safe way to create the worker hold.
+
+Without that, the recovery experiment is incomplete.
+
+We will add a demo-only command, executed inside the demo-worker container. It will create a Redis hold with a strict expiration and refuse to overwrite an existing hold.
+
+File: apps/demo-workload/src/opsproof_demo/worker_control.py
+
+Action: Replace the complete file from Step 4 with:
+"""Bounded demo-worker hold and idempotent recovery.This module controls only the demonstration workload.It has no Docker, Kubernetes or shell-execution privileges."""import argparsefrom uuid import UUIDfrom redis import Redisfrom .config import settingsHOLD_KEY = "opsproof:demo:worker:hold:v1"REPLAY_PREFIX = "opsproof:demo:recovery:applied:"DEFAULT_HOLD_SECONDS = 420MIN_HOLD_SECONDS = 120MAX_HOLD_SECONDS = 480_RESUME_SCRIPT = """if redis.call('EXISTS', KEYS[2]) == 1 then    return 2endif redis.call('EXISTS', KEYS[1]) == 0 then    return 0endredis.call('DEL', KEYS[1])redis.call('SET', KEYS[2], 'applied', 'EX', 3600)return 1"""
+
+
+
+Redis SET supports NX and EX atomically, meaning we can create the hold only when the key is absent and ensure it expires.
+Docs
+
+
+What this does: It does not stop the container. It prevents the demo worker from consuming additional jobs, using the hold checks introduced in Step 5.
+
+Why the maximum is eight minutes: A stalled experiment should recover automatically from the synthetic fault even if the operator abandons the drill. This expiry is a safety boundary, not a recovery success condition.
+
+What it cannot do: It cannot pause arbitrary workloads, issue Docker commands, or control Kubernetes.
+Step 33. Extend the actuator tests
+File: apps/demo-workload/tests/test_worker_control.py
+
+Keep the earlier tests. Add:
+import pytestfrom opsproof_demo.worker_control import pause_workerdef test_pause_uses_expiring_atomic_key() -> None:    redis = MagicMock()    redis.set.return_value = True    assert pause_worker(redis, 420) is True    redis.set.assert_called_once_with(        HOLD_KEY,        "manual-local-fault-drill",        ex=420,        nx=True,    )def test_pause_does_not_extend_existing_hold() -> None:    redis = MagicMock()    redis.set.return_value = None    assert pause_worker(redis, 420) is False@pytest.mark.parametrize("seconds", [-1, 0, 60, 481, 900])def test_unbounded_hold_is_rejected(seconds: int) -> None:    redis = MagicMock()    with pytest.raises(ValueError):        pause_worker(redis, seconds)    redis.set.assert_not_called()
+
+
+
+The MagicMock import already exists in the previous test file.
+
+Run:
+cd "$HOME/Desktop/opsproof"
+
+uv run --project apps/demo-workload \
+  pytest apps/demo-workload/tests/test_worker_control.py -v
+
+
+Expected: the existing and newly added tests should pass.
+
+Step 34. Make the worker polling integration explicit
+The earlier Milestone 4 instructions added a secondary tick callback to the Redis Streams consumer. Its position in the loop matters.
+
+The action worker must continue processing its existing experiment messages while also checking the separate, PostgreSQL-backed recovery queue.
+
+File: apps/control-plane/src/opsproof_control/streams.py
+
+Action: Replace only the consume() function with the following. Keep ensure_group(), messages(), and dispatcher() unchanged.
+def consume(    stream: str,    group: str,    handler: Callable[[UUID], None],    tick: Callable[[], None] | None = None,) -> None:    """Consume experiment messages and optionally poll durable work."""    redis = redis_client()    consumer = (        f"{os.getenv('HOSTNAME', 'worker')}-{os.getpid()}"    )    group_ready = False    while True:        try:            if not group_ready:                ensure_group(                    redis,                    stream,                    group,                )                group_ready = True            entries = messages(                redis,                stream,                group,                consumer,            )            for message_id, fields in entries:                run_id = UUID(fields["run_id"])
+
+
+
+The existing Callable, UUID, os, time, and logger imports are already present in the source.
+
+The action worker should use:
+def run() -> None:    from .recovery_worker import execute_next_recovery    consume(        settings().action_stream,        "action-workers",        execute,        tick=execute_next_recovery,    )
+
+
+
+This is the run() replacement from Step 14. Do not duplicate it.
+Why this is important
+The two workflows must remain separate.
+
+The original Redis Streams message handler processes queue-burst experiments. The secondary poll checks approved recovery requests stored in PostgreSQL.
+
+We are not changing the existing outbox message schema to accommodate recovery actions.
+Step 35. Strengthen independent recovery verification
+The previous verify_next_recovery() checks exact jobs, the experiment state, and the incident's alert state.
+
+That is a useful foundation, but we should additionally verify that the target is no longer held.
+
+File: apps/control-plane/src/opsproof_control/recovery_worker.py
+
+Inside verify_next_recovery(), locate:
+    statuses: list[str] = []
+
+
+
+Immediately after it, add:
+    hold_cleared = False
+
+
+
+Inside the existing HTTP-client try block, after collecting individual job statuses, add:
+            state_response = client.get(                "/api/v1/internal/worker-state",                headers={                    "X-OpsProof-Inspect-Key":                        settings().inspection_key,                },            )            state_response.raise_for_status()            worker_state = state_response.json()            hold_cleared = worker_state.get("paused") is False
+
+
+
+Now locate the success condition:
+    elif (        len(statuses) == len(job_ids)
+
+
+
+Change the beginning of that condition to:
+    elif (        hold_cleared        and len(statuses) == len(job_ids)
+
+
+
+Keep the remaining checks for all jobs completed, experiment succeeded, and alert resolved.
+
+Finally, add this field to the result dictionary created before the terminal database update:
+            "worker_hold_cleared": hold_cleared,
+
+
+
+The resulting verification contract
+A successful recovery requires all of the following:
+- The action worker obtained an acknowledged applied or replayed actuator result.
+- The independent evidence worker confirmed that the worker hold was cleared.
+- Every linked job reached completed.
+- The linked experiment reached succeeded.
+- The relevant Prometheus incident reached resolved.
+If observations are incomplete, the recovery must remain under verification until its deadline, then become indeterminate.
+
+Do not automatically retry an operational action merely because verification failed. The existing idempotent retry is specifically for an uncertain response to the same recovery request.
+
+Also, do not describe this as proof that the action reduced recovery time. That requires a controlled comparison. It proves that the recorded post-action conditions satisfied our recovery criteria.
+Step 36. Enforce the AI request cap atomically
+Your financial constraint remains important. We must prevent two simultaneous browser requests from bypassing the configured daily cap.
+
+The earlier queue_ai() counted requests and then updated the investigation, but did not serialize concurrent quota decisions.
+
+File: apps/control-plane/src/opsproof_control/operations.py
+
+Inside queue_ai(), immediately after:
+    with pool().connection() as conn:
+
+
+
+add:
+        # Serialize quota decisions across concurrent API requests.        conn.execute(            "SELECT pg_advisory_xact_lock(%s)",            (74021441,),        )
+
+
+
+Keep the existing COUNT(*) and conditional UPDATE in that same transaction.
+
+PostgreSQL holds this transaction-level advisory lock until the transaction commits or rolls back. This makes quota checks through the authenticated API consistent under concurrent requests.
+
+It is a limit on API-queued model evaluations, not a universal billing limit. Running the benchmark directly from a container bypasses this API quota, which is why the benchmark also needs an explicit spending gate.
+
+File: apps/control-plane/src/opsproof_control/benchmark.py
+
+Inside main(), after the existing --max-cases argument definition, add:
+    parser.add_argument(        "--allow-paid",        action="store_true",        help="Explicitly acknowledge possible provider charges",    )
+
+
+
+After:
+    args = parser.parse_args()
+
+
+
+add:
+    if args.mode == "ai":        if not args.allow_paid:            parser.error(                "Paid evaluation requires --allow-paid"            )        if args.max_cases > 2:            parser.error(                "Initial paid comparison is limited "                "to two cases per invocation"            )
+
+
+
+The deterministic benchmark remains free and unchanged.
+
+We will keep model calls disabled during the first operational recovery drill. AI evaluation is not required to execute a recovery, and the model cannot change the policy.
+
+Part 11. Start and validate the full Milestone 4 environment
+Step 37. Confirm the required files exist
+Before starting Docker, use this Git Bash check from your Desktop project directory:
+cd "$HOME/Desktop/opsproof"
+
+for file in \
+  apps/control-plane/alembic/versions/0004_investigations_recoveries.py \
+  apps/control-plane/src/opsproof_control/diagnosis.py \
+  apps/control-plane/src/opsproof_control/investigation_worker.py \
+  apps/control-plane/src/opsproof_control/model_provider.py \
+  apps/control-plane/src/opsproof_control/operations.py \
+  apps/control-plane/src/opsproof_control/recovery_worker.py \
+  apps/demo-workload/src/opsproof_demo/worker_control.py \
+  apps/web/src/pages/InvestigationPage.tsx \
+  compose.demo.recovery.yaml \
+  compose.control.recovery.yaml
+do
+  if [ -f "$file" ]; then
+    printf "OK      %s\n" "$file"
+  else
+    printf "MISSING %s\n" "$file"
+  fi
+done
+
+
+Every file must show OK.
+
+If anything is missing, restore its contents from the earlier Milestone 4 instructions before continuing.
+Verify configuration without revealing credentials
+uv run --no-project --python 3.14 \
+  python scripts/prepare_recovery.py
+
+
+Then validate both Compose combinations:
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  config --quiet
+
+
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  config --quiet
+
+
+An empty output with exit code zero means Compose configuration validation succeeded. It does not prove runtime readiness.
+Step 38. Run the complete local test suite before rebuilding
+From the repository root:
+uv run --project apps/demo-workload --locked \
+  ruff check apps/demo-workload
+
+uv run --project apps/demo-workload --locked \
+  ruff format --check apps/demo-workload
+
+uv run --project apps/demo-workload --locked \
+  pytest apps/demo-workload/tests -v
+
+
+Next:
+uv run --project apps/control-plane --locked \
+  ruff check apps/control-plane
+
+uv run --project apps/control-plane --locked \
+  ruff format --check apps/control-plane
+
+uv run --project apps/control-plane --locked \
+  pytest apps/control-plane/tests -v
+
+
+If your formatting differs, use ruff format on the affected project, inspect the changes, and rerun these checks.
+
+For the frontend:
+cd "$HOME/Desktop/opsproof/apps/web"
+
+npm run lint
+npm run test
+npm run build
+
+
+Do not continue to the recovery experiment if tests for authentication, worker control, diagnosis, or policy are failing.
+Step 39. Start the monitoring stack
+Return to the root:
+cd "$HOME/Desktop/opsproof"
+
+
+Confirm both integration networks:
+docker network inspect opsproof-integration >/dev/null 2>&1 \
+  || docker network create opsproof-integration
+
+docker network inspect opsproof-telemetry >/dev/null 2>&1 \
+  || docker network create opsproof-telemetry
+
+
+Start your existing observability stack:
+docker compose \
+  -f compose.observability.yaml \
+  up -d
+
+
+Inspect it:
+docker compose \
+  -f compose.observability.yaml \
+  ps -a
+
+
+Review container errors:
+docker compose \
+  -f compose.observability.yaml \
+  logs --tail=80
+
+
+You must not consider monitoring operational solely because the containers started.
+
+Open Prometheus targets. After the application services start, the relevant target must report successful scraping.
+
+Open Prometheus alerts. The three local alert rules should be loaded.
+Step 40. Build and start the demo workload
+Run:
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  up -d --build --wait
+
+
+Inspect:
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  ps -a
+
+
+Verify readiness:
+curl -fsS \
+  http://127.0.0.1:8088/health/ready
+
+
+Inspect existing job counts:
+curl -fsS \
+  http://127.0.0.1:8088/api/v1/stats
+
+
+Before creating the fault, ideally the queued and processing values should both be zero.
+
+Historical completed jobs can remain in the database; we do not need to delete them.
+Verify the worker-control command
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  exec -T worker \
+  python -m opsproof_demo.worker_control status
+
+
+Expected before the drill:
+Worker hold active: False
+Remaining TTL: 0 seconds
+
+
+This confirms the tool can reach the actual demo Redis instance.
+Step 41. Build and start the control plane
+Keep the recovery kill switch disabled for the first deployment.
+
+In your local .env, confirm:
+OPSPROOF_CONTROL_RECOVERY_ENABLED=false
+OPSPROOF_CONTROL_AI_ENABLED=false
+
+
+Run:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  up -d --build --wait
+
+
+Verify the database migration:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  exec -T control-db \
+  psql -U opsproof -d opsproof \
+  -tAc "SELECT version_num FROM alembic_version;"
+
+
+Expected:
+0004
+
+
+If it still reports 0003, do not proceed. Inspect the migration container's logs, then rerun the migration using the updated control-plane image:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  run --rm control-migrate
+
+
+Recheck the revision.
+
+Verify the control API:
+curl -fsS \
+  http://127.0.0.1:8090/health/ready
+
+
+Then perform the original experiment regression test:
+uv run --no-project --python 3.14 \
+  python scripts/verify_control.py
+
+
+This matters because Milestone 4 must not break Milestone 2's working experiment pipeline.
+Step 42. Verify the prerequisites from Milestone 3
+Before enabling any recovery, verify:
+Requirement	Required observation
+Demo target	Prometheus up is 1
+Control target	Prometheus up is 1
+Alertmanager	Connected to Prometheus
+Incident ingestion	Previously verified firing/resolved transitions, or verify these now
+Worker	Running with the updated hold checks
+Evidence worker	Running with investigation polling
+Action worker	Running with recovery polling
+Database	Alembic revision 0004
+Recovery gate	Disabled
+AI provider	Disabled
+
+If the earlier observability fault drill was not completed, run that first. An unavailable API should produce a firing incident and then a resolved transition when restored.
+
+A failed monitoring integration is a blocker for the controlled-recovery acceptance test. We cannot use incident state as reliable evidence when the alert pipeline has not been verified.
+
+Step 43. Close a retry-authorization gap
+There is one more safety condition I want enforced before the live drill.
+
+The previous action-worker code rechecked incident and experiment eligibility on the first attempt, but skipped those checks when retrying after a lost HTTP response.
+
+That could allow a retry after the original incident had already resolved.
+
+File: apps/control-plane/src/opsproof_control/recovery_worker.py
+
+Inside execute_next_recovery(), find the existing block that begins:
+        if row["attempts"] == 1:            if (                not incident
+
+
+
+Replace that entire conditional block, ending immediately before:
+        with httpx.Client(
+
+
+
+with:
+        # Every attempt, including retries, must satisfy        # the original approval window and current state.        if datetime.now(UTC) >= row["expires_at"]:            _finish(                recovery_id,                "indeterminate",                "approval expired before confirmed action result",            )            return        if (            not incident            or incident["status"] != "firing"            or not experiment            or experiment["status"] != "verifying"        ):            _finish(                recovery_id,                (                    "failed"                    if row["attempts"] == 1                    else "indeterminate"                ),                "incident or experiment no longer eligible",            )            return
+
+
+
+Keep the existing fresh worker-hold check for the first attempt and the idempotency key for any retry.
+
+Why: An authorization decision is not permanent. The action worker must confirm that the approved operation is still within its valid window and that the target incident remains active.
+
+A retry may legitimately become indeterminate if the first request possibly succeeded but its response was lost. That is safer than performing an action after the conditions that authorized it have disappeared.
+
+After this correction, rebuild the control-plane services:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  up -d --build --wait
+
+
+
+Part 12. Execute a genuine approved recovery
+This is the core Milestone 4 acceptance experiment.
+
+We will create a controlled worker stall, trigger a real queue-backlog alert, investigate it, approve a narrowly scoped recovery, and independently verify the result.
+Step 44. Confirm that the kill switch fails closed
+Start with:
+OPSPROOF_CONTROL_RECOVERY_ENABLED=false
+OPSPROOF_CONTROL_AI_ENABLED=false
+
+
+Open the application:
+
+http://127.0.0.1:5173
+
+Sign in normally and open the Incidents page.
+
+The investigation interface should report that recovery is disabled.
+
+Do not test whether a recovery can execute by manually changing PostgreSQL rows. Authorization must flow through the API and policy checks.
+Negative authentication tests
+Run these in Git Bash:
+curl -sS -o /dev/null -w "Control API: %{http_code}\n" \
+  http://127.0.0.1:8090/api/v1/capabilities
+
+
+Expected:
+Control API: 401
+
+
+Test the inspection endpoint without its dedicated credential:
+curl -sS -o /dev/null -w "Inspection: %{http_code}\n" \
+  http://127.0.0.1:8088/api/v1/internal/worker-state
+
+
+Expected:
+Inspection: 401
+
+
+Test the actuator without its credential:
+curl -sS -o /dev/null -w "Recovery actuator: %{http_code}\n" \
+  -X POST \
+  http://127.0.0.1:8088/api/v1/internal/worker/resume \
+  -H "Content-Type: application/json" \
+  --data '{"recovery_id":"00000000-0000-0000-0000-000000000001"}'
+
+
+Expected:
+Recovery actuator: 401
+
+
+These responses must be actual observations. An unreachable server is not a passing 401 test.
+Step 45. Enable the recovery feature deliberately
+Only after Steps 38–44 pass, change your local .env entry to:
+OPSPROOF_CONTROL_RECOVERY_ENABLED=true
+
+
+Keep:
+OPSPROOF_CONTROL_AI_ENABLED=false
+
+
+Recreate the two services that enforce the recovery feature flag:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  up -d --no-deps --force-recreate \
+  control-api action-worker
+
+
+The evidence worker does not need actuator privileges.
+
+Reload the OpsProof application. The recovery capability should now be enabled, but no operation has been approved or performed.
+
+This is a single-operator, local-sandbox approval model. Do not describe it as two-person approval or production-grade organizational authorization.
+Step 46. Record the fault-injection start
+Before introducing the fault, check that the demo is idle:
+curl -fsS \
+  http://127.0.0.1:8088/api/v1/stats
+
+
+If jobs are still queued or processing, allow the workload to settle before starting a clean trial.
+
+Record the UTC time:
+date -u +"%Y-%m-%dT%H:%M:%SZ"
+
+
+Record this as the trial preparation timestamp.
+
+Now create the bounded worker hold:
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  exec -T worker \
+  python -m opsproof_demo.worker_control pause \
+  --seconds 420
+
+
+Expected:
+Bounded demo-worker hold created: 420 seconds
+
+
+Immediately record another UTC timestamp. This is the approximate fault-injection time for the experiment.
+
+Verify the hold:
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  exec -T worker \
+  python -m opsproof_demo.worker_control status
+
+
+The result should report an active hold with a decreasing TTL.
+
+The hold will expire automatically if no recovery occurs.
+Step 47. Create the bounded workload
+In the OpsProof web interface, open Experiments.
+
+Use the existing supported values:
+Field	Value
+Scenario	queue-burst
+Job count	5
+Duration per job	250 ms
+
+Click Run experiment once.
+
+Record the resulting experiment UUID and submission timestamp in your local engineering notes.
+
+The expected behavior while the hold is active is:
+- The demo API continues accepting jobs.
+- The dispatcher publishes jobs to Redis Streams.
+- The worker stops consuming new work.
+- The durable queued job count rises.
+- The control-plane experiment enters verifying.
+- The evidence worker waits for actual job completion.
+Check the demo stats:
+curl -fsS \
+  http://127.0.0.1:8088/api/v1/stats
+
+
+A positive queued count is the important observation.
+
+If the experiment fails immediately, inspect its event history before proceeding. It should not be treated as a successful injected fault.
+Step 48. Observe a real queue-backlog incident
+Open:
+
+Prometheus alerts
+
+Find:
+
+OpsProofDemoQueueBacklog
+
+Its alert rule requires the queued condition to persist. Do not assume it fires immediately.
+
+Once Prometheus reports it as firing, open:
+
+OpsProof Incidents
+
+Confirm that Alertmanager delivered the incident.
+
+You should see a firing incident corresponding to the demo queue backlog.
+
+Record:
+- Incident fingerprint.
+- Alert name.
+- Firing status.
+- First recorded firing timestamp.
+- Experiment UUID.
+- Current queued-job count.
+- Remaining worker-hold TTL.
+If Prometheus shows a firing alert but OpsProof has no corresponding incident, this is an integration failure. Inspect Alertmanager's webhook delivery and the control API logs before proceeding.
+Step 49. Run deterministic investigation
+On the corresponding incident, select Investigate.
+
+In the investigation page:
+1. Select the currently verifying queue-burst experiment.
+2. Start a new investigation.
+3. Allow the evidence worker to collect the snapshot.
+4. Review the deterministic baseline.
+A valid diagnosis should establish the following from recorded observations:
+Evidence field	Required value
+Alert	OpsProofDemoQueueBacklog
+Incident	firing
+Prometheus scrape	Fresh
+Demo API	Ready
+Queued jobs	Greater than zero
+Worker hold	Confirmed
+Linked experiment	Present
+Linked job IDs	Recorded
+Diagnosis	demo_worker_paused
+Suggested action	resume_demo_worker
+
+If any important evidence is missing, the correct behavior is to abstain or reject recovery.
+
+A queue backlog without a confirmed worker hold must not produce an executable recovery recommendation.
+Why the timing matters
+Evidence expires after 60 seconds under our policy. The approval window is also limited.
+
+If you spend too long reviewing an investigation, create a fresh evidence snapshot rather than bypassing the expiry restriction.
+
+If the original experiment times out, record it as a failed trial. Do not manipulate the database to make it verifying again.
+Step 50. Propose and approve the recovery
+When the deterministic result is eligible, select Propose worker resume.
+
+The system should create a recovery record in:
+pending_approval
+
+
+Review the proposed action and confirmation text.
+
+Enter exactly:
+APPROVE DEMO WORKER RESUME
+
+
+Then select Approve once.
+
+This approval authorizes only the specific action resume_demo_worker for the recorded investigation and incident.
+Expected execution sequence
+Operator approval
+
+Approved
+
+
+Restricted action worker
+
+Checks live eligibility
+
+
+Idempotent resume
+
+Removes fixed Redis hold
+
+
+Independent verification
+
+Jobs, experiment, alert, hold
+
+
+The record should progress through approved, running, and verifying, followed by a terminal result.
+
+A successful terminal result is only valid after independent evidence checks pass. Merely receiving HTTP 200 from the resume endpoint is not enough.
+Step 51. Inspect the actual recovery outcome
+After approval, check the worker-hold state:
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  exec -T worker \
+  python -m opsproof_demo.worker_control status
+
+
+The hold should be inactive after the resume operation has been applied.
+
+Check job counts again:
+curl -fsS \
+  http://127.0.0.1:8088/api/v1/stats
+
+
+Check the original experiment page.
+
+Its actual status should eventually be one of the terminal outcomes.
+
+Open Prometheus and inspect the queue alert. It should cease firing when the backlog clears. Then inspect the corresponding incident in OpsProof.
+How to interpret outcomes
+Recovery outcome	Meaning
+succeeded	All configured independent verification conditions passed
+failed	A known verification failure was recorded
+indeterminate	Action or outcome could not be reliably established
+expired	The request was not valid within its approval window
+rejected	The operator rejected the proposed action
+
+Do not change failed or indeterminate results to succeeded manually. Preserve the original evidence and the reason for the outcome.
+Emergency cleanup
+If the experiment becomes stuck, the synthetic hold still has a maximum lifetime.
+
+For manual local cleanup only, you can remove its exact Redis key:
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  exec -T redis \
+  redis-cli DEL opsproof:demo:worker:hold:v1
+
+
+This is an emergency operator command, not the OpsProof recovery mechanism.
+
+If you use it, record the trial as manually intervened. Do not claim the action worker performed recovery.
+
+Part 13. Verify the database evidence and audit trail
+Step 52. Inspect the incident lifecycle
+The PostgreSQL records should establish when an alert was received and how its state changed.
+
+Run:
+cd "$HOME/Desktop/opsproof"
+
+
+Open the control database:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  exec -T control-db \
+  psql -U opsproof -d opsproof \
+  -c "
+    SELECT
+      name,
+      status,
+      started_at,
+      resolved_at
+    FROM incidents
+    WHERE name = 'OpsProofDemoQueueBacklog'
+    ORDER BY last_seen_at DESC
+    LIMIT 5;
+  "
+
+
+Then inspect the actual notification transitions:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  exec -T control-db \
+  psql -U opsproof -d opsproof \
+  -c "
+    SELECT
+      i.name,
+      e.status,
+      e.created_at
+    FROM incident_events AS e
+    JOIN incidents AS i
+      ON i.fingerprint = e.fingerprint
+    WHERE i.name = 'OpsProofDemoQueueBacklog'
+    ORDER BY e.id DESC
+    LIMIT 10;
+  "
+
+
+The two transition states should be firing and resolved for the relevant test incident.
+
+Repeated firing notifications should not create repeated transition events unless there was a genuine intervening state change.
+Step 53. Inspect the diagnosis record
+Run:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  exec -T control-db \
+  psql -U opsproof -d opsproof \
+  -c "
+    SELECT
+      id,
+      status,
+      baseline->>'cause' AS cause,
+      baseline->>'action' AS recommendation,
+      ai_status,
+      created_at,
+      completed_at
+    FROM investigations
+    ORDER BY created_at DESC
+    LIMIT 5;
+  "
+
+
+For a successful controlled-pause investigation, the baseline should identify:
+cause:          demo_worker_paused
+recommendation: resume_demo_worker
+
+
+The AI status should remain not_requested while paid evaluations are disabled.
+
+Next, inspect the recovery record:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  exec -T control-db \
+  psql -U opsproof -d opsproof \
+  -c "
+    SELECT
+      id,
+      status,
+      action,
+      attempts,
+      result->>'actuator' AS actuator,
+      result->>'worker_hold_cleared'
+        AS hold_cleared,
+      created_at,
+      approved_at,
+      completed_at
+    FROM recoveries
+    ORDER BY created_at DESC
+    LIMIT 5;
+  "
+
+
+The worker_hold_cleared field will appear in terminal verification evidence after the Step 35 change.
+
+It is not expected in an earlier record created before that change.
+Step 54. Verify the complete recovery event history
+Run:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  exec -T control-db \
+  psql -U opsproof -d opsproof \
+  -c "
+    SELECT
+      r.action,
+      r.status AS recovery_status,
+      e.type AS event_type,
+      e.created_at
+    FROM recovery_events AS e
+    JOIN recoveries AS r
+      ON r.id = e.recovery_id
+    ORDER BY e.id DESC
+    LIMIT 30;
+  "
+
+
+The successful path should provide evidence of the following transitions:
+proposed
+approved
+attempt_started
+action_acknowledged
+succeeded
+
+
+The exact recorded sequence is authoritative. If an action was retried, additional attempt_started events may be present.
+
+If the recovery failed, expired, or became indeterminate, the final event must communicate that result instead.
+What these records prove
+PostgreSQL provides a durable record of decisions, action attempts and verification outcomes.
+
+However, this is an application-controlled audit trail, not a cryptographically tamper-proof evidence archive. We should not describe it as immutable or externally certified.
+
+Part 14. Complete the security regression tests
+Step 55. Add a test for unauthorized operations
+New file: apps/control-plane/tests/test_operations_security.py
+"""Ensure dangerous operation routes reject missing credentials."""from uuid import uuid4from fastapi.testclient import TestClientfrom opsproof_control.api import appdef test_capabilities_require_authentication() -> None:    with TestClient(app) as client:        response = client.get("/api/v1/capabilities")    assert response.status_code == 401def test_investigation_creation_requires_authentication() -> None:    with TestClient(app) as client:        response = client.post(            "/api/v1/investigations",            headers={                "Idempotency-Key": "unauthorized-investigation",            },            json={                "incident_fingerprint": "a" * 16,            },        )    assert response.status_code == 401def test_recovery_proposal_requires_authentication() -> None:    with TestClient(app) as client:        response = client.post(            "/api/v1/recoveries",            headers={
+
+
+
+These tests exercise FastAPI's authentication dependency before permitting access to an operation.
+
+They do not require a live database or a real recovery request.
+
+Run:
+uv run --project apps/control-plane \
+  pytest apps/control-plane/tests/test_operations_security.py -v
+
+
+Additional negative cases
+The overall acceptance process must also establish that:
+Test	Expected behavior
+Missing operator credentials	HTTP 401
+Invalid browser CSRF token	HTTP 403
+Invalid actuator credential	HTTP 401
+Recovery feature disabled	Approval rejected
+Unknown incident fingerprint	Investigation rejected
+Unsupported alert	No recovery action proposed
+Worker hold missing	No action authorized
+Hold almost expired	Recovery policy rejects
+Stale investigation	Recovery policy rejects
+Reused idempotency key with different payload	HTTP 409
+Duplicate recovery request	No duplicate active recovery
+Repeated actuator request with same ID	Recognized as replay
+AI provider disabled	Model request rejected
+Model suggests an unsupported action	Policy remains unchanged
+
+Some of these are covered by the pure Python tests provided earlier. Others require the running API, database and Redis integration.
+
+We must distinguish unit-test coverage from successful runtime tests.
+Step 56. Add a lightweight CI security smoke test
+The existing repository already has separate control-plane, demo-workload, web and observability workflows.
+
+We do not need another full CI pipeline.
+
+We will extend the existing control-plane integration workflow with a negative authentication smoke test.
+
+New file: scripts/verify_m4_security.py
+"""Verify that local Milestone 4 endpoints reject unauthenticated access."""import jsonfrom urllib.error import HTTPError, URLErrorfrom urllib.request import Request, urlopenCHECKS = [    (        "control capabilities",        "GET",        "http://127.0.0.1:8090/api/v1/capabilities",        None,    ),    (        "investigation creation",        "POST",        "http://127.0.0.1:8090/api/v1/investigations",        {            "incident_fingerprint": "a" * 16,        },    ),    (        "recovery proposal",        "POST",        "http://127.0.0.1:8090/api/v1/recoveries",        {            "investigation_id":                "00000000-0000-0000-0000-000000000001",        },    ),    (        "demo inspection",        "GET",        "http://127.0.0.1:8088/api/v1/internal/worker-state",        None,
+
+
+
+This test does not read your management key, send any valid credentials, or attempt an authorized recovery.
+
+File: .github/workflows/control-plane.yml
+
+In the existing integration job, immediately after the step named Verify complete experiment flow, add:
+      - name: Verify Milestone 4 authentication boundaries
+        run: |
+          uv run --no-project --python 3.14 \
+            python scripts/verify_m4_security.py
+
+
+Your existing CI already starts the demo workload and control plane for integration testing. The new smoke test reuses those services, avoiding unnecessary CI resource consumption.
+
+After applying this, run the script locally:
+cd "$HOME/Desktop/opsproof"
+
+uv run --no-project --python 3.14 \
+  python scripts/verify_m4_security.py
+
+
+Expected final line:
+PASS: all unauthenticated routes rejected
+
+
+The workflow must still pass all its earlier integration checks.
+
+Part 15. Finish the AI evaluation safely
+The deterministic diagnosis is the minimum working baseline. The optional AI layer should be evaluated against the same cases, without granting the model permission to execute actions.
+Step 57. Verify deterministic diagnosis first
+Run:
+cd "$HOME/Desktop/opsproof"
+
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  exec -T evidence-worker \
+  python -m opsproof_control.benchmark \
+  --mode deterministic \
+  --max-cases 10
+
+
+Review:
+- Expected versus predicted causes.
+- Expected versus predicted actions.
+- Cause classification accuracy.
+- Action classification accuracy.
+- Unsafe-action count.
+Do not automatically describe the result as model accuracy. This is a deterministic implementation tested against a small, authored synthetic dataset.
+
+Also verify these cases manually in the investigation UI:
+Situation	Expected diagnosis
+Confirmed paused worker with queued jobs	demo_worker_paused
+Queue backlog without a confirmed hold	queue_stalled_unknown
+Demo API unavailable	api_unreachable or insufficient evidence
+Unrecognized alert	insufficient_evidence
+Stale or incomplete evidence	No executable recovery recommendation
+
+Step 58. Allow the benchmark to address all ten cases without uncontrolled spending
+The initial benchmark provided in Step 19 evaluates cases from the beginning of the dataset.
+
+For a fair comparison, we need to select different case ranges rather than repeatedly evaluating the first two.
+
+File: apps/control-plane/src/opsproof_control/benchmark.py
+
+Inside main(), add this argument:
+    parser.add_argument(        "--start",        type=int,        default=0,        help="Zero-based starting index of the benchmark cases",    )
+
+
+
+After the existing maximum-case validation, add:
+    if (        args.start < 0        or args.start + args.max_cases > len(CASES)    ):        parser.error(            "Requested benchmark range exceeds the dataset"        )
+
+
+
+Change:
+    for case in CASES[:args.max_cases]:
+
+
+
+to:
+    for case in CASES[        args.start : args.start + args.max_cases    ]:
+
+
+
+Add to the final report dictionary:
+        "start_index": args.start,
+
+
+
+Now each paid invocation can be limited to two specific cases, while the total ten-case dataset can be evaluated incrementally.
+Step 59. Optional initial paid-provider test
+The default remains AI disabled.
+
+Only if you decide to use a paid provider, configure your own key in the local .env. Do not place it in ChatGPT, source control, screenshots or public reports.
+
+For Gemini:
+OPSPROOF_CONTROL_AI_ENABLED=true
+OPSPROOF_CONTROL_AI_PROVIDER=gemini
+OPSPROOF_CONTROL_AI_MODEL=gemini-2.5-flash-lite
+OPSPROOF_CONTROL_AI_API_KEY=YOUR_PRIVATE_KEY
+
+
+The placeholder YOUR_PRIVATE_KEY must be replaced locally.
+
+Recreate only the evidence worker for the benchmark:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  up -d --no-deps --force-recreate evidence-worker
+
+
+Run a single two-case comparison:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  exec -T evidence-worker \
+  python -m opsproof_control.benchmark \
+  --mode ai \
+  --start 0 \
+  --max-cases 2 \
+  --allow-paid
+
+
+The --allow-paid flag makes the potential paid operation explicit.
+
+Inspect the result before requesting any more cases.
+
+For an OpenAI comparison, use the same two cases, configure OPSPROOF_CONTROL_AI_PROVIDER=openai, and set OPSPROOF_CONTROL_AI_MODEL to an API model that you have verified is available to your account. The Responses API supports schema-constrained output for compatible models.
+OpenAI API
+
+Selection criteria
+Measurement	How we judge it
+Cause accuracy	Matches the authored expected root-cause label
+Action accuracy	Matches the expected action or abstention
+Unsafe suggestions	Counts suggested actions when expected action is none
+Abstention	Refuses to guess when evidence is insufficient
+Validity	Output passes the expected Pydantic contract
+Latency	Recorded request duration
+Cost	Calculated from actual token usage and provider pricing
+
+Zero unsafe suggestions is a requirement for a candidate worth further investigation, but achieving zero on ten synthetic examples is not evidence of production safety.
+
+Do not select a model based on a single attractive explanation or a provider's advertised benchmark score.
+What if AI is worse?
+Keep the deterministic diagnosis as the active baseline.
+
+Record the AI result, including errors and limitations, and do not enable model-assisted recommendations by default.
+
+That is a valid engineering outcome. The project demonstrates a system that evaluates AI before trusting its output.
+
+Because the benchmark uses ten curated examples, we must still evaluate unseen and recorded incidents before claiming a defensible diagnosis improvement.
+Cost protection
+The authenticated UI has a database-backed daily request cap. The direct benchmark has an explicit --allow-paid flag and a two-case-per-invocation restriction.
+
+These safeguards reduce accidental spending but do not guarantee a total monetary ceiling, particularly if multiple invocations or other users of the same provider account are involved.
+
+Check the provider's actual billing dashboard and hard-budget controls before enabling paid calls. Under your budget constraint, I would not enable continuous model evaluation or automatic model requests.
+
+After the experiment, set:
+OPSPROOF_CONTROL_AI_ENABLED=false
+
+
+Recreate the evidence worker with the flag disabled.
+
+Part 16. Measure the real result
+Step 60. Establish the measurement boundaries
+This milestone gives us a measured operational workflow, but it does not yet justify an invented percentage reduction.
+
+We need to distinguish four times:
+Measurement	Definition
+Detection delay	First firing incident received minus fault injection
+Investigation delay	Diagnosis completed minus investigation requested
+Approval-to-action delay	Actuator acknowledgment minus operator approval
+Verification delay	Independent recovery verification completed minus action acknowledgment
+
+Also record the time between the fault injection and successful verification as an overall observed recovery-trial duration.
+
+The timestamps have different origins. Fault-injection time comes from your terminal; incident and recovery events come from PostgreSQL.
+
+Because different clocks and process boundaries are involved, verify clock synchronization and use UTC. Do not describe differences of a few milliseconds as precise unless your collection procedure supports that precision.
+What is a valid percentage improvement?
+Suppose a later controlled comparison shows that one process has a median duration of \(B\) seconds and the improved process has a median of \(N\) seconds.
+
+Then:
+\[
+\text{Reduction}=\frac{B-N}{B}\times100
+\]
+
+But the two procedures must be genuinely comparable.
+
+For example, comparing an automatically expiring eight-minute pause with a manually approved resume is not automatically proof of a percentage improvement in production MTTR. The experiment designs and observation windows differ.
+
+Milestone 6 is where we will run repeatable baseline-versus-improvement comparisons and calculate defensible percentage impacts.
+
+For now, record the actual detection, approval and verification durations, including unsuccessful and inconclusive trials.
+
+Part 17. Document the complete operational procedure
+Step 61. Create the Milestone 4 runbook
+New file: docs/operations/M4_INVESTIGATION_RECOVERY.md
+
+Open the file in Antigravity and paste the complete content:
+# OpsProof Milestone 4
+## AI Investigation and Controlled Recovery
+
+Status: Pending full local acceptance verification
+
+## Objective
+
+Investigate detected incidents using bounded real evidence,
+compare deterministic and optional AI diagnoses, require
+explicit authorization for supported recovery actions,
+and independently verify recorded outcomes.
+
+## Supported Scope
+
+- Local Docker Compose environment
+- Demo queue-burst experiments
+- Prometheus/Alertmanager incident detection
+- PostgreSQL-backed incident and recovery records
+- Deterministic diagnosis
+- Optional, bounded AI evaluation
+- Operator-approved demo-worker resume
+- Independent job and experiment verification
+
+The recovery actuator does not control Docker, Kubernetes,
+cloud accounts or arbitrary processes.
+
+## Service Responsibilities
+
+### Control API
+
+- Authenticates the operator
+- Creates investigations
+- Records recovery proposals and approvals
+- Enforces CSRF for browser mutations
+- Exposes read-only recovery audit records
+- Does not receive the demo recovery credential
+
+### Evidence Worker
+
+- Collects bounded evidence
+- Runs deterministic diagnosis
+- Performs optional AI evaluation
+- Verifies exact jobs and recovery outcomes
+- Does not receive the recovery actuator credential
+
+### Action Worker
+
+- Claims approved durable recovery requests
+- Revalidates policy-relevant live conditions
+- Uses a fixed allowlisted actuator endpoint
+- Records the actuator response
+- Does not perform independent outcome verification
+
+### Demo Workload
+
+- Supports a temporary Redis-backed worker hold
+- Provides an authenticated inspection endpoint
+- Provides an authenticated idempotent resume endpoint
+- Automatically expires abandoned synthetic holds
+
+## Security Model
+
+- Recovery disabled by default
+- AI disabled by default
+- Separate inspection and recovery credentials
+- No Docker socket mounted into recovery containers
+- No arbitrary URLs or shell commands accepted
+- No model-directed tool execution
+- Typed, bounded API requests
+- PostgreSQL-backed state transitions
+- Fixed operation allowlist
+- Expiring approvals
+- Idempotency keys
+- Independent evidence verification
+- Explicit indeterminate state
+
+## Recovery Preconditions
+
+All conditions are required:
+
+1. Supported queue-backlog alert
+2. Incident remains firing
+3. Linked queue-burst experiment exists
+4. Experiment remains verifying
+5. Prometheus scrape evidence is recent
+6. Demo API is ready
+7. Demo worker hold is confirmed
+8. Hold has sufficient remaining TTL
+9. Queued jobs exist
+10. Exact linked job identifiers are recorded
+11. Deterministic diagnosis permits the action
+12. Evidence is within its freshness window
+13. Operator explicitly approves the action
+14. Recovery kill switch is enabled
+15. Action worker independently revalidates eligibility
+
+AI output cannot override these conditions.
+
+## Successful Verification
+
+Success requires:
+
+- Acknowledged actuator operation
+- Worker hold no longer active
+- Every linked job completed
+- Linked experiment succeeded
+- Relevant alert resolved
+
+Incomplete observations are not success.
+
+## Failure Handling
+
+- Rejected: operator refused the action
+- Expired: approval validity ended before execution
+- Failed: a known execution or verification failure
+- Indeterminate: action effect or recovery evidence
+  could not be reliably established
+
+Do not automatically repeat a destructive or
+state-changing action after an uncertain result.
+
+The demo-worker resume is an idempotent operation.
+It is not a generalized rollback framework.
+
+## Manual Fault Drill
+
+1. Verify the original control and demo workloads.
+2. Verify Prometheus and Alertmanager integration.
+3. Confirm worker and queue are idle.
+4. Enable the local recovery feature explicitly.
+5. Create the bounded demo-worker hold.
+6. Submit a five-job queue-burst experiment.
+7. Observe queued jobs and a firing backlog alert.
+8. Link the experiment to a new investigation.
+9. Review the deterministic diagnosis.
+10. Propose the supported recovery action.
+11. Approve using the exact confirmation phrase.
+12. Observe the action-worker acknowledgment.
+13. Verify linked jobs and experiment results.
+14. Verify the alert lifecycle.
+15. Inspect PostgreSQL recovery and audit records.
+16. Record observed timestamps and failures.
+17. Disable the recovery feature.
+18. Confirm existing experiment regression tests pass.
+
+## Evidence to Preserve
+
+- Git commit and source revision
+- Container image versions
+- Relevant Compose configuration names
+- Experiment identifier
+- Incident fingerprint
+- Investigation identifier
+- Recovery identifier
+- Fault injection timestamp
+- First firing event timestamp
+- Approval event timestamp
+- Action acknowledgment timestamp
+- Verification completion timestamp
+- Linked job outcomes
+- Experiment outcome
+- Incident resolution outcome
+- Unit and integration test summaries
+- Resource usage measurements
+- Any manually applied intervention
+- Test limitations
+
+Do not publish raw credentials, authentication cookies
+or private environment files.
+
+## AI Benchmark
+
+Initial benchmark:
+
+- Deterministic baseline
+- Ten curated synthetic cases
+- Explicit expected cause and action labels
+- Optional paid provider comparisons
+- Maximum two cases per paid invocation initially
+
+Evaluation dimensions:
+
+- Cause accuracy
+- Action accuracy
+- Unsafe action suggestions
+- Abstention behavior
+- Output validity
+- Latency
+- Token usage
+- Estimated cost
+
+This dataset is not a production accuracy benchmark.
+
+The active policy does not depend on AI correctness.
+
+## Acceptance
+
+Milestone 4 is accepted only after:
+
+- Required tests pass
+- The original experiment workflow still works
+- A real paused-worker incident is detected
+- The diagnosis identifies the confirmed hold
+- Unauthorized actions are rejected
+- The operator approval is recorded
+- The restricted action executes successfully
+- Independent verification establishes the outcome
+- The incident and recovery history are preserved
+- Kill-switch and expiry behavior are checked
+- AI and cost claims remain evidence-based
+- The working tree and CI checks are reviewed
+
+## Known Limitations
+
+- Local synthetic failure injection
+- Single local operator role
+- No two-person approval
+- No arbitrary service restart
+- No Docker or Kubernetes actuator privileges
+- No generalized rollback capability
+- No production traffic
+- No established production MTTR reduction
+- Limited initial diagnosis benchmark
+- Paid AI optional
+- Full Kubernetes/GitOps remediation remains planned
+- Final AWS EKS verification remains cost-gated
+
+
+This runbook is now the operational reference for Milestone 4.
+
+It separates what has been implemented from what still needs real acceptance evidence.
+Step 62. Add a compact trial record
+New file: docs/operations/M4_TRIAL_RESULTS.md
+# OpsProof Milestone 4 Trial Results
+
+## Verification Status
+
+Pending actual execution.
+
+Do not record passing outcomes before performing the test.
+
+## Environment
+
+- Platform:
+- Operating system:
+- CPU:
+- Available RAM:
+- Docker version:
+- Compose version:
+- Git commit:
+- Python version:
+- Prometheus version:
+- Alertmanager version:
+
+## Controlled Scenario
+
+- Scenario: queue-burst
+- Job count: 5
+- Duration per job: 250 ms
+- Synthetic worker-hold TTL: 420 seconds
+
+## Trial 1
+
+| Measurement | Actual value |
+|---|---|
+| Fault injection UTC | Pending |
+| Experiment ID | Pending |
+| First firing event UTC | Pending |
+| Incident fingerprint | Pending |
+| Investigation ID | Pending |
+| Diagnosis result | Pending |
+| Recovery ID | Pending |
+| Approval UTC | Pending |
+| Action acknowledged UTC | Pending |
+| Verification completed UTC | Pending |
+| Alert resolved UTC | Pending |
+| Linked jobs completed | Pending |
+| Experiment status | Pending |
+| Recovery status | Pending |
+| Manual intervention | Pending |
+
+## Calculated Measurements
+
+| Measurement | Actual result |
+|---|---|
+| Detection delay | Pending |
+| Investigation duration | Pending |
+| Approval-to-action delay | Pending |
+| Recovery verification duration | Pending |
+| Overall trial duration | Pending |
+
+## Security Checks
+
+| Check | Result |
+|---|---|
+| No credentials rejected | Pending |
+| Invalid actuator key rejected | Pending |
+| Recovery disabled by default | Pending |
+| Stale evidence rejected | Pending |
+| Unknown incident rejected | Pending |
+| Unsupported action rejected | Pending |
+| Expiring hold rejected | Pending |
+| Duplicate action recognized | Pending |
+| Operator rejection recorded | Pending |
+| Invalid CSRF rejected | Pending |
+
+## Diagnosis Evaluation
+
+| Measurement | Deterministic | AI candidate |
+|---|---|---|
+| Cases evaluated | Pending | Not enabled |
+| Cause accuracy | Pending | Not enabled |
+| Action accuracy | Pending | Not enabled |
+| Unsafe suggestions | Pending | Not enabled |
+| Abstention behavior | Pending | Not enabled |
+| Token usage | Not applicable | Not enabled |
+| Provider cost | 0 | Not enabled |
+
+## Resource Usage
+
+Record observed CPU, memory and disk consumption.
+
+Do not substitute configured container memory limits
+for measured consumption.
+
+## Findings
+
+Pending actual test execution.
+
+## Failures and Corrections
+
+Pending.
+
+## Limitations
+
+This local simulated experiment does not establish
+production availability or production MTTR.
+
+
+As you execute the experiment, replace the pending entries with real observations.
+
+Do not make up measurements to fill the table.
+
+Part 18. Resource use, cleanup and regression
+Step 63. Measure laptop resource usage
+With the system running, execute:
+docker stats --no-stream
+
+
+Record at least:
+- Control API memory.
+- Action worker memory.
+- Evidence worker memory.
+- Demo API memory.
+- Demo worker memory.
+- Prometheus memory.
+- Loki memory.
+- Tempo memory.
+- Grafana memory.
+Also inspect Windows Task Manager for overall memory usage.
+
+Your 16 GB laptop can support a controlled setup, but that does not mean every service, browser, Antigravity window and optional local AI model will fit comfortably at the same time.
+
+Do not run a GPU-hosted local model during the initial recovery drill. It adds resource contention and would make reliability measurements harder to interpret.
+Step 64. Disable recovery after the drill
+Open the root .env and restore:
+OPSPROOF_CONTROL_RECOVERY_ENABLED=false
+OPSPROOF_CONTROL_AI_ENABLED=false
+
+
+Recreate the relevant services so the flags take effect:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  up -d --no-deps --force-recreate \
+  control-api action-worker evidence-worker
+
+
+Verify that the UI again reports recovery disabled.
+
+This is the expected resting state of the local demonstration environment.
+Step 65. Run the original regression verification
+Make sure the worker hold has expired or been cleared.
+
+Then run:
+cd "$HOME/Desktop/opsproof"
+
+uv run --no-project --python 3.14 \
+  python scripts/verify_control.py
+
+
+Also rerun:
+uv run --project apps/demo-workload --locked \
+  pytest apps/demo-workload/tests -v
+
+uv run --project apps/control-plane --locked \
+  pytest apps/control-plane/tests -v
+
+
+Frontend:
+cd "$HOME/Desktop/opsproof/apps/web"
+
+npm run lint
+npm run test
+npm run build
+npm run test:e2e
+
+
+The original experiment workflow, authentication, evidence export and responsive UI should continue working.
+Step 66. Stop the environment safely
+When finished, stop the monitoring stack:
+cd "$HOME/Desktop/opsproof"
+
+docker compose \
+  -f compose.observability.yaml \
+  down
+
+
+Stop the control plane:
+docker compose \
+  -f compose.control.yaml \
+  -f compose.control.telemetry.yaml \
+  -f compose.control.recovery.yaml \
+  down
+
+
+Stop the demonstration workload:
+docker compose \
+  -f compose.yaml \
+  -f compose.target-integration.yaml \
+  -f compose.demo.telemetry.yaml \
+  -f compose.demo.recovery.yaml \
+  down
+
+
+These commands preserve named database and telemetry volumes.
+
+Do not append --volumes or -v unless you intentionally want to delete the stored environment.
+
+We want the platform to be reproducible without discarding evidence unnecessarily.
+
+Part 19. Engineering log, final quality gates and commit
+Step 67. Update the engineering log
+File: docs/ENGINEERING_LOG.md
+
+Append this entry, preserving the existing log.
+## 2026-11-05: Milestone 4, AI Investigation and Safe Recovery
+
+### Objective
+
+Introduce evidence-driven incident investigation,
+a deterministic diagnosis baseline, optional AI
+evaluation, and controlled operator-approved
+demo-workload recovery.
+
+### Architecture
+
+- Existing authenticated FastAPI control API
+- Independent evidence and action workers
+- PostgreSQL investigation and recovery state
+- PostgreSQL recovery audit events
+- Existing Redis Streams experiment pipeline
+- Separate durable recovery requests
+- Bounded demo-worker hold
+- Fixed, idempotent demo-worker resume actuator
+- Deterministic diagnosis and policy checks
+- Optional structured-output AI evaluation
+- Forest & Porcelain investigation interface
+
+### Safety Decisions
+
+- No arbitrary shell execution
+- No Docker socket access
+- No arbitrary Kubernetes actions
+- No AI-authorized recovery
+- No unrestricted target selection
+- Recovery disabled by default
+- AI disabled by default
+- Separate inspection and recovery credentials
+- Explicit operator approval
+- Short-lived evidence and approval validity
+- Revalidation before execution
+- Idempotent action handling
+- Independent post-action verification
+- Indeterminate outcome for uncertain results
+
+### Engineering Implementation
+
+- Added migration 0004
+- Added investigation persistence and API
+- Added deterministic diagnosis rules
+- Added bounded evidence snapshots
+- Added optional model provider adapter
+- Added recovery request lifecycle
+- Added restricted recovery execution
+- Added independent recovery verification
+- Added worker hold/resume controls
+- Added investigation UI and API client support
+- Extended unit and security tests
+- Extended CI authentication checks
+- Added operational runbook and results template
+
+### Verification
+
+Pending final local execution.
+
+Record the actual results for:
+
+- Python lint and formatting
+- Python unit tests
+- Browser tests and accessibility checks
+- Existing experiment integration
+- Incident detection
+- Diagnosis evidence
+- Approval rejection and expiry
+- Recovery execution
+- Idempotency handling
+- Exact-job verification
+- Alert resolution
+- Audit history
+- Resource consumption
+- AI comparison, if enabled
+
+### Known Limitations
+
+- Local demonstration workload only
+- Synthetic bounded worker pause
+- No arbitrary process restart
+- No production traffic
+- No two-person authorization
+- No production MTTR claim
+- No automatic generalized rollback
+- Small curated AI benchmark
+- AI disabled unless explicitly configured
+- Kubernetes and GitOps remediation planned later
+
+### Completion Criteria
+
+Milestone 4 is complete only when the required
+security, regression, runtime and recovery checks
+have passed and the evidence is recorded.
+
+
+Replace Pending final local execution with the actual results after you perform the tests. If completion occurs on a different date, record that date as well.
+Step 68. Final acceptance checklist
+Milestone 4 acceptance
+
+Local verification required
+
+Acceptance progress
+
+0/21
+
+[ ] Code and quality: Python lint, formatting and all unit tests pass
+
+[ ] Code and quality: Frontend lint, tests, build and browser checks pass
+
+[ ] Code and quality: Migration 0004 applied without losing existing records
+
+[ ] Code and quality: Existing queue-burst experiment still succeeds
+
+[ ] Detection: Prometheus and Alertmanager incident delivery works
+
+[ ] Detection: Bounded worker hold produces a real backlog alert
+
+[ ] Diagnosis: Deterministic diagnosis confirms the paused-worker condition
+
+[ ] Diagnosis: Missing or stale evidence produces no executable recommendation
+
+[ ] Security: Unauthorized API and actuator requests are rejected
+
+[ ] Security: Recovery kill switch is disabled by default
+
+[ ] Security: Approval and expiration conditions are enforced
+
+[ ] Security: Duplicate recovery execution is prevented or safely recognized
+
+[ ] Recovery: Operator approval creates a durable audit event
+
+[ ] Recovery: Action worker removes only the approved worker hold
+
+[ ] Recovery: Evidence worker independently verifies exact jobs
+
+[ ] Recovery: Experiment and alert recovery states are validated
+
+[ ] Recovery: Uncertain results never become false successes
+
+[ ] Evaluation: Deterministic benchmark and limitations are recorded
+
+[ ] Evaluation: AI comparison is documented or explicitly recorded as disabled
+
+[ ] Operations: Memory use, evidence and operational runbook are reviewed
+
+[ ] Delivery: CI checks pass and no sensitive material is committed
+
+These checks are not marked as completed merely because implementation instructions have been provided.
+Important distinction for AI acceptance
+If paid evaluation remains disabled, record that explicitly and preserve the working deterministic implementation. Do not claim that the AI functionality has been benchmarked against live incidents.
+
+If the full locked scope requires a selected AI provider, that selection remains open until the comparison has actually been performed.
+Step 69. Review changes before committing
+From Git Bash:
+cd "$HOME/Desktop/opsproof"
+
+git status --short
+
+git diff --check
+
+
+Check the migration status, source changes, documentation and new tests.
+
+Make sure the following are not staged:
+- .env
+- Local AI provider credentials
+- Local inspection and recovery credentials
+- .runtime/
+- Playwright traces containing sensitive information
+- Database dumps
+- Unreviewed monitoring logs
+Stage the intended source and documentation:
+git add \
+  apps/control-plane \
+  apps/demo-workload \
+  apps/web/src \
+  apps/control-plane/tests \
+  apps/demo-workload/tests \
+  scripts/prepare_recovery.py \
+  scripts/verify_m4_security.py \
+  compose.demo.recovery.yaml \
+  compose.control.recovery.yaml \
+  docs/operations/M4_INVESTIGATION_RECOVERY.md \
+  docs/operations/M4_TRIAL_RESULTS.md \
+  docs/ENGINEERING_LOG.md \
+  .github/workflows/control-plane.yml
+
+
+Review:
+git diff --cached --name-only
+
+git diff --cached --stat
+
+git diff --cached --check
+
+
+Only after the tests and operational verification pass, commit:
+git commit -m "feat: add evidence-driven investigation and safe recovery"
+
+git status --short
+
+git log -3 --oneline
+
+
+The feature should remain on feature/ai-investigation-safe-recovery until the pull request checks pass.
+
+Do not mark it merged or released solely because the local commit succeeds.
+
+Where Milestone 4 stands
+We have now covered the remaining Milestone 4 implementation and acceptance procedure, including the missing fault-injection mechanism and the additional authorization and verification protections.
+Milestone 4 deliverables
+Investigation architecture and API	Code provided
+Deterministic diagnosis and policy	Code provided
+Optional AI evaluation and benchmark	Code provided; evaluation pending
+Operator approval and recovery state machine	Code provided
+Bounded worker hold and idempotent resume	Code provided
+Independent verification and audit trail	Code provided
+Forest & Porcelain investigation UI	Code provided
+Security tests, CI and runbooks	Code and instructions provided
+Successful complete recovery drill	Requires local execution
+
+
+Milestone 4 is implementation-specified, but not yet independently verified as completed. I have not run the new stack against your current Windows working tree, and the available ZIP predates these changes. The final runtime result must establish whether everything works together.

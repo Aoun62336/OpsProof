@@ -6,6 +6,7 @@ import { getSession, logout } from "../lib/api";
 import { LoginPage } from "../pages/LoginPage";
 import { OverviewPage } from "../pages/OverviewPage";
 import { IncidentsPage } from "../pages/IncidentsPage";
+import { InvestigationPage } from "../pages/InvestigationPage";
 import { ExperimentsPage } from "../pages/ExperimentsPage";
 import { ExperimentDetailPage } from "../pages/ExperimentDetailPage";
 import { ReportsPage } from "../pages/ReportsPage";
@@ -75,6 +76,7 @@ export default function App() {
     <BrowserRouter>
       <AppShell onSignOut={signOut}>
         <Routes>
+          <Route path="/incidents/:fingerprint/investigate" element={<InvestigationPage />} />
           <Route path="/" element={<OverviewPage />} />
 
           <Route

@@ -182,3 +182,106 @@ export function getIncidentEvents(
     `/incidents/${encodeURIComponent(fingerprint)}/events`,
   );
 }
+
+export function getCapabilities(): Promise<
+  import("./types").OperationalCapabilities
+> {
+  return request("/capabilities");
+}
+
+export function listInvestigations(
+  fingerprint: string,
+): Promise<import("./types").Investigation[]> {
+  return request(
+    `/investigations?incident_fingerprint=${encodeURIComponent(fingerprint)}`,
+  );
+}
+
+export function requestInvestigation(
+  fingerprint: string,
+  runId: string | null,
+  key: string,
+): Promise<import("./types").Investigation> {
+  return request("/investigations", {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": key,
+    },
+    body: JSON.stringify({
+      incident_fingerprint: fingerprint,
+      run_id: runId,
+    }),
+  });
+}
+
+export function requestAiEvaluation(
+  id: string,
+): Promise<import("./types").Investigation> {
+  return request(
+    `/investigations/${encodeURIComponent(id)}/ai`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function listRecoveries(): Promise<
+  import("./types").Recovery[]
+> {
+  return request("/recoveries");
+}
+
+export function proposeRecovery(
+  investigationId: string,
+  key: string,
+): Promise<import("./types").Recovery> {
+  return request("/recoveries", {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": key,
+    },
+    body: JSON.stringify({
+      investigation_id: investigationId,
+    }),
+  });
+}
+
+export function approveRecovery(
+  id: string,
+): Promise<import("./types").Recovery> {
+  return request(
+    `/recoveries/${encodeURIComponent(id)}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        confirmation: "APPROVE DEMO WORKER RESUME",
+      }),
+    },
+  );
+}
+
+export function rejectRecovery(
+  id: string,
+): Promise<import("./types").Recovery> {
+  return request(
+    `/recoveries/${encodeURIComponent(id)}/reject`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function getRecoveryEvents(
+  id: string,
+): Promise<
+  {
+    id: number;
+    type: string;
+    details: Record<string, unknown>;
+    created_at: string;
+  }[]
+> {
+  return request(
+    `/recoveries/${encodeURIComponent(id)}/events`,
+  );
+}

@@ -8,6 +8,7 @@ import httpx2 as httpx
 
 from .config import settings
 from .db import pool
+from .shutdown import checkpoint
 from .store import enqueue, event, fail
 from .streams import consume
 
@@ -69,13 +70,16 @@ def execute(run_id: UUID) -> None:
             timeout=5,
             trust_env=False,
         ) as http:
+            checkpoint()
             response = http.get("/health/ready")
             response.raise_for_status()
 
+            checkpoint()
             before = http.get("/api/v1/stats")
             before.raise_for_status()
 
             for index in range(row["count"]):
+                checkpoint()
                 idempotency_key = f"opsproof-{run_id}-{index}"
                 response = http.post(
                     "/api/v1/jobs",
@@ -120,8 +124,11 @@ def execute(run_id: UUID) -> None:
 
 
 def run() -> None:
+    from .recovery_worker import execute_next_recovery
+
     consume(
         settings().action_stream,
         "action-workers",
         execute,
+        tick=execute_next_recovery,
     )

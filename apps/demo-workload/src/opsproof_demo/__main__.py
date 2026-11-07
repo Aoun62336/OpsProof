@@ -5,7 +5,9 @@ import logging
 
 import uvicorn
 
+from .db import pool
 from .dispatcher import run as run_dispatcher
+from .shutdown import lifecycle
 from .worker import run as run_worker
 
 
@@ -38,10 +40,16 @@ def main() -> None:
             port=8080,
             workers=1,
         )
-    elif args.service == "dispatcher":
-        run_dispatcher()
-    elif args.service == "worker":
-        run_worker()
+    else:
+        with lifecycle():
+            try:
+                if args.service == "dispatcher":
+                    run_dispatcher()
+                else:
+                    run_worker()
+            finally:
+                if pool.cache_info().currsize:
+                    pool().close()
 
 
 if __name__ == "__main__":

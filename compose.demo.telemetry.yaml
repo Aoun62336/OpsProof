@@ -44,6 +44,7 @@ services:
       OTEL_SERVICE_NAME: opsproof-demo-dispatcher
 
     networks:
+      - default
       - opsproof-telemetry
 
   worker:
@@ -58,6 +59,7 @@ services:
       OTEL_SERVICE_NAME: opsproof-demo-worker
 
     networks:
+      - default
       - opsproof-telemetry
 
 networks:
