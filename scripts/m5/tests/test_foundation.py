@@ -74,7 +74,18 @@ class FoundationTests(unittest.TestCase):
         )
         for app in record["items"][1:]:
             self.assertFalse(app["spec"]["syncPolicy"]["automated"]["prune"])
-            self.assertNotIn("ignoreDifferences", app["spec"])
+            if app["metadata"]["name"] != "demo":
+                self.assertNotIn("ignoreDifferences", app["spec"])
+            else:
+                rules = app["spec"]["ignoreDifferences"]
+                self.assertEqual(len(rules), 3)
+                for rule in rules:
+                    self.assertEqual(rule["namespace"], "opsproof-demo")
+                    self.assertIn(
+                        rule["name"], ("demo-release", "demo-api", "demo-api-canary")
+                    )
+                    self.assertTrue(rule["jsonPointers"])
+                    self.assertNotIn("jqPathExpressions", rule)
 
 
 if __name__ == "__main__":

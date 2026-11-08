@@ -15,6 +15,14 @@ gateway:
   enabled: true
   name: opsproof-gateway
   listeners:
+    release:
+      port: 8001
+      protocol: HTTP
+      namespacePolicy:
+        from: Selector
+        selector:
+          matchLabels:
+            kubernetes.io/metadata.name: opsproof-demo
     web:
       port: 8000
       protocol: HTTP
@@ -28,6 +36,10 @@ service:
   spec:
     type: NodePort
 ports:
+  release:
+    port: 8001
+    expose:
+      default: false
   web:
     port: 8000
     exposedPort: 80

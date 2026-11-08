@@ -37,7 +37,7 @@ def validate(objects):
                 obj["spec"].get("type", "ClusterIP") == "ClusterIP",
                 f"Public service: {name}",
             )
-        if kind not in ("Deployment", "StatefulSet", "Job"):
+        if kind not in ("Deployment", "StatefulSet", "Job", "Rollout"):
             continue
         pod = obj["spec"]["template"]["spec"]
         require(
@@ -85,6 +85,19 @@ def main():
     tag = ["--set-string", "image.tag=m5-000000000000"]
     services = "infra/helm/opsproof-services"
     scenarios = [
+        (
+            "demo",
+            services,
+            [
+                "-f",
+                services + "/values-demo.yaml",
+                *tag,
+                "--set",
+                "rollout.enabled=true",
+                "--set-string",
+                "rollout.image=opsproof-demo:m5-healthy",
+            ],
+        ),
         ("demo-deps", "infra/helm/opsproof-dependencies", []),
         ("control-deps", "infra/helm/opsproof-dependencies", []),
         ("demo", services, ["-f", services + "/values-demo.yaml", *tag]),

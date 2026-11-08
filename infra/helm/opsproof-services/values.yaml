@@ -7,7 +7,12 @@ telemetry:
   enabled: false
   endpoint: http://otel-collector.opsproof-observability.svc.cluster.local:4318
 recoveryEnabled: false
+kubernetesRecoveryEnabled: false
 aiEnabled: false
+rollout:
+  enabled: false
+  image: ""
+  maxErrorRatio: "0.01"
 prometheusUrl: http://prometheus.opsproof-observability.svc.cluster.local:9090
 demoTargetUrl: http://demo-api.opsproof-demo.svc.cluster.local:8080
 cookieOrigins: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081,http://127.0.0.1:8081
@@ -21,6 +26,7 @@ dispatcher:
     requests: {cpu: 20m, memory: 64Mi}
     limits: {cpu: 200m, memory: 192Mi}
 worker:
+  recoveryManaged: false
   replicas: 1
   resources:
     requests: {cpu: 25m, memory: 72Mi}

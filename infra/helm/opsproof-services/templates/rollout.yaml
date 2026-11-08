@@ -1,0 +1,82 @@
+{{- if .Values.rollout.enabled }}
+{{- if or (ne .Values.component "demo") .Values.autoscaling.hpa.enabled }}
+{{- fail "Rollout profile requires demo and HPA disabled during ownership cutover" }}
+{{- end }}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: demo-api
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: {app.kubernetes.io/instance: demo, opsproof.io/role: api, opsproof.io/controller: rollouts}
+  strategy:
+    canary:
+      stableService: demo-api
+      canaryService: demo-api-canary
+      maxSurge: 1
+      maxUnavailable: 0
+      scaleDownDelaySeconds: 15
+      abortScaleDownDelaySeconds: 15
+      trafficRouting:
+        plugins:
+          argoproj-labs/gatewayAPI:
+            httpRoute: demo-release
+            namespace: opsproof-demo
+            disableInProgressLabel: true
+      steps:
+        - setWeight: 50
+        - pause: {duration: 70s}
+        - analysis:
+            templates:
+              - templateName: demo-release-health
+        - setWeight: 100
+  template:
+    metadata:
+      labels: {app.kubernetes.io/part-of: opsproof, app.kubernetes.io/instance: demo, opsproof.io/role: api, opsproof.io/controller: rollouts}
+    spec:
+{{- $pod := include "opsproof.pod" (dict "root" . "role" "api") | fromYaml }}
+{{- $_ := set (index $pod.containers 0) "image" (required "rollout.image must identify the candidate" .Values.rollout.image) }}
+{{ toYaml $pod | indent 6 }}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: demo-api-canary}
+spec:
+  selector: {app.kubernetes.io/instance: demo, opsproof.io/role: api, opsproof.io/controller: rollouts}
+  ports: [{name: http, port: 8080, targetPort: http}]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: {name: demo-release}
+spec:
+  parentRefs:
+    - {name: opsproof-gateway, namespace: opsproof-gateway, sectionName: release}
+  rules:
+    - matches:
+        - path: {type: Exact, value: /api/v1/stats}
+      backendRefs:
+        - {name: demo-api, port: 8080, weight: 100}
+        - {name: demo-api-canary, port: 8080, weight: 0}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata: {name: demo-release-health}
+spec:
+  metrics:
+    - name: measured-canary-success
+      interval: 10s
+      count: 3
+      failureLimit: 0
+      successCondition: len(result) == 1 && result[0] == 1
+      failureCondition: len(result) != 1 || result[0] != 1
+      provider:
+        prometheus:
+          address: http://prometheus.opsproof-observability.svc.cluster.local:9090
+          query: >-
+            (sum(increase(opsproof_http_requests_total{job="opsproof-demo-canary",route="/api/v1/stats"}[1m])) >= bool 20)
+            *
+            ((sum(increase(opsproof_http_requests_total{job="opsproof-demo-canary",route="/api/v1/stats",status!~"2.."}[1m])) or vector(0))
+            / sum(increase(opsproof_http_requests_total{job="opsproof-demo-canary",route="/api/v1/stats"}[1m])) <= bool {{ .Values.rollout.maxErrorRatio }})
+{{- end }}

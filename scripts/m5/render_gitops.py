@@ -42,7 +42,7 @@ def git_url(text, allow_local=False):
 
 
 def application(name, namespace, path, value_files, revision, url, tag, wave):
-    return {
+    result = {
         "apiVersion": "argoproj.io/v1alpha1",
         "kind": "Application",
         "metadata": {
@@ -73,6 +73,33 @@ def application(name, namespace, path, value_files, revision, url, tag, wave):
             },
         },
     }
+    if name == "demo":
+        result["spec"]["syncPolicy"]["syncOptions"].append(
+            "RespectIgnoreDifferences=true"
+        )
+        result["spec"]["ignoreDifferences"] = [
+            {
+                "group": "gateway.networking.k8s.io",
+                "kind": "HTTPRoute",
+                "name": "demo-release",
+                "namespace": namespace,
+                "jsonPointers": [
+                    "/spec/rules/0/backendRefs/0/weight",
+                    "/spec/rules/0/backendRefs/1/weight",
+                ],
+            },
+            *[
+                {
+                    "group": "",
+                    "kind": "Service",
+                    "name": service,
+                    "namespace": namespace,
+                    "jsonPointers": ["/spec/selector/rollouts-pod-template-hash"],
+                }
+                for service in ("demo-api", "demo-api-canary")
+            ],
+        ]
+    return result
 
 
 def render(repo, revision, tag, allow_local=False):
@@ -106,6 +133,8 @@ def render(repo, revision, tag, allow_local=False):
                     ("batch", "Job"),
                     ("autoscaling", "HorizontalPodAutoscaler"),
                     ("keda.sh", "ScaledObject"),
+                    ("argoproj.io", "Rollout"),
+                    ("argoproj.io", "AnalysisTemplate"),
                     ("gateway.networking.k8s.io", "HTTPRoute"),
                 )
             ],

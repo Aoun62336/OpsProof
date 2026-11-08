@@ -4,6 +4,9 @@
 {{- end -}}
 {{- $_ := required "image.repository must be set" .Values.image.repository -}}
 {{- $_ := required "image.tag must be set" .Values.image.tag -}}
+{{- if and .Values.worker.recoveryManaged .Values.autoscaling.keda.enabled -}}
+{{- fail "Recovery and KEDA must not own the same worker replicas" -}}
+{{- end -}}
 {{- end -}}
 {{- define "opsproof.image" -}}
 {{ .Values.image.repository }}:{{ .Values.image.tag }}
@@ -34,6 +37,8 @@
 {{- $root := .root -}}
 {{- $role := .role -}}
 {{- if eq $root.Values.component "control" }}
+- name: OPSPROOF_CONTROL_KUBERNETES_RECOVERY_ENABLED
+  value: {{ and (has $role (list "api" "action" "evidence")) $root.Values.kubernetesRecoveryEnabled | ternary "true" "false" | quote }}
 - name: OPSPROOF_CONTROL_RECOVERY_ENABLED
   value: {{ and (or (eq $role "action") (eq $role "api")) $root.Values.recoveryEnabled | ternary "true" "false" | quote }}
 - name: OPSPROOF_CONTROL_AI_ENABLED
@@ -96,6 +101,9 @@ containers:
       capabilities: {drop: [ALL]}
     volumeMounts:
       - {name: tmp, mountPath: /tmp}
+      {{- if and (eq $root.Values.component "control") $root.Values.kubernetesRecoveryEnabled (has $role (list "action" "evidence")) }}
+      - {name: kubernetes-identity, mountPath: /var/run/secrets/opsproof-kubernetes, readOnly: true}
+      {{- end }}
     {{- if eq $role "api" }}
     ports:
       - {name: http, containerPort: 8080}
@@ -111,6 +119,16 @@ containers:
       timeoutSeconds: 3
     {{- end }}
 volumes:
+  {{- if and (eq $root.Values.component "control") $root.Values.kubernetesRecoveryEnabled (has $role (list "action" "evidence")) }}
+  - name: kubernetes-identity
+    projected:
+      defaultMode: 0444
+      sources:
+        - serviceAccountToken: {path: token, expirationSeconds: 600}
+        - configMap:
+            name: kube-root-ca.crt
+            items: [{key: ca.crt, path: ca.crt}]
+  {{- end }}
   - name: tmp
     emptyDir: {sizeLimit: 32Mi}
 {{- end -}}

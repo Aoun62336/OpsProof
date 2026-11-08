@@ -1,6 +1,7 @@
 """One bounded comparable fixed/HPA/KEDA trial with real service traffic."""
 
 import argparse
+import hashlib
 import json
 import subprocess
 import time
@@ -85,12 +86,42 @@ def main():
             if (
                 app.get("status", {}).get("sync", {}).get("status") == "Synced"
                 and app["status"].get("health", {}).get("status") == "Healthy"
+                and app["status"]["sync"]
+                .get("comparedTo", {})
+                .get("source", {})
+                .get("helm", {})
+                .get("parameters")
+                == parameters
             ):
                 return
             time.sleep(3)
         raise RuntimeError("Autoscaler configuration did not synchronize")
 
     configure(args.mode)
+    drain_deadline = time.monotonic() + 180
+    while True:
+        groups = json.loads(
+            run(
+                [
+                    "exec",
+                    "-n",
+                    "opsproof-demo",
+                    "demo-deps-redis-0",
+                    "--",
+                    "redis-cli",
+                    "--json",
+                    "XINFO",
+                    "GROUPS",
+                    "opsproof:jobs",
+                ]
+            )
+        )
+        group = next(item for item in groups if item["name"] == "opsproof-workers")
+        if group["pending"] == 0 and group["lag"] == 0:
+            break
+        if time.monotonic() >= drain_deadline:
+            raise RuntimeError("Previous workload did not drain; trial not started")
+        time.sleep(5)
     image = get("deployment", "demo-api")["spec"]["template"]["spec"]["containers"][0][
         "image"
     ]
@@ -108,6 +139,7 @@ def main():
             },
         },
         "spec": {
+            "terminationGracePeriodSeconds": 5,
             "restartPolicy": "Never",
             "automountServiceAccountToken": False,
             "securityContext": {
@@ -234,6 +266,7 @@ def main():
             "workload": result,
             "samples": samples,
             "trials": 1,
+            "load_script_sha256": hashlib.sha256(script.encode()).hexdigest(),
             "application_revision": application.get("status", {})
             .get("sync", {})
             .get("revision"),

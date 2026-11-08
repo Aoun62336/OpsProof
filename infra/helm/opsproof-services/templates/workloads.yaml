@@ -13,14 +13,18 @@ kind: ServiceAccount
 metadata:
   name: {{ $root.Release.Name }}-{{ $role }}
 automountServiceAccountToken: false
+{{- if not (and (eq $role "api") $root.Values.rollout.enabled) }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $root.Release.Name }}-{{ $role }}
   labels: {app.kubernetes.io/part-of: opsproof, app.kubernetes.io/instance: {{ $root.Release.Name }}, opsproof.io/role: {{ $role }}}
+  {{- if and (eq $role "worker") $root.Values.worker.recoveryManaged }}
+  annotations: {opsproof.io/recovery-policy: restore-single-worker-v1}
+  {{- end }}
 spec:
-  {{- if not (or (and (eq $role "api") $root.Values.autoscaling.hpa.enabled) (and (eq $role "worker") $root.Values.autoscaling.keda.enabled)) }}
+  {{- if not (or (and (eq $role "api") $root.Values.autoscaling.hpa.enabled) (and (eq $role "worker") (or $root.Values.autoscaling.keda.enabled $root.Values.worker.recoveryManaged))) }}
   replicas: {{ if eq $role "api" }}{{ $root.Values.api.replicas }}{{ else if eq $role "worker" }}{{ $root.Values.worker.replicas }}{{ else }}1{{ end }}
   {{- end }}
   strategy:
@@ -32,6 +36,7 @@ spec:
       labels: {app.kubernetes.io/part-of: opsproof, app.kubernetes.io/instance: {{ $root.Release.Name }}, opsproof.io/role: {{ $role }}}
     spec:
 {{ include "opsproof.pod" (dict "root" $root "role" $role) | indent 6 }}
+{{- end }}
 {{- end }}
 ---
 apiVersion: v1

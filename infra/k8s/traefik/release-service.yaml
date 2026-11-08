@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata: {name: demo-release-gateway, namespace: opsproof-gateway}
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: traefik, app.kubernetes.io/instance: traefik-opsproof-gateway}
+  ports: [{name: release, port: 8001, targetPort: 8001}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: demo-release-ingress, namespace: opsproof-demo}
+spec:
+  podSelector:
+    matchLabels: {opsproof.io/role: api}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: opsproof-gateway}
+      ports: [{port: 8080, protocol: TCP}]

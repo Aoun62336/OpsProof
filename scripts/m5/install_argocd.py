@@ -13,6 +13,16 @@ NAMESPACES = ("opsproof-demo", "opsproof-control", "opsproof-ui")
 def permissions():
     rules = [
         {
+            "apiGroups": ["argoproj.io"],
+            "resources": ["rollouts", "analysistemplates"],
+            "verbs": ["get", "list", "watch", "create", "patch", "update", "delete"],
+        },
+        {
+            "apiGroups": ["argoproj.io"],
+            "resources": ["analysisruns"],
+            "verbs": ["get", "list", "watch"],
+        },
+        {
             "apiGroups": [""],
             "resources": ["pods", "pods/log", "events"],
             "verbs": ["get", "list", "watch"],

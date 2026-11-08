@@ -9,6 +9,7 @@ import statistics
 import threading
 import time
 from datetime import datetime
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
@@ -33,6 +34,21 @@ def request(path, payload=None, idem=None):
 
 
 def main():
+    # New Pod policy/service rules can take time to converge. Keep this bounded
+    # readiness warmup separate from measured traffic and report its failures.
+    warmup_started = time.monotonic()
+    warmup_failures = 0
+    consecutive = 0
+    while consecutive < 5:
+        try:
+            request("/health/ready")
+            consecutive += 1
+        except (URLError, TimeoutError):
+            warmup_failures += 1
+            consecutive = 0
+        if time.monotonic() - warmup_started > 30:
+            raise RuntimeError("Service did not become ready during bounded warmup")
+        time.sleep(1)
     started = time.monotonic()
     stats = {"requests": 0, "failures": 0, "latencies_ms": []}
     lock = threading.Lock()
@@ -48,7 +64,7 @@ def main():
             failure = False
             try:
                 request("/health/ready")
-            except Exception:
+            except Exception:  # noqa: BLE001 - every failed request is counted and fails acceptance
                 failure = True
             with lock:
                 stats["requests"] += 1
@@ -93,6 +109,8 @@ def main():
     ]
     result = {
         "type": "result",
+        "warmup_seconds": started - warmup_started,
+        "warmup_failures": warmup_failures,
         "count": COUNT,
         "duration_ms": DURATION_MS,
         "load_seconds": LOAD_SECONDS,
