@@ -41,7 +41,7 @@ def enabled():
         raise HTTPException(403, "Kubernetes recovery is disabled")
 
 
-@router.get("workloads")
+@router.get("/workloads")
 def workloads():
     if not settings().kubernetes_recovery_enabled:
         return {"enabled": False, "observations": []}
@@ -50,7 +50,7 @@ def workloads():
     return {"enabled": True, "observations": rows, "generated_at": datetime.now(UTC)}
 
 
-@router.get("recoveries")
+@router.get("/recoveries")
 def list_recoveries():
     enabled()
     with pool().connection() as conn:
@@ -59,7 +59,7 @@ def list_recoveries():
         ).fetchall()
 
 
-@router.get("recoveries/{recovery_id}/events")
+@router.get("/recoveries/{recovery_id}/events")
 def events(recovery_id: UUID):
     enabled()
     with pool().connection() as conn:
@@ -82,7 +82,7 @@ def context(conn, row):
     return observation, incident, experiment
 
 
-@router.post("recoveries", status_code=202)
+@router.post("/recoveries", status_code=202)
 def propose(payload: Proposal, idempotency_key: str = KEY):
     enabled()
     with pool().connection() as conn:
@@ -159,7 +159,7 @@ def propose(payload: Proposal, idempotency_key: str = KEY):
         return saved
 
 
-@router.post("recoveries/{recovery_id}/approve")
+@router.post("/recoveries/{recovery_id}/approve")
 def approve(recovery_id: UUID, payload: Approval):
     enabled()
     with pool().connection() as conn:
