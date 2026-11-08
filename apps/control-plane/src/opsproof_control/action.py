@@ -124,11 +124,16 @@ def execute(run_id: UUID) -> None:
 
 
 def run() -> None:
+    from .kubernetes_worker import execute_next
     from .recovery_worker import execute_next_recovery
+
+    def recovery_tick():
+        execute_next_recovery()
+        execute_next()
 
     consume(
         settings().action_stream,
         "action-workers",
         execute,
-        tick=execute_next_recovery,
+        tick=recovery_tick,
     )

@@ -49,9 +49,14 @@ def main():
         raise ValueError("Unexpected exposed gateway port")
     gateway = next(obj for obj in objects if obj["kind"] == "Gateway")
     listener = gateway["spec"]["listeners"]
-    if {item["name"]: item["port"] for item in listener} != {"web": 8000, "release": 8001}:
+    if {item["name"]: item["port"] for item in listener} != {
+        "web": 8000,
+        "release": 8001,
+    }:
         raise ValueError("Incorrect gateway listener")
-    if any(item["allowedRoutes"]["namespaces"]["from"] != "Selector" for item in listener):
+    if any(
+        item["allowedRoutes"]["namespaces"]["from"] != "Selector" for item in listener
+    ):
         raise ValueError("Cross-namespace routes must be selected")
     output = ROOT / ".runtime/m5/acceptance"
     output.mkdir(parents=True, exist_ok=True)

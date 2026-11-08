@@ -24,6 +24,7 @@ from .contracts import (
 )
 from .db import pool, redis_client
 from .incidents import router as incident_router
+from .kubernetes_operations import router as kubernetes_router
 from .metrics import install_metrics
 from .operations import router as operations_router
 from .store import enqueue, event
@@ -38,6 +39,7 @@ install_metrics(app)
 app.include_router(auth_router)
 app.include_router(incident_router)
 app.include_router(operations_router)
+app.include_router(kubernetes_router)
 
 
 class SummaryView(BaseModel):

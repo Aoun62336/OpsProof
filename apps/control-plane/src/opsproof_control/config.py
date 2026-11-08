@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     inspection_key: str = ""
     recovery_key: str = ""
     recovery_enabled: bool = False
+    kubernetes_recovery_enabled: bool = False
     prometheus_url: str = "http://prometheus:9090"
     ai_enabled: bool = False
     ai_daily_limit: int = 10

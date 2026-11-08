@@ -40,6 +40,25 @@ async function signIn(
   ).toBeVisible();
 }
 
+for (const [path, title] of [["workloads", "Workloads"], ["deployments", "Deployments"], ["capacity", "Capacity"], ["runbooks", "Runbooks"]]) {
+  test(`Kubernetes ${title} uses real observations and is accessible`, async ({ page }) => {
+    await signIn(page);
+    const response = page.waitForResponse(r => r.url().endsWith("/api/v1/kubernetes/workloads") && r.status() === 200);
+    await page.goto(`/${path}`);
+    const data = await (await response).json();
+    expect(data.enabled).toBe(true);
+    expect(data.observations.length).toBeGreaterThan(0);
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "demo-worker", exact: true })).toBeVisible();
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations.filter(v => v.impact === "serious" || v.impact === "critical")).toEqual([]);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+  });
+}
+
 test("investigation workspace is accessible and rejects mutation without CSRF", async ({ page }) => {
   await signIn(page);
   await page.goto("/incidents/0000000000000000/investigate");

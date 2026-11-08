@@ -144,6 +144,7 @@ def run() -> None:
     from threading import Thread
 
     from .investigation_worker import process_next_investigation
+    from .kubernetes_worker import observe_and_verify
     from .recovery_worker import verify_next_recovery
 
     def review_loop() -> None:
@@ -152,6 +153,7 @@ def run() -> None:
                 process_next_investigation()
                 checkpoint()
                 verify_next_recovery()
+                observe_and_verify()
             except ShutdownRequested:
                 return
             except Exception:

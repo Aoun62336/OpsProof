@@ -36,3 +36,5 @@ jobs:
         run: python3 scripts/m5/validate_gateway.py
       - name: Whitespace validation
         run: git diff --check
+      - name: Pinned secret scanner and strict Kubernetes schemas
+        run: python3 scripts/m5/security_checks.py

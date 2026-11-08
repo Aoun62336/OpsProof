@@ -11,6 +11,30 @@ import type {
 
 const API = "/api/v1";
 
+export interface KubernetesObservation {
+  name: string;
+  observed_at: string;
+  resource: {
+    metadata: { name: string; namespace: string; uid: string; resourceVersion: string };
+    spec: { replicas: number; template: { spec: { containers: { image: string; resources: { requests: { cpu: string; memory: string }; limits: { cpu: string; memory: string } } }[] } } };
+    status: { readyReplicas?: number; availableReplicas?: number };
+  };
+  telemetry: { ready: boolean; queued: number; sample_time: number };
+}
+export interface KubernetesRecovery {
+  id: string; status: string; target_image: string; target_uid: string;
+  expires_at: string; created_at: string; error: string | null;
+}
+export const getKubernetesWorkloads = () => request<{ enabled: boolean; observations: KubernetesObservation[] }>("/kubernetes/workloads");
+export const getKubernetesRecoveries = () => request<KubernetesRecovery[]>("/kubernetes/recoveries");
+export const proposeKubernetesRecovery = (incident: string, run: string) => request<KubernetesRecovery>("/kubernetes/recoveries", {
+  method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() },
+  body: JSON.stringify({ action: "restore_demo_worker", incident_fingerprint: incident, run_id: run }),
+});
+export const approveKubernetesRecovery = (id: string) => request<KubernetesRecovery>(`/kubernetes/recoveries/${encodeURIComponent(id)}/approve`, {
+  method: "POST", body: JSON.stringify({ confirmation: "APPROVE DEMO WORKER RESTORE" }),
+});
+
 let csrfToken: string | null = null;
 
 export class ApiError extends Error {

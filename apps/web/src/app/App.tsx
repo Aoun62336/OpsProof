@@ -10,6 +10,7 @@ import { InvestigationPage } from "../pages/InvestigationPage";
 import { ExperimentsPage } from "../pages/ExperimentsPage";
 import { ExperimentDetailPage } from "../pages/ExperimentDetailPage";
 import { ReportsPage } from "../pages/ReportsPage";
+import { KubernetesPage } from "../pages/KubernetesPage";
 
 
 export default function App() {
@@ -76,6 +77,10 @@ export default function App() {
     <BrowserRouter>
       <AppShell onSignOut={signOut}>
         <Routes>
+          <Route path="/workloads" element={<KubernetesPage view="Workloads" />} />
+          <Route path="/deployments" element={<KubernetesPage view="Deployments" />} />
+          <Route path="/capacity" element={<KubernetesPage view="Capacity" />} />
+          <Route path="/runbooks" element={<KubernetesPage view="Runbooks" />} />
           <Route path="/incidents/:fingerprint/investigate" element={<InvestigationPage />} />
           <Route path="/" element={<OverviewPage />} />
 

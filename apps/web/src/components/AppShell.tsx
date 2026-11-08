@@ -23,6 +23,10 @@ import {
 import { Brand } from "./Brand";
 
 const links = [
+  { label: "Workloads", path: "/workloads", icon: LayoutDashboard, end: false },
+  { label: "Deployments", path: "/deployments", icon: ArrowUpRight, end: false },
+  { label: "Capacity", path: "/capacity", icon: LayoutDashboard, end: false },
+  { label: "Runbooks", path: "/runbooks", icon: BookOpenText, end: false },
   {
     label: "Overview",
     path: "/",
