@@ -52,13 +52,13 @@ kind: HTTPRoute
 metadata: {name: demo-release}
 spec:
   parentRefs:
-    - {name: opsproof-gateway, namespace: opsproof-gateway, sectionName: release}
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: opsproof-gateway, namespace: opsproof-gateway, sectionName: release}
   rules:
     - matches:
         - path: {type: Exact, value: /api/v1/stats}
       backendRefs:
-        - {name: demo-api, port: 8080, weight: 100}
-        - {name: demo-api-canary, port: 8080, weight: 0}
+        - {group: "", kind: Service, name: demo-api, port: 8080, weight: 100}
+        - {group: "", kind: Service, name: demo-api-canary, port: 8080, weight: 0}
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate

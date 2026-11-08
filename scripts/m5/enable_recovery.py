@@ -12,7 +12,9 @@ from preflight import ROOT
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--revision", required=True)
+    parser.add_argument("--image-revision")
     args = parser.parse_args()
+    image_revision = args.image_revision or args.revision
     kube = kubectl_prefix()
 
     def get(kind, name, ns):
@@ -90,14 +92,14 @@ def main():
     configure(
         "control",
         {
-            "image.tag": "m5-" + args.revision[:12],
+            "image.tag": "m5-" + image_revision[:12],
             "kubernetesRecoveryEnabled": True,
             "telemetry.enabled": True,
             "recoveryEnabled": True,
         },
         revision=args.revision,
     )
-    configure("web", {"image.tag": "m5-" + args.revision[:12]}, revision=args.revision)
+    configure("web", {"image.tag": "m5-" + image_revision[:12]}, revision=args.revision)
 
 
 if __name__ == "__main__":
