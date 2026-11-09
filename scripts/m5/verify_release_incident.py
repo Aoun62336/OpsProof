@@ -43,9 +43,7 @@ def main():
                     [
                         e
                         for e in events
-                        if datetime.fromisoformat(
-                            e["created_at"].replace("Z", "+00:00")
-                        ).timestamp()
+                        if datetime.fromisoformat(e["created_at"]).timestamp()
                         >= trial_start
                     ]
                     if code == 200
