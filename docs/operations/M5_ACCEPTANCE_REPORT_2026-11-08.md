@@ -1,3 +1,5 @@
+> Historical checkpoint. See [the November 9 report](M5_ACCEPTANCE_REPORT_2026-11-09.md) for current results.
+
 # M5 acceptance checkpoint — 8 November 2026
 
 **M5 is not complete. Changes remain local; nothing was pushed to GitHub.**

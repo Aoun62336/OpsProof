@@ -1,3 +1,5 @@
+> Historical checkpoint. See [the November 9 report](M5_ACCEPTANCE_REPORT_2026-11-09.md) for current results.
+
 # Milestone 5 implementation and acceptance report
 
 Date: November 7, 2026 (Asia/Calcutta).

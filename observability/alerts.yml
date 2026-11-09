@@ -1,6 +1,16 @@
 groups:
   - name: opsproof-local
     rules:
+      - alert: OpsProofDemoCanaryErrors
+        expr: >-
+          sum(rate(opsproof_http_requests_total{job="opsproof-demo-canary",route="/api/v1/stats",status=~"5.."}[1m]))
+          / sum(rate(opsproof_http_requests_total{job="opsproof-demo-canary",route="/api/v1/stats"}[1m])) > 0.01
+        for: 10s
+        labels:
+          severity: warning
+          job: opsproof-demo-canary
+        annotations:
+          summary: Canary requests exceed the measured release error threshold
       - alert: OpsProofDemoAPIUnavailable
         expr: up{job="opsproof-demo-api"} == 0
         for: 30s

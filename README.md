@@ -187,13 +187,12 @@ In particular, an unacknowledged Redis message is not automatically evidence of 
 
 ## Milestone 5 foundation
 
-The supplied foundation is implemented locally with guarded bootstrap, separate Helm
-services and storage, role-scoped secrets, production Nginx, Gateway configuration,
-GitOps manifest generation, disabled autoscalers, and reproducible source checks.
-**M5 is not accepted:** live deployment requires the measured resource gate to pass;
-controller trials and restricted Kubernetes recovery remain outstanding.
+Milestone 5 local runtime acceptance has passed, including GitOps, progressive delivery,
+measured autoscaling and restricted approved Kubernetes recovery. Publication and
+hosted CI remain unperformed under the instruction to keep changes local.
 
-- [Acceptance report](docs/operations/M5_ACCEPTANCE_REPORT_2026-11-07.md)
+- [Latest acceptance report](docs/operations/M5_ACCEPTANCE_REPORT_2026-11-09.md)
+- [Local operating runbook](docs/operations/M5_LOCAL_RUNBOOK.md)
 - Source checks: `python scripts/m5/validate_source.py` (Python, PyYAML, uv, Node, Helm required).
 - Upstream Gateway check: `python scripts/m5/validate_gateway.py`.
 - Resource gate: `python scripts/m5/preflight.py`.

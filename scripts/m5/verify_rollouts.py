@@ -1,12 +1,14 @@
 """Real bounded traffic through the private Gateway, promotion and failed canary."""
 
+import argparse
 import json
 import subprocess
 import threading
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
+from uuid import uuid4
 
 from forward import services
 from gitops_config import configure
@@ -15,6 +17,9 @@ from preflight import ROOT, memory_available
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--faulty-only", action="store_true")
+    args = parser.parse_args()
     kube = kubectl_prefix()
     output = ROOT / ".runtime/m5/acceptance"
     images = {
@@ -94,10 +99,15 @@ def main():
         def traffic():
             while not stop.is_set():
                 started = time.monotonic()
+                trace_id = uuid4().hex
                 try:
-                    with urlopen(
-                        "http://127.0.0.1:18081/api/v1/stats", timeout=3
-                    ) as response:
+                    request = Request(
+                        "http://127.0.0.1:18081/api/v1/stats",
+                        headers={"traceparent": f"00-{trace_id}-{uuid4().hex[:16]}-01"}
+                        if trace_id
+                        else {},
+                    )
+                    with urlopen(request, timeout=3) as response:
                         code = response.status
                         json.load(response)
                 except HTTPError as exc:
@@ -107,6 +117,7 @@ def main():
                 requests.append(
                     {
                         "time": time.time(),
+                        "trace_id": trace_id,
                         "status": code,
                         "milliseconds": round((time.monotonic() - started) * 1000, 2),
                     }
@@ -131,7 +142,7 @@ def main():
                     indent=2,
                 )
             )
-            for release in ("healthy", "faulty"):
+            for release in ("faulty",) if args.faulty_only else ("healthy", "faulty"):
                 begin = len(requests)
                 before = get("rollout", "demo-api")
                 old_runs = {r["metadata"]["uid"] for r in get("analysisruns")["items"]}
