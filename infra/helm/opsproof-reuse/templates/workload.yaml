@@ -1,0 +1,72 @@
+{{- $repository := required "image.repository required" .Values.image.repository -}}
+{{- $tag := .Values.image.tag -}}
+{{- $digest := .Values.image.digest -}}
+{{- if not (or $tag $digest) -}}{{ fail "image.tag or image.digest required" }}{{- end -}}
+{{- if and $digest (not (regexMatch "^sha256:[a-f0-9]{64}$" $digest)) -}}{{ fail "invalid sha256 image.digest" }}{{- end -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opsproof-reuse-test
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    opsproof.io/profile: m6-reuse
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reuse-target
+  namespace: opsproof-reuse-test
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: opsproof-reuse-target}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reuse-target
+  namespace: opsproof-reuse-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: opsproof-reuse-target}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: opsproof-reuse-target}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: fixture
+          image: {{ ternary (printf "%s@%s" $repository $digest) (printf "%s:%s" $repository $tag) (ne $digest "") | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: [fixture]
+          env:
+            - {name: OPSPROOF_M6_FIXTURE_ENABLED, value: "true"}
+            - {name: OPSPROOF_M6_FIXTURE_DELAY_MS, value: {{ .Values.fixture.delayMs | quote }}}
+          ports: [{name: http, containerPort: 8080}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          readinessProbe:
+            httpGet: {path: /health/ready, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health/live, port: http}
+            initialDelaySeconds: 10
+---
+# Default deny. Additional read-only observer ingress may be added after live CNI policy verification.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: reuse-default-deny, namespace: opsproof-reuse-test}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]

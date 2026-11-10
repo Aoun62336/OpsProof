@@ -15,7 +15,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="opsproof-demo")
     parser.add_argument(
         "service",
-        choices=["api", "dispatcher", "worker"],
+        choices=["api", "dispatcher", "worker", "fixture"],
     )
     args = parser.parse_args()
 
@@ -33,7 +33,14 @@ def main() -> None:
         )
         root_logger.addHandler(console_handler)
 
-    if args.service == "api":
+    if args.service == "fixture":
+        uvicorn.run(
+            "opsproof_demo.downstream_fixture:app",
+            host="0.0.0.0",
+            port=8080,
+            workers=1,
+        )
+    elif args.service == "api":
         uvicorn.run(
             "opsproof_demo.api:app",
             host="0.0.0.0",

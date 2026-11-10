@@ -1,0 +1,39 @@
+name: M6 Source and Measurement Contracts
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: m6-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.13.7'
+          enable-cache: true
+      - name: Python 3.14
+        run: uv python install 3.14
+      - name: Offline M6 contracts (never injects faults)
+        env:
+          PYTHONPATH: apps/control-plane/src
+        run: uv run --project apps/control-plane --locked pytest scripts/m6/tests -q
+      - name: M7 pure cost and inventory guard tests
+        run: uv run --project apps/control-plane --locked python -m unittest discover -s scripts/m7/tests -v
+      - name: Kubernetes route separator regression
+        run: python3 -m unittest discover -s scripts/m5/tests -p 'test_kubernetes_route_registration.py' -v
+      - name: Evidence fixture JSON validity
+        run: |
+          python3 -m json.tool benchmarks/ai/qualification_v1.json > /dev/null
+          python3 -m json.tool docs/cloud/COST_ESTIMATE.example.json > /dev/null
+      - name: Whitespace validation
+        run: git diff --check

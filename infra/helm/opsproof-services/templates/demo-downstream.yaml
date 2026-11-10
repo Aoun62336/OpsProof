@@ -1,0 +1,56 @@
+{{- if and (eq .Values.component "demo") .Values.demoDownstream.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-downstream
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: opsproof-m6-downstream}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-downstream
+  labels: {app.kubernetes.io/name: opsproof-m6-downstream}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: opsproof-m6-downstream}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: opsproof-m6-downstream}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: fixture
+          image: {{ include "opsproof.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["fixture"]
+          env:
+            - {name: OPSPROOF_M6_FIXTURE_ENABLED, value: "true"}
+            - {name: OPSPROOF_M6_FIXTURE_DELAY_MS, value: {{ .Values.demoDownstream.delayMs | quote }}}
+          ports: [{name: http, containerPort: 8080}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 192Mi}
+          readinessProbe:
+            httpGet: {path: /health/ready, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet: {path: /health/live, port: http}
+            initialDelaySeconds: 8
+            periodSeconds: 10
+            timeoutSeconds: 2
+{{- end }}

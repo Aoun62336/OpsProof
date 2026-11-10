@@ -1,0 +1,9 @@
+variable "name" { type = string }
+variable "kubernetes_version" { type = string }
+variable "vpc_id" { type = string }
+variable "subnet_ids" { type = list(string) }
+variable "allowed_cidr" { type = string }
+variable "node_instance_type" { type = string }
+variable "node_role_arn" { type = string }
+variable "ebs_role_arn" { type = string }
+variable "operator_role_arn" { type = string }

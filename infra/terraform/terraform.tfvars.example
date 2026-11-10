@@ -1,0 +1,13 @@
+# SAFE DEFAULT: no paid AWS resources are provisioned.
+aws_region             = "ap-south-1"
+owner_tag              = "opsproof"
+enable_paid_resources  = false
+# Only after an approved plan: supply the exact account, IP /32, supported EKS version,
+# IAM role ARN and approval reference in a PRIVATE ignored .tfvars file.
+# Never commit real account/credential/billing data.
+# expected_account_id     = "<approved twelve-digit account>"
+# operator_cidr           = "<current-public-IPv4>/32"
+# operator_role_arn       = "<approved IAM role ARN>"
+# kubernetes_version     = "<verified supported EKS version>"
+# approval_reference     = "<signed off estimate reference>"
+# approval_acknowledgement = "I_APPROVE_TEMPORARY_OPSPROOF_AWS_CHARGES"

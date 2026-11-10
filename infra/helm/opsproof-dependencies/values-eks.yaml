@@ -1,0 +1,7 @@
+# EKS-specific storage profile. Do not change the existing M5 local-path default.
+postgres:
+  storageClassName: opsproof-ebs-gp3
+  storage: 2Gi
+redis:
+  storageClassName: opsproof-ebs-gp3
+  storage: 1Gi

@@ -3,13 +3,31 @@
 {{- fail "component must be demo or control" -}}
 {{- end -}}
 {{- $_ := required "image.repository must be set" .Values.image.repository -}}
+{{- if .Values.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.image.digest) -}}
+{{- fail "image.digest must be sha256:<64 lowercase hex>" -}}
+{{- end -}}
+{{- else -}}
 {{- $_ := required "image.tag must be set" .Values.image.tag -}}
+{{- end -}}
+{{- if .Values.demoDownstream.enabled -}}
+{{- if ne .Values.component "demo" -}}
+{{- fail "demoDownstream is only valid for demo component" -}}
+{{- end -}}
+{{- if not (and (regexMatch "^[0-9]{1,4}$" (toString .Values.demoDownstream.delayMs)) (le (int .Values.demoDownstream.delayMs) 2000)) -}}
+{{- fail "demoDownstream.delayMs must be an integer in 0..2000" -}}
+{{- end -}}
+{{- end -}}
 {{- if and .Values.worker.recoveryManaged .Values.autoscaling.keda.enabled -}}
 {{- fail "Recovery and KEDA must not own the same worker replicas" -}}
 {{- end -}}
 {{- end -}}
 {{- define "opsproof.image" -}}
+{{- if .Values.image.digest -}}
+{{ .Values.image.repository }}@{{ .Values.image.digest }}
+{{- else -}}
 {{ .Values.image.repository }}:{{ .Values.image.tag }}
+{{- end -}}
 {{- end -}}
 {{- define "opsproof.env" -}}
 {{- $root := .root -}}
@@ -48,6 +66,9 @@
 - name: OPSPROOF_CONTROL_ALLOWED_BROWSER_ORIGINS
   value: {{ $root.Values.cookieOrigins | quote }}
 {{- end }}
+{{- if and (eq $root.Values.component "demo") (eq $role "worker") $root.Values.demoDownstream.enabled }}
+- {name: OPSPROOF_DOWNSTREAM_ENABLED, value: "true"}
+{{- end }}
 {{- if $root.Values.telemetry.enabled }}
 - name: OTEL_EXPORTER_OTLP_ENDPOINT
   value: {{ $root.Values.telemetry.endpoint | quote }}
@@ -83,7 +104,7 @@ containers:
     args: [{{ ternary "dispatcher" $role (and (eq $root.Values.component "demo") (eq $role "dispatch")) | quote }}]
     envFrom:
 {{ include "opsproof.env" (dict "root" $root "role" $role) | indent 6 }}
-    {{- if or (eq $root.Values.component "control") $root.Values.telemetry.enabled }}
+    {{- if or (eq $root.Values.component "control") $root.Values.telemetry.enabled (and (eq $root.Values.component "demo") (eq $role "worker") $root.Values.demoDownstream.enabled) }}
     env:
 {{ include "opsproof.envVars" (dict "root" $root "role" $role) | indent 6 }}
     {{- end }}

@@ -1,0 +1,16 @@
+# Enforce LF line endings for all text files in this repository.
+# This overrides any developer's local core.autocrlf setting and ensures
+# consistent line endings across Linux containers, macOS, and Windows.
+
+* text=auto eol=lf
+
+# Explicitly binary — never mangle.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.ico  binary
+*.woff binary
+*.woff2 binary
+*.gz   binary
+*.zip  binary
+*.tar  binary

@@ -1,0 +1,10 @@
+image:
+  repository: "" # Actual reviewed registry name
+  tag: ""        # Exact approved image tag from this repository
+  digest: ""     # Preferred immutable release digest
+  pullPolicy: IfNotPresent
+fixture:
+  delayMs: 0
+resources:
+  requests: {cpu: 20m, memory: 64Mi}
+  limits: {cpu: 200m, memory: 192Mi}

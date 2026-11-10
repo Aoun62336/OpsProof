@@ -10,6 +10,7 @@ from redis.exceptions import ResponseError
 
 from .config import settings
 from .db import pool
+from .downstream import probe
 from .shutdown import checkpoint, stopping
 from .worker_control import HOLD_KEY
 
@@ -115,8 +116,16 @@ def process_entry(
     if duration_ms is None:
         return
 
-    # Deterministic simulated job-processing duration.
+    # Job completion is conditional on the opted-in real downstream dependency.
+    # A timeout is deliberately not acknowledged as success; the existing
+    # lease/fencing and retry path controls subsequent delivery.
     time.sleep(duration_ms / 1000)
+    probe(
+        enabled=config.downstream_enabled,
+        url=config.downstream_url,
+        timeout_ms=config.downstream_timeout_ms,
+        attempts=config.downstream_attempts,
+    )
 
     with pool().connection() as conn:
         finished = conn.execute(

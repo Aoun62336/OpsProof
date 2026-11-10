@@ -1,6 +1,7 @@
 image:
   repository: opsproof-web
   tag: ""
+  digest: "" # optional verified release digest
   pullPolicy: IfNotPresent
 releaseMarker: gitops-verified
 resources:

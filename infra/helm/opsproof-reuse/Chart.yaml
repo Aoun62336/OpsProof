@@ -1,0 +1,5 @@
+apiVersion: v2
+name: opsproof-reuse
+version: 0.1.0
+appVersion: '0.1.0'
+description: Independently deployed test-only HTTP target for generic read-only evidence reuse

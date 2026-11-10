@@ -1,0 +1,154 @@
+name: M7 Approved GHCR Release
+on:
+  workflow_dispatch:
+    inputs:
+      publish_approved:
+        description: 'I approve publication of reviewed main commit images to GHCR'
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: opsproof-approved-release
+  cancel-in-progress: false
+jobs:
+  review-and-test:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish_approved == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.13.7'
+          enable-cache: true
+      - run: uv python install 3.14
+      - name: Demo regression tests
+        run: uv run --project apps/demo-workload --locked pytest apps/demo-workload/tests -q
+      - name: Control regression tests
+        run: uv run --project apps/control-plane --locked pytest apps/control-plane/tests -q
+      - name: M5 and M6 source contracts
+        env:
+          PYTHONPATH: apps/control-plane/src
+        run: |
+          python3 -m unittest discover -s scripts/m5/tests -v
+          uv run --project apps/control-plane --locked pytest scripts/m6/tests -q
+          uv run --project apps/control-plane --locked python -m unittest discover -s scripts/m7/tests -v
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Frontend static checks and build
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm run lint
+          npm run test
+          npm run build
+      - name: k6 JavaScript syntax
+        run: node --check benchmarks/k6/jobs.js
+      - name: Secrets scan before image publication
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-scan-publish:
+    needs: review-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish_approved == true
+    environment: opsproof-release # Configure protected reviewers externally before first release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: demo
+            context: apps/demo-workload
+            dockerfile: apps/demo-workload/Dockerfile
+          - name: control
+            context: apps/control-plane
+            dockerfile: apps/control-plane/Dockerfile
+          - name: web
+            context: apps/web
+            dockerfile: apps/web/Dockerfile
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Reviewed source checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Authenticate to GitHub Container Registry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Build once from reviewed commit
+        shell: bash
+        env:
+          NAME: ${{ matrix.name }}
+          CONTEXT: ${{ matrix.context }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/opsproof-${NAME}:${GITHUB_SHA}"
+          docker build --pull --file "$DOCKERFILE" --tag "$image" "$CONTEXT"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}/opsproof-${NAME}" >> "$GITHUB_ENV"
+      - name: Trivy image policy (must pass before publication)
+        uses: aquasecurity/trivy-action@v0.36.0 # immutable signed release; SHA pin review required
+        with:
+          scan-type: image
+          image-ref: ${{ env.IMAGE }}
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+          cache: 'false'
+      - name: CycloneDX software bill of materials
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.IMAGE }}
+          format: cyclonedx
+          output: sbom.cdx.json
+          exit-code: '0'
+          cache: 'false'
+      - name: Publish exact scanned image
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE" | tee "$RUNNER_TEMP/push.log"
+          digest="$(sed -n 's/.*digest: \(sha256:[a-f0-9]\{64\}\).*/\1/p' "$RUNNER_TEMP/push.log" | tail -n 1)"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo 'No verified push digest'; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Build provenance attestation
+        uses: actions/attest@v4 # verify full action SHA and external availability before final release
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          push-to-registry: true
+      - name: SBOM attestation
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          sbom-path: sbom.cdx.json
+          push-to-registry: true
+      - name: Release evidence digest record
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '{"source_sha":"%s","image":"%s","digest":"%s","attestation_requested":true}\n' "$GITHUB_SHA" "$IMAGE_NAME" '${{ steps.publish.outputs.digest }}' > release-evidence.json
+          python3 -m json.tool release-evidence.json
+      - name: Note locally recorded digests
+        run: cat release-evidence.json

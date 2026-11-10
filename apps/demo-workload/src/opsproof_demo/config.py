@@ -1,7 +1,9 @@
 """Validated environment configuration shared by workload processes."""
 
 from functools import lru_cache
+from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +16,14 @@ class Settings(BaseSettings):
 
     inspection_key: str = ""
     recovery_key: str = ""
+
+    # Fixed in-namespace, test-only HTTP downstream; disabled in all M5 profiles.
+    downstream_enabled: bool = False
+    downstream_url: Literal[
+        "http://demo-downstream.opsproof-demo.svc.cluster.local:8080/work"
+    ] = "http://demo-downstream.opsproof-demo.svc.cluster.local:8080/work"
+    downstream_timeout_ms: int = Field(default=400, ge=100, le=2000)
+    downstream_attempts: int = Field(default=1, ge=1, le=2)
 
     max_attempts: int = 3
     lease_seconds: int = 15

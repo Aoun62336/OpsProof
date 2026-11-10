@@ -1,0 +1,229 @@
+{
+  "dataset_id": "opsproof-m6-labeled-v1",
+  "origin": "independently authored synthetic labels; actual fault holdout required",
+  "cases": [
+    {
+      "id": "saturation_lag_age",
+      "expected_hypothesis": "worker_saturation",
+      "expected_abstained": false,
+      "rationale": "Backlog and queue age increase while a worker is available",
+      "signals": {
+        "queue_lag": 60,
+        "queue_age_seconds": 10.0,
+        "active_workers": 1
+      }
+    },
+    {
+      "id": "saturation_sustained",
+      "expected_hypothesis": "worker_saturation",
+      "expected_abstained": false,
+      "rationale": "Two independent backlog measurements",
+      "signals": {
+        "queue_lag": 110,
+        "queue_age_seconds": 30.0,
+        "active_workers": 2
+      }
+    },
+    {
+      "id": "saturation_small_workers",
+      "expected_hypothesis": "worker_saturation",
+      "expected_abstained": false,
+      "rationale": "At lower observed threshold",
+      "signals": {
+        "queue_lag": 14,
+        "queue_age_seconds": 5.1,
+        "active_workers": 1
+      }
+    },
+    {
+      "id": "saturation_many_workers",
+      "expected_hypothesis": "worker_saturation",
+      "expected_abstained": false,
+      "rationale": "Scale-out does not itself prove queue cleared",
+      "signals": {
+        "queue_lag": 45,
+        "queue_age_seconds": 14.0,
+        "active_workers": 3
+      }
+    },
+    {
+      "id": "candidate_error",
+      "expected_hypothesis": "faulty_release",
+      "expected_abstained": false,
+      "rationale": "Candidate error and failed analysis",
+      "signals": {
+        "candidate_error_rate": 0.13,
+        "rollout_analysis_failed": true
+      }
+    },
+    {
+      "id": "candidate_error_high",
+      "expected_hypothesis": "faulty_release",
+      "expected_abstained": false,
+      "rationale": "Higher candidate error and failed analysis",
+      "signals": {
+        "candidate_error_rate": 0.72,
+        "rollout_analysis_failed": true
+      }
+    },
+    {
+      "id": "candidate_error_threshold",
+      "expected_hypothesis": "faulty_release",
+      "expected_abstained": false,
+      "rationale": "Inclusive configured signature threshold",
+      "signals": {
+        "candidate_error_rate": 0.05,
+        "rollout_analysis_failed": true
+      }
+    },
+    {
+      "id": "db_probe_failed",
+      "expected_hypothesis": "database_connectivity",
+      "expected_abstained": false,
+      "rationale": "DB probe failure plus connection errors",
+      "signals": {
+        "db_probe_ok": false,
+        "db_connection_errors": 6
+      }
+    },
+    {
+      "id": "db_many_failures",
+      "expected_hypothesis": "database_connectivity",
+      "expected_abstained": false,
+      "rationale": "Recurrent DB connectivity errors",
+      "signals": {
+        "db_probe_ok": false,
+        "db_connection_errors": 90
+      }
+    },
+    {
+      "id": "db_single_error",
+      "expected_hypothesis": "database_connectivity",
+      "expected_abstained": false,
+      "rationale": "Bounded test dependency error",
+      "signals": {
+        "db_probe_ok": false,
+        "db_connection_errors": 1
+      }
+    },
+    {
+      "id": "worker_crashed",
+      "expected_hypothesis": "worker_failure",
+      "expected_abstained": false,
+      "rationale": "Pod restart, absent workers, durable queue lag",
+      "signals": {
+        "logs_fresh": true,
+        "active_workers": 0,
+        "worker_restarts": 1,
+        "queue_lag": 8
+      }
+    },
+    {
+      "id": "worker_crashed_backlog",
+      "expected_hypothesis": "worker_failure",
+      "expected_abstained": false,
+      "rationale": "Multiple restarts with pending work",
+      "signals": {
+        "logs_fresh": true,
+        "active_workers": 0,
+        "worker_restarts": 3,
+        "queue_lag": 80
+      }
+    },
+    {
+      "id": "worker_crashed_one",
+      "expected_hypothesis": "worker_failure",
+      "expected_abstained": false,
+      "rationale": "Single pending job with restart",
+      "signals": {
+        "logs_fresh": true,
+        "active_workers": 0,
+        "worker_restarts": 1,
+        "queue_lag": 1
+      }
+    },
+    {
+      "id": "downstream_slow",
+      "expected_hypothesis": "downstream_latency",
+      "expected_abstained": false,
+      "rationale": "Correlated trace latency and timeouts",
+      "signals": {
+        "traces_fresh": true,
+        "downstream_p95_seconds": 1.5,
+        "downstream_timeouts": 4
+      }
+    },
+    {
+      "id": "downstream_slow_2",
+      "expected_hypothesis": "downstream_latency",
+      "expected_abstained": false,
+      "rationale": "Moderate injected latency and timeouts",
+      "signals": {
+        "traces_fresh": true,
+        "downstream_p95_seconds": 0.75,
+        "downstream_timeouts": 2
+      }
+    },
+    {
+      "id": "downstream_timeout_threshold",
+      "expected_hypothesis": "downstream_latency",
+      "expected_abstained": false,
+      "rationale": "Boundary with trace corroboration",
+      "signals": {
+        "traces_fresh": true,
+        "downstream_p95_seconds": 0.5,
+        "downstream_timeouts": 1
+      }
+    },
+    {
+      "id": "evidence_stale",
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "Stale metrics force abstention",
+      "signals": {
+        "metrics_fresh": false,
+        "queue_lag": 100,
+        "queue_age_seconds": 30.0,
+        "active_workers": 1
+      }
+    },
+    {
+      "id": "evidence_contradictory",
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "Contradictions force abstention",
+      "signals": {
+        "contradictions": [
+          "queue and state snapshots disagree"
+        ],
+        "queue_lag": 100,
+        "queue_age_seconds": 30.0,
+        "active_workers": 1
+      }
+    },
+    {
+      "id": "evidence_ambiguous",
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "Two plausible signatures force abstention",
+      "signals": {
+        "queue_lag": 50,
+        "queue_age_seconds": 10.0,
+        "active_workers": 1,
+        "db_probe_ok": false,
+        "db_connection_errors": 9
+      }
+    },
+    {
+      "id": "evidence_missing_trace",
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "Missing relevant traces force abstention",
+      "signals": {
+        "traces_fresh": false,
+        "downstream_p95_seconds": 2.0,
+        "downstream_timeouts": 3
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+# EKS-only. Requires verified EBS CSI add-on, Pod Identity and permissions.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: opsproof-ebs-gp3
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  encrypted: "true"
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer

@@ -2,6 +2,7 @@ component: "" # must be demo or control
 image:
   repository: "" # explicit local imported or published immutable image
   tag: ""
+  digest: "" # optional reviewed sha256 digest for M7 releases
   pullPolicy: IfNotPresent
 telemetry:
   enabled: false
@@ -42,3 +43,8 @@ autoscaling:
     minReplicas: 1
     maxReplicas: 2
     cpuUtilization: 70
+
+# M6 test-only, disabled by default. No arbitrary downstream URL input.
+demoDownstream:
+  enabled: false
+  delayMs: 0
