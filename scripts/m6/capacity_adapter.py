@@ -29,7 +29,10 @@ def delete_exact(env, kind, name, namespace, uid):
         "hpa": "horizontalpodautoscalers",
         "scaledobject": "scaledobjects",
     }
-    current = env.get(kind, name, namespace)
+    raw = env.command(["get", kind, name, "-n", namespace, "--ignore-not-found", "-o", "json"])
+    if not raw.strip():
+        return {"already_absent": True}
+    current = json.loads(raw)
     if current["metadata"]["uid"] != uid:
         raise RuntimeError("Owned temporary resource was replaced; deletion refused")
     body = {
@@ -262,10 +265,19 @@ class Capacity(Adapter):
             self.load_logs()
             self.state["load_process_stopped"] = True
         current = self.env.get("application", "demo", "argocd")
+        original_parameters = original["spec"]["source"]["helm"]["parameters"]
+        original_ignore = original["spec"].get("ignoreDifferences", [])
+        already_restored = (
+            current["spec"]["source"]["helm"]["parameters"] == original_parameters
+            and current["spec"].get("ignoreDifferences", []) == original_ignore
+        )
         if (
             current["metadata"]["uid"] != original["metadata"]["uid"]
-            or current["spec"]["source"]["helm"]["parameters"] != self.state["expected_parameters"]
-            or current["spec"].get("ignoreDifferences", []) != self.state["expected_ignore"]
+            or not already_restored
+            and (
+                current["spec"]["source"]["helm"]["parameters"] != self.state["expected_parameters"]
+                or current["spec"].get("ignoreDifferences", []) != self.state["expected_ignore"]
+            )
         ):
             raise RuntimeError("Capacity source ownership changed; automatic restore refused")
         patch = [
@@ -290,18 +302,32 @@ class Capacity(Adapter):
                 "value": original["spec"].get("ignoreDifferences", []),
             },
         ]
-        self.env.command(
-            [
-                "patch",
-                "application",
-                "demo",
-                "-n",
-                "argocd",
-                "--type=json",
-                "--patch",
-                json.dumps(patch),
-            ]
-        )
+        if not already_restored:
+            self.env.command(
+                [
+                    "patch",
+                    "application",
+                    "demo",
+                    "-n",
+                    "argocd",
+                    "--type=json",
+                    "--patch",
+                    json.dumps(patch),
+                ]
+            )
+        until = time.monotonic() + 180
+        while time.monotonic() < until:
+            app = self.env.get("application", "demo", "argocd")
+            status = app.get("status", {})
+            compared = status.get("sync", {}).get("comparedTo", {}).get("source", {})
+            if (
+                compared.get("helm", {}).get("parameters") == original_parameters
+                and status.get("operationState", {}).get("phase") != "Running"
+            ):
+                break
+            time.sleep(2)
+        else:
+            raise TimeoutError("Original capacity source has not reconciled")
         for controller in self.state["temporary_controllers"]:
             delete_exact(
                 self.env,
@@ -348,6 +374,23 @@ class Capacity(Adapter):
                     "Original generator still active; no PID-based kill or reservation release"
                 )
             self.load_logs()
+        while time.monotonic() < until:
+            app = self.env.get("application", "demo", "argocd")
+            worker = self.env.get("deployment", "demo-worker")
+            status = app.get("status", {})
+            if (
+                status.get("sync", {}).get("status") == "Synced"
+                and status.get("health", {}).get("status") == "Healthy"
+                and worker.get("status", {}).get("observedGeneration")
+                == worker["metadata"]["generation"]
+                and worker.get("status", {}).get("readyReplicas") == 1
+                and not self.env.get("hpa")["items"]
+                and not self.env.get("scaledobjects")["items"]
+            ):
+                break
+            time.sleep(2)
+        else:
+            raise TimeoutError("Original healthy fixed-capacity baseline has not returned")
         return {
             "original_source_restored": True,
             "jobs": self.wait_jobs(180, guard=False),
