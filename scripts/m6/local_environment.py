@@ -267,6 +267,12 @@ class LocalEnvironment:
         # It still refuses to overwrite a concurrent operator's configuration.
         current = self.get("application", "demo", "argocd")
         if (
+            current["metadata"]["uid"] == original["metadata"]["uid"]
+            and current["spec"]["source"]["helm"]["parameters"]
+            == original["spec"]["source"]["helm"]["parameters"]
+        ):
+            return current
+        if (
             current["metadata"]["uid"] != original["metadata"]["uid"]
             or current["spec"]["source"]["helm"]["parameters"] != expected_parameters
         ):
@@ -306,33 +312,49 @@ class LocalEnvironment:
             raise ValueError("Unsupported or already owned forward")
         ns, service, port, remote = FORWARDS[target]
         with socket.socket() as sock:
-            sock.bind(("127.0.0.1", port))
-        process = subprocess.Popen(
-            [
-                *self.kube,
-                "port-forward",
-                "-n",
-                ns,
-                "svc/" + service,
-                f"{port}:{remote}",
-                "--address",
-                "127.0.0.1",
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-        )
+            try:
+                sock.bind(("127.0.0.1", port))
+            except OSError as exc:
+                if os.name != "nt" or getattr(exc, "winerror", None) != 10048:
+                    raise
+                # Windows TIME_WAIT can reject this probe after an owned
+                # forward has exited. A live listener must still be refused.
+                with socket.socket() as probe:
+                    probe.settimeout(0.5)
+                    if probe.connect_ex(("127.0.0.1", port)) != 10061:
+                        raise exc
+        path = self.output / f"forward-{target}-{time.time_ns()}.log"
+        with path.open("x", encoding="utf-8") as log:
+            process = subprocess.Popen(
+                [
+                    *self.kube,
+                    "port-forward",
+                    "-n",
+                    ns,
+                    "svc/" + service,
+                    f"{port}:{remote}",
+                    "--address",
+                    "127.0.0.1",
+                ],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
         self.forwards[target] = process
         until = time.monotonic() + 25
-        while time.monotonic() < until:
-            if process.poll() is not None:
-                raise RuntimeError("Owned local port-forward exited")
-            try:
-                with socket.create_connection(("127.0.0.1", port), timeout=0.5):
-                    return
-            except OSError:
+        try:
+            while time.monotonic() < until:
+                if process.poll() is not None:
+                    raise RuntimeError("Owned local port-forward exited; inspect its bounded log")
+                marker = f"Forwarding from 127.0.0.1:{port} -> {remote}"
+                if marker in path.read_text(encoding="utf-8", errors="replace"):
+                    with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                        return
                 time.sleep(0.2)
-        raise TimeoutError("Owned port-forward did not become ready")
+            raise TimeoutError("Owned port-forward did not become ready")
+        except BaseException:
+            self.stop_forward(target)
+            raise
 
     def stop_forward(self, target):
         process = self.forwards.pop(target, None)

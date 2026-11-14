@@ -42,7 +42,11 @@ export const options = {
 };
 
 export default function () {
-  const key = `m6-${runId}-${exec.vu.idInTest}-${exec.vu.iterationInScenario}`;
+  // Arrival executors can schedule a boundary iteration at the duration limit.
+  // Enforce the declared write bound independently of scheduler rounding.
+  const iteration = exec.scenario.iterationInTest;
+  if (iteration >= rate * seconds) return;
+  const key = `m6-${runId}-${iteration}`;
   const result = http.post(`${base}/api/v1/jobs`,
     JSON.stringify({ duration_ms: durationMs }), {
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },

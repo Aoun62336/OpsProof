@@ -555,10 +555,30 @@ class DownstreamLatency(FaultyRelease):
         until = time.monotonic() + 120
         while time.monotonic() < until:
             self.env.guard()
-            fixture = self.env.get("deployment", "demo-downstream")
+            raw = self.env.command(
+                [
+                    "get",
+                    "deployment",
+                    "demo-downstream",
+                    "-n",
+                    "opsproof-demo",
+                    "--ignore-not-found",
+                    "-o",
+                    "json",
+                ]
+            )
+            if not raw.strip():
+                time.sleep(2)
+                continue
+            fixture = json.loads(raw)
             worker = self.env.get("deployment", "demo-worker")
+            configured = {
+                item["name"]: item.get("value")
+                for item in worker["spec"]["template"]["spec"]["containers"][0].get("env", [])
+            }
             if (
                 fixture.get("status", {}).get("readyReplicas") == 1
+                and configured.get("OPSPROOF_DOWNSTREAM_ENABLED") == "true"
                 and worker["status"].get("observedGeneration") == worker["metadata"]["generation"]
                 and worker["status"].get("updatedReplicas") == 1
                 and worker["status"].get("readyReplicas") == 1
@@ -590,6 +610,86 @@ class DownstreamLatency(FaultyRelease):
 
     def cleanup(self):
         self.env.restore_demo(self.state["original_application"], self.state["expected_parameters"])
+        original = self.state["original_application"]["spec"]["source"]["helm"]["parameters"]
+        until = time.monotonic() + 120
+        while time.monotonic() < until:
+            app = self.env.get("application", "demo", "argocd")
+            status = app.get("status", {})
+            compared = status.get("sync", {}).get("comparedTo", {}).get("source", {})
+            if (
+                compared.get("helm", {}).get("parameters") == original
+                and status.get("operationState", {}).get("phase") != "Running"
+            ):
+                break
+            time.sleep(2)
+        else:
+            raise TimeoutError("Restored GitOps source has not reconciled")
+        # This project's GitOps policy deliberately disables automatic pruning.
+        # Remove only this trial's two named fixture resources, after source
+        # restoration, with server-enforced identity/version preconditions.
+        for kind, group, plural, tracking in (
+            ("deployment", "/apis/apps/v1", "deployments", "apps/Deployment"),
+            ("service", "/api/v1", "services", "/Service"),
+        ):
+            raw = self.env.command(
+                [
+                    "get",
+                    kind,
+                    "demo-downstream",
+                    "-n",
+                    "opsproof-demo",
+                    "--ignore-not-found",
+                    "-o",
+                    "json",
+                ]
+            )
+            if not raw.strip():
+                continue
+            resource = json.loads(raw)
+            metadata = resource["metadata"]
+            if metadata.get("annotations", {}).get(
+                "argocd.argoproj.io/tracking-id"
+            ) != f"demo:{tracking}:opsproof-demo/demo-downstream" or datetime.fromisoformat(
+                metadata["creationTimestamp"].replace("Z", "+00:00")
+            ) < datetime.fromisoformat(self.state["injection_started_at"]):
+                raise RuntimeError("Fixture ownership differs from this trial; deletion refused")
+            self.env.save(
+                "fixture-cleanup-identity",
+                {
+                    "kind": kind,
+                    "uid": metadata["uid"],
+                    "resource_version": metadata["resourceVersion"],
+                },
+            )
+            self.env.command(
+                [
+                    "delete",
+                    "--raw",
+                    f"{group}/namespaces/opsproof-demo/{plural}/demo-downstream",
+                    "-f",
+                    "-",
+                ],
+                input=json.dumps(
+                    {
+                        "apiVersion": "v1",
+                        "kind": "DeleteOptions",
+                        "preconditions": {
+                            "uid": metadata["uid"],
+                            "resourceVersion": metadata["resourceVersion"],
+                        },
+                    }
+                ),
+            )
+        while time.monotonic() < until:
+            app = self.env.get("application", "demo", "argocd")
+            if (
+                app.get("status", {}).get("sync", {}).get("status") == "Synced"
+                and app.get("status", {}).get("health", {}).get("status") == "Healthy"
+            ):
+                break
+            time.sleep(2)
+        else:
+            raise TimeoutError("Restored application did not return Synced/Healthy")
         return {
             "profile_restore_requested": True,
             "jobs": self.wait_jobs(180, guard=False),

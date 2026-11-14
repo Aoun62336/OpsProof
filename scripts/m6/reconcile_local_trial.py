@@ -141,6 +141,14 @@ def execute(directory, acknowledgment):
                     "relative_path": proof_path.relative_to(ROOT).as_posix(),
                     "sha256": hashlib.sha256(proof_path.read_bytes()).hexdigest(),
                 }
+                cleanup_ref = env.save(
+                    "verified-cleanup",
+                    {
+                        "independent_result": ref,
+                        "cleanup_verified": True,
+                        "restricted_access_removed": True,
+                    },
+                )
                 with connection() as conn:
                     store.record_verification(
                         conn,
@@ -149,7 +157,9 @@ def execute(directory, acknowledgment):
                         report_json=json.dumps(proof["verification_receipt"]),
                         **ref,
                     )
-                    store.attach_artifact(conn, trial, fence_token=token, kind="cleanup", **ref)
+                    store.attach_artifact(
+                        conn, trial, fence_token=token, kind="cleanup", **cleanup_ref
+                    )
                     store.resolve_uncertain(
                         conn,
                         trial,

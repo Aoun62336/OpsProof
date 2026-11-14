@@ -9,6 +9,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import traceback
 from contextlib import ExitStack, nullcontext
 from urllib.parse import quote
 from uuid import uuid4
@@ -368,6 +369,18 @@ def execute(scenario, acknowledgment, capacity_mode=None):
                 result["status"] = store.get_trial(conn, trial_id)["phase"].upper()
     except (Exception, KeyboardInterrupt) as exc:
         result["error_type"] = type(exc).__name__
+        write_json(
+            directory / "executor-diagnostic.json",
+            {
+                "error_type": type(exc).__name__,
+                "errno": getattr(exc, "errno", None),
+                "winerror": getattr(exc, "winerror", None),
+                "frames": [
+                    {"file": frame.filename, "line": frame.lineno, "function": frame.name}
+                    for frame in traceback.extract_tb(exc.__traceback__)
+                ],
+            },
+        )
         # Never persist arbitrary DB/provider exception text containing DSNs.
         result["reason"] = "Local prerequisite or execution failed; inspect bounded local artifacts"
         if trial_id is not None:

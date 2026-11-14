@@ -152,6 +152,16 @@ def mutation_rules(scenario, capacity_mode, worker_names):
                 "verbs": ["patch"],
             }
         )
+    if scenario == "downstream_latency":
+        for group, resource in (("apps", "deployments"), ("", "services")):
+            result["opsproof-demo"].append(
+                {
+                    "apiGroups": [group],
+                    "resources": [resource],
+                    "resourceNames": ["demo-downstream"],
+                    "verbs": ["delete"],
+                }
+            )
     if capacity_mode:
         result["opsproof-demo"] += [
             {
@@ -721,7 +731,7 @@ class RestrictedAccess:
         with Redis(host="127.0.0.1", port=16379, socket_timeout=2) as client:
             for user in self.redis_users:
                 try:
-                    client.acl_dryrun(user, "SET", "unrelated", "forbidden")
+                    decision = client.acl_dryrun(user, "SET", "unrelated", "forbidden")
                 except ResponseError as exc:
                     if (
                         "no permissions" not in str(exc).lower()
@@ -729,7 +739,14 @@ class RestrictedAccess:
                     ):
                         raise
                 else:
-                    raise RuntimeError("Redis ACL unexpectedly permits unrelated writes")
+                    # Redis returns ordinary text for a denied ACL DRYRUN;
+                    # some client/server versions instead raise NOPERM.
+                    if isinstance(decision, bytes):
+                        decision = decision.decode("utf-8", errors="strict")
+                    if not isinstance(decision, str) or not (
+                        "no permissions" in decision.lower() or "noperm" in decision.lower()
+                    ):
+                        raise RuntimeError("Redis ACL unexpectedly permits unrelated writes")
         write_json(
             self.directory / "restricted-permission-checks.json",
             {

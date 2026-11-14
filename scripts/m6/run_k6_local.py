@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import socket
 import subprocess
 import time
@@ -41,8 +42,17 @@ def assert_port_free(port: int = PORT) -> None:
 
 def local_prefix(kubeconfig: Path) -> list[str]:
     assert_local_scope(kubeconfig=kubeconfig, context="k3d-opsproof", mutation=False)
+    executable = shutil.which("kubectl") or "kubectl"
+    if os.name == "nt":
+        # Chocolatey's shim launches a child that survives shim termination.
+        # Own the real executable so bounded forwards can always be stopped.
+        packaged = Path(os.environ.get("ChocolateyInstall", r"C:\ProgramData\chocolatey")) / (
+            "lib/kubernetes-cli/tools/kubernetes/client/bin/kubectl.exe"
+        )
+        if packaged.is_file():
+            executable = str(packaged)
     prefix = [
-        "kubectl",
+        executable,
         "--kubeconfig",
         str(kubeconfig.resolve()),
         "--context",
@@ -66,6 +76,18 @@ def wait_for_owned_forward(proc: subprocess.Popen, timeout: int = 20) -> None:
         except OSError:
             time.sleep(0.2)
     raise TimeoutError("Owned Kubernetes port-forward readiness timeout")
+
+
+def k6_executable() -> str:
+    executable = shutil.which("k6") or "k6"
+    if os.name == "nt":
+        installation = Path(os.environ.get("ChocolateyInstall", r"C:\ProgramData\chocolatey"))
+        if Path(executable).parent == installation / "bin":
+            candidates = list(installation.glob("lib/k6/tools/k6-*-windows-amd64/k6.exe"))
+            if len(candidates) != 1:
+                raise RuntimeError("Cannot uniquely resolve the owned k6 executable")
+            return str(candidates[0])
+    return executable
 
 
 def execute(args):
@@ -122,7 +144,7 @@ def execute(args):
         wait_for_owned_forward(proc)
         with logs.open("w", encoding="utf-8") as output:
             load = subprocess.Popen(
-                ["k6", "run", "--log-format", "raw", "benchmarks/k6/jobs.js"],
+                [k6_executable(), "run", "--log-format", "raw", "benchmarks/k6/jobs.js"],
                 stdout=output,
                 stderr=subprocess.STDOUT,
                 env=env,
