@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict
 from .config import settings
 from .contracts import CreateJob, JobCounts, JobDetails
 from .db import pool
+from .m6_probe import probe as probe_database
 from .metrics import install_metrics
 from .worker_control import hold_state, resume_worker
 
@@ -40,6 +41,11 @@ def require_recovery(x_opsproof_recovery_key: str | None = Header(default=None))
 def worker_state() -> dict[str, bool | int]:
     with redis.Redis.from_url(settings().redis_url, socket_timeout=3) as client:
         return hold_state(client)
+
+
+@app.get("/api/v1/internal/dependency-probe", dependencies=[Depends(require_inspection)])
+def dependency_probe() -> dict:
+    return probe_database(settings())
 
 
 @app.post("/api/v1/internal/worker/resume", dependencies=[Depends(require_recovery)])

@@ -28,14 +28,19 @@ class TrialPhase(StrEnum):
 ALLOWED = {
     TrialPhase.REQUESTED: frozenset({TrialPhase.PREFLIGHT, TrialPhase.ABORTED}),
     TrialPhase.PREFLIGHT: frozenset({TrialPhase.ARMED, TrialPhase.FAILED, TrialPhase.ABORTED}),
-    TrialPhase.ARMED: frozenset({TrialPhase.INJECTED, TrialPhase.FAILED, TrialPhase.ABORTED}),
-    TrialPhase.INJECTED: frozenset({TrialPhase.OBSERVING, TrialPhase.RECOVERING,
-                                   TrialPhase.INDETERMINATE}),
-    TrialPhase.OBSERVING: frozenset({TrialPhase.RECOVERING, TrialPhase.VERIFYING,
-                                    TrialPhase.INDETERMINATE}),
+    TrialPhase.ARMED: frozenset(
+        {TrialPhase.INJECTED, TrialPhase.FAILED, TrialPhase.ABORTED, TrialPhase.INDETERMINATE}
+    ),
+    TrialPhase.INJECTED: frozenset(
+        {TrialPhase.OBSERVING, TrialPhase.RECOVERING, TrialPhase.INDETERMINATE}
+    ),
+    TrialPhase.OBSERVING: frozenset(
+        {TrialPhase.RECOVERING, TrialPhase.VERIFYING, TrialPhase.INDETERMINATE}
+    ),
     TrialPhase.RECOVERING: frozenset({TrialPhase.VERIFYING, TrialPhase.INDETERMINATE}),
-    TrialPhase.VERIFYING: frozenset({TrialPhase.SUCCEEDED, TrialPhase.FAILED,
-                                   TrialPhase.INDETERMINATE}),
+    TrialPhase.VERIFYING: frozenset(
+        {TrialPhase.SUCCEEDED, TrialPhase.FAILED, TrialPhase.INDETERMINATE}
+    ),
 }
 
 
@@ -54,16 +59,27 @@ class TrialRecord:
     cleanup_verified: bool = False
 
 
-def transition(record: TrialRecord, next_phase: TrialPhase, *,
-               observed_at: datetime | None = None, **evidence: bool) -> TrialRecord:
+def transition(
+    record: TrialRecord,
+    next_phase: TrialPhase,
+    *,
+    observed_at: datetime | None = None,
+    **evidence: bool,
+) -> TrialRecord:
     now = observed_at or datetime.now(UTC)
     if now.tzinfo is None or record.updated_at.tzinfo is None or now < record.updated_at:
         raise ValueError("Timestamp missing timezone or moving backward")
     if next_phase not in ALLOWED.get(record.phase, frozenset()):
         raise ValueError("Invalid, replayed or terminal-state transition")
-    allowed_evidence = frozenset(("approved_test_scope", "cleanup_plan_confirmed",
-                                  "injection_acknowledged", "independent_verified",
-                                  "cleanup_verified"))
+    allowed_evidence = frozenset(
+        (
+            "approved_test_scope",
+            "cleanup_plan_confirmed",
+            "injection_acknowledged",
+            "independent_verified",
+            "cleanup_verified",
+        )
+    )
     if not set(evidence).issubset(allowed_evidence) or any(
         type(v) is not bool for v in evidence.values()
     ):
@@ -76,8 +92,7 @@ def transition(record: TrialRecord, next_phase: TrialPhase, *,
     if next_phase == TrialPhase.INJECTED and not updated.injection_acknowledged:
         raise ValueError("Cannot record injection without actuator receipt")
     if next_phase == TrialPhase.SUCCEEDED and not (
-        updated.injection_acknowledged and updated.independent_verified
-        and updated.cleanup_verified
+        updated.injection_acknowledged and updated.independent_verified and updated.cleanup_verified
     ):
         raise ValueError("Success requires injected action, independent proof and cleanup")
     return updated

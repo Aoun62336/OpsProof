@@ -587,3 +587,17 @@
     font-size: 31px;
   }
 }
+.m6-trials code, .m6-trials li {
+  overflow-wrap: anywhere;
+}
+
+.m6-trials .panel {
+  padding: 24px;
+  margin-bottom: 20px;
+  min-width: 0;
+}
+
+.m6-trials pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

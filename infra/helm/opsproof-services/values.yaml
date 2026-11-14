@@ -40,6 +40,7 @@ autoscaling:
     lagCount: 2
   hpa:
     enabled: false
+    rolloutTargetEnabled: false # M6 opt-in; HPA owns Rollout /scale, not a second Deployment
     minReplicas: 1
     maxReplicas: 2
     cpuUtilization: 70
@@ -48,3 +49,12 @@ autoscaling:
 demoDownstream:
   enabled: false
   delayMs: 0
+m6DependencyProbeEnabled: false
+
+# M6 ledger: opt-in only, API cannot execute faults.
+m6:
+  enabled: false
+  armEnabled: false
+  trialWorkerEnabled: false
+  reuseEnabled: false
+  runtimeSecretName: "" # Required when M6 is enabled; overrides only the nonowner DB URL

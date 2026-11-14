@@ -309,3 +309,55 @@ export function getRecoveryEvents(
     `/recoveries/${encodeURIComponent(id)}/events`,
   );
 }
+
+// M6 ledger is an opt-in, read-only console surface. Mutations are not exposed here.
+export interface M6Trial {
+  id: string;
+  scenario: string;
+  target: string;
+  phase: string;
+  source_revision: string;
+  approved_test_scope: boolean;
+  injection_acknowledged: boolean;
+  independent_verified: boolean;
+  cleanup_verified: boolean;
+  abort_requested: boolean;
+  created_at: string;
+  updated_at: string;
+  error: string | null;
+  dispatch_intent_at?: string | null;
+  target_uid?: string | null;
+}
+export interface M6TrialEvent {
+  id: number;
+  kind: string;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+export const getM6Trials = () => request<M6Trial[]>("/m6/trials");
+export const getM6TrialEvents = (id: string) =>
+  request<M6TrialEvent[]>(`/m6/trials/${encodeURIComponent(id)}/events`);
+export interface M6TrialArtifact {
+  id: number;
+  kind: string;
+  relative_path: string;
+  sha256: string;
+  created_at: string;
+  observations?: Record<string, unknown>;
+}
+export const getM6TrialArtifacts = (id: string) =>
+  request<M6TrialArtifact[]>(`/m6/trials/${encodeURIComponent(id)}/artifacts`);
+
+export interface M6Verification {
+  observer_id: string;
+  dispatch_id: string;
+  target_uid: string;
+  verified_at: string;
+  cleanup_verified: boolean;
+  hypothesis_verified: boolean;
+  report_sha256: string;
+  observer_sha256: string;
+  checks: Record<string, boolean>;
+}
+export const getM6Verifications = (id: string) =>
+  request<M6Verification[]>(`/m6/trials/${encodeURIComponent(id)}/verifications`);

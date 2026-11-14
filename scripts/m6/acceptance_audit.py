@@ -3,22 +3,31 @@
 Requires source-linked named artifacts and verifies their bytes against a SHA256
 inventory; cannot certify the truthfulness of the experiment's own assertions.
 """
+
 import argparse
 import hashlib
 import json
 import re
 from pathlib import Path
 
-REQUIRED = frozenset({
-    "worker_saturation", "faulty_release", "database_connectivity",
-    "worker_failure", "downstream_latency", "misleading_evidence",
-})
+REQUIRED = frozenset(
+    {
+        "worker_saturation",
+        "faulty_release",
+        "database_connectivity",
+        "worker_failure",
+        "downstream_latency",
+        "misleading_evidence",
+    }
+)
 
 
 def audit(document: dict, root: Path) -> dict:
     if not isinstance(document, dict) or set(document) != {"source_sha", "scenarios"}:
         raise ValueError("Expected exact source provenance and six scenario evidence records")
-    if not isinstance(document["source_sha"], str) or not re.fullmatch(r"[0-9a-f]{40}", document["source_sha"]):
+    if not isinstance(document["source_sha"], str) or not re.fullmatch(
+        r"[0-9a-f]{40}", document["source_sha"]
+    ):
         raise ValueError("Full source SHA-1 required")
     records = document["scenarios"]
     if not isinstance(records, list) or len(records) != len(REQUIRED):
@@ -45,7 +54,9 @@ def audit(document: dict, root: Path) -> dict:
             if not isinstance(relative, str) or not relative.startswith(".runtime/m6/"):
                 raise ValueError("Artifacts must remain inside the ignored M6 runtime tree")
             candidate = root / relative
-            if candidate.is_symlink() or any(parent.is_symlink() for parent in candidate.parents if parent != root):
+            if candidate.is_symlink() or any(
+                parent.is_symlink() for parent in candidate.parents if parent != root
+            ):
                 raise ValueError("Symlinked evidence paths are forbidden")
             p = candidate.resolve(strict=True)
             if not p.is_relative_to(root / ".runtime" / "m6"):

@@ -18,7 +18,12 @@ class AuditTests(TestCase):
                     f = root / relative
                     f.parent.mkdir(parents=True, exist_ok=True)
                     f.write_text(f'{{"sample": "{scenario}-{n}"}}')
-                    artifacts.append({"path": relative, "sha256": hashlib.sha256(f.read_bytes()).hexdigest()})
+                    artifacts.append(
+                        {
+                            "path": relative,
+                            "sha256": hashlib.sha256(f.read_bytes()).hexdigest(),
+                        }
+                    )
                 records.append({"scenario": scenario, "artifacts": artifacts})
             manifest = {"source_sha": "a" * 40, "scenarios": records}
             result = audit(manifest, root)

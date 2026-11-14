@@ -32,10 +32,14 @@ spec:
         - name: fixture
           image: {{ include "opsproof.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.telemetry.enabled }}
+          command: ["opentelemetry-instrument", "python", "-m", "opsproof_demo"]
+          {{- end }}
           args: ["fixture"]
           env:
             - {name: OPSPROOF_M6_FIXTURE_ENABLED, value: "true"}
             - {name: OPSPROOF_M6_FIXTURE_DELAY_MS, value: {{ .Values.demoDownstream.delayMs | quote }}}
+{{ include "opsproof.envVars" (dict "root" . "role" "fixture") | indent 12 }}
           ports: [{name: http, containerPort: 8080}]
           securityContext:
             allowPrivilegeEscalation: false

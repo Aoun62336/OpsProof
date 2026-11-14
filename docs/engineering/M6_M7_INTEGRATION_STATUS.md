@@ -1,5 +1,8 @@
 # M6/M7 integration status: M5-aware source merge (9 November 2026)
 
+> Historical integration record. See the [14 November M6 acceptance report](../experiments/M6_ACCEPTANCE_REPORT_2026-11-14.md)
+> for the actual Python 3.14, PostgreSQL, Helm and browser results and current blockers.
+
 **Authoritative input:** `OpsProof_M5_Final_Source.zip` supplied after the final November 9 M5 acceptance report, containing 234 source files. The original November 8 M6/M7 staged source is reference material only, never the source authority.
 
 **What was integrated:** 72 proposed additions + one new compatibility contract test; only seven existing M5 files edited for optional downstream HTTP test profile and immutable image digest support. All other M5 files preserved byte-for-byte. The M6 downstream fixture is off by default, with fixed internal destination and bounded timeout/attempts. Terraform paid resources are off by default; GitHub release is workflow-dispatch and contains no AWS apply.

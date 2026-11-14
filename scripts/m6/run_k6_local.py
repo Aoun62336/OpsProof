@@ -17,10 +17,18 @@ from pathlib import Path
 from scripts.m5.preflight import memory_available
 
 if __package__:
-    from .contracts import assert_bounded_workload, assert_isolated_k3d_api, assert_local_scope
+    from .contracts import (
+        assert_bounded_workload,
+        assert_isolated_k3d_api,
+        assert_local_scope,
+    )
     from .reconcile_jobs import parse_receipts, reconcile
 else:
-    from contracts import assert_bounded_workload, assert_isolated_k3d_api, assert_local_scope
+    from contracts import (
+        assert_bounded_workload,
+        assert_isolated_k3d_api,
+        assert_local_scope,
+    )
     from reconcile_jobs import parse_receipts, reconcile
 
 PORT = 18088
@@ -33,9 +41,16 @@ def assert_port_free(port: int = PORT) -> None:
 
 def local_prefix(kubeconfig: Path) -> list[str]:
     assert_local_scope(kubeconfig=kubeconfig, context="k3d-opsproof", mutation=False)
-    prefix = ["kubectl", "--kubeconfig", str(kubeconfig.resolve()), "--context", "k3d-opsproof"]
-    config = subprocess.check_output([*prefix, "config", "view", "--minify", "-o", "json"],
-                                     text=True, timeout=10)
+    prefix = [
+        "kubectl",
+        "--kubeconfig",
+        str(kubeconfig.resolve()),
+        "--context",
+        "k3d-opsproof",
+    ]
+    config = subprocess.check_output(
+        [*prefix, "config", "view", "--minify", "-o", "json"], text=True, timeout=10
+    )
     assert_isolated_k3d_api(json.loads(config)["clusters"][0]["cluster"]["server"])
     return prefix
 
@@ -60,6 +75,8 @@ def execute(args):
         raise ValueError("Expected a fresh m6- prefixed lowercase run ID")
     if not 1 <= args.rate <= 5 or not 10 <= args.seconds <= 120:
         raise ValueError("Rate or seconds outside bounded limits")
+    if not 1 <= args.vus <= 16 or not 1 <= args.timeout <= 600:
+        raise ValueError("VU or verification deadline out of bounds")
     count = args.rate * args.seconds
     assert_bounded_workload(count=count, duration_ms=args.duration_ms)
     kube = local_prefix(args.kubeconfig)
@@ -85,19 +102,30 @@ def execute(args):
         "M6_SECONDS": str(args.seconds),
         "M6_DURATION_MS": str(args.duration_ms),
         "M6_VUS": str(args.vus),
-        "M6_SUMMARY_PATH": str(summary),
+        "M6_SUMMARY_PATH": summary.resolve().relative_to(Path.cwd()).as_posix(),
     }
     proc = subprocess.Popen(
-        [*kube, "port-forward", "-n", "opsproof-demo", "svc/demo-api",
-         f"{PORT}:8080", "--address", "127.0.0.1"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        [
+            *kube,
+            "port-forward",
+            "-n",
+            "opsproof-demo",
+            "svc/demo-api",
+            f"{PORT}:8080",
+            "--address",
+            "127.0.0.1",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     try:
         wait_for_owned_forward(proc)
         with logs.open("w", encoding="utf-8") as output:
             load = subprocess.Popen(
-                ["k6", "run", "benchmarks/k6/jobs.js"],
-                stdout=output, stderr=subprocess.STDOUT, env=env,
+                ["k6", "run", "--log-format", "raw", "benchmarks/k6/jobs.js"],
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                env=env,
             )
             deadline = time.monotonic() + args.seconds + 60
             try:

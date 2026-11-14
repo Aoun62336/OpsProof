@@ -76,6 +76,10 @@ def duration_seconds(record: dict) -> float:
 def reconcile(base: str, ids: list[str], timeout: int = 300) -> dict:
     if base not in ALLOWED_BASES or not 1 <= timeout <= 600:
         raise ValueError("Unsafe endpoint or timeout")
+    if not 1 <= len(ids) <= 120 or len(set(ids)) != len(ids):
+        raise ValueError("A bounded, distinct exact job set is required")
+    if any(str(UUID(value)) != value for value in ids):
+        raise ValueError("Canonical job UUIDs required")
     remaining = set(ids)
     complete = {}
     errors = []
@@ -93,7 +97,7 @@ def reconcile(base: str, ids: list[str], timeout: int = 300) -> dict:
             if state not in ("queued", "processing", "completed"):
                 raise ValueError(f"Unknown status for {job_id}")
             if state == "completed":
-                if not isinstance(record.get("attempts"), int) or record["attempts"] < 1:
+                if type(record.get("attempts")) is not int or record["attempts"] < 1:
                     raise ValueError("Invalid job attempts")
                 duration_seconds(record)
                 complete[job_id] = record
@@ -112,9 +116,9 @@ def reconcile(base: str, ids: list[str], timeout: int = 300) -> dict:
         "latency_seconds_p95": percentile_nearest_rank(durations, 95),
         "transient_read_errors": errors,
         "job_ids": ids,
+        "jobs": list(complete.values()),
         "limitations": (
-            "Durable terminal-state verification, not an exactly-once "
-            "execution guarantee"
+            "Durable terminal-state verification, not an exactly-once execution guarantee"
         ),
     }
 
@@ -136,7 +140,12 @@ def main() -> None:
     try:
         report = reconcile(args.base, ids, args.timeout)
     except (ValueError, OSError) as exc:
-        report = {"passed": False, "error": str(exc), "expected": len(ids), "job_ids": ids}
+        report = {
+            "passed": False,
+            "error": str(exc),
+            "expected": len(ids),
+            "job_ids": ids,
+        }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({k: v for k, v in report.items() if k != "job_ids"}, indent=2))

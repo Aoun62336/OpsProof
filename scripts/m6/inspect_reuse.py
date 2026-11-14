@@ -3,6 +3,7 @@
 This does not fabricate incident detection or imply its recovery is authorized.
 The second target is intentionally separate from demo/control namespaces.
 """
+
 import argparse
 import json
 import subprocess
@@ -18,7 +19,9 @@ def inspect(config: Path) -> dict:
     base = ["kubectl", "--kubeconfig", str(config), "--context", "k3d-opsproof"]
 
     def get(*args):
-        proc = subprocess.run([*base, *args], text=True, capture_output=True, timeout=20, check=False)
+        proc = subprocess.run(
+            [*base, *args], text=True, capture_output=True, timeout=20, check=False
+        )
         if proc.returncode:
             raise RuntimeError("Read-only reuse resource inspection failed")
         return json.loads(proc.stdout)
@@ -42,7 +45,9 @@ def inspect(config: Path) -> dict:
         "endpointslice_count": len(endpoints.get("items", [])),
         "observation_only": True,
         "recovery_authorized": False,
-        "limitations": "Kubernetes readiness metadata alone does not verify application or diagnosis reuse",
+        "limitations": (
+            "Kubernetes readiness metadata alone does not verify application or diagnosis reuse"
+        ),
     }
 
 

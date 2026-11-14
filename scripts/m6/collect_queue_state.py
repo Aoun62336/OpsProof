@@ -8,15 +8,14 @@ errors, not healthy zeros. Does not inject faults or authorize recovery.
 import argparse
 import json
 import subprocess
-import time
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.request import urlopen
 
 if __package__:
-    from .contracts import assert_local_scope, assert_isolated_k3d_api
+    from .contracts import assert_isolated_k3d_api, assert_local_scope
 else:
-    from contracts import assert_local_scope, assert_isolated_k3d_api
+    from contracts import assert_isolated_k3d_api, assert_local_scope
 
 DEMO_STATS_URL = "http://127.0.0.1:18088/api/v1/stats"
 GROUP = "opsproof-workers"
@@ -32,12 +31,19 @@ def parse_group(raw: object) -> dict:
     row = entries[0]
     lag, pending = row.get("lag"), row.get("pending")
     # Redis may return null lag if it cannot calculate lag. That is UNKNOWN.
-    if (lag is not None and (type(lag) is not int or lag < 0)
-            or type(pending) is not int or pending < 0):
+    if (
+        lag is not None
+        and (type(lag) is not int or lag < 0)
+        or type(pending) is not int
+        or pending < 0
+    ):
         raise ValueError("Missing or invalid Redis queue metrics")
     return {
-        "stream": STREAM, "group": GROUP, "lag": lag,
-        "pending": pending, "consumers": row.get("consumers"),
+        "stream": STREAM,
+        "group": GROUP,
+        "lag": lag,
+        "pending": pending,
+        "consumers": row.get("consumers"),
         "lag_known": lag is not None,
     }
 
@@ -47,8 +53,13 @@ def collect(kubeconfig: Path) -> dict:
     prefix = ["kubectl", "--kubeconfig", str(kubeconfig), "--context", "k3d-opsproof"]
 
     def kubectl(arguments):
-        proc = subprocess.run([*prefix, *arguments], text=True, capture_output=True,
-                              timeout=20, check=False)
+        proc = subprocess.run(
+            [*prefix, *arguments],
+            text=True,
+            capture_output=True,
+            timeout=20,
+            check=False,
+        )
         if proc.returncode:
             raise RuntimeError("Read-only Kubernetes query failed")
         return json.loads(proc.stdout)
@@ -57,13 +68,32 @@ def collect(kubeconfig: Path) -> dict:
     local_config = kubectl(["config", "view", "--minify", "-o", "json"])
     assert_isolated_k3d_api(local_config["clusters"][0]["cluster"]["server"])
     start = datetime.now(UTC)
-    groups = kubectl([
-        "exec", "-n", "opsproof-demo", "demo-deps-redis-0", "--",
-        "redis-cli", "--json", "XINFO", "GROUPS", STREAM,
-    ])
+    groups = kubectl(
+        [
+            "exec",
+            "-n",
+            "opsproof-demo",
+            "demo-deps-redis-0",
+            "--",
+            "redis-cli",
+            "--json",
+            "XINFO",
+            "GROUPS",
+            STREAM,
+        ]
+    )
     queue = parse_group(groups)
     worker = kubectl(["get", "deployment", "demo-worker", "-n", "opsproof-demo", "-o", "json"])
-    api = kubectl(["get", "deployment", "demo-api", "-n", "opsproof-demo", "-o", "json"])
+    deployments = kubectl(["get", "deployments", "-n", "opsproof-demo", "-o", "json"])
+    apis = [item for item in deployments["items"] if item["metadata"]["name"] == "demo-api"]
+    if len(apis) > 1:
+        raise ValueError("Ambiguous demo API Deployment")
+    api_kind = "Deployment" if apis else "Rollout"
+    api = (
+        apis[0]
+        if apis
+        else kubectl(["get", "rollout", "demo-api", "-n", "opsproof-demo", "-o", "json"])
+    )
     with urlopen(DEMO_STATS_URL, timeout=5) as resp:
         if resp.status != 200:
             raise RuntimeError("Demo state API unavailable")
@@ -79,6 +109,7 @@ def collect(kubeconfig: Path) -> dict:
         "local_kubernetes_context": "k3d-opsproof",
         "queue": queue,
         "replicas": {
+            "api_kind": api_kind,
             "worker_desired": worker["spec"]["replicas"],
             "worker_ready": worker["status"].get("readyReplicas", 0),
             "api_desired": api["spec"]["replicas"],

@@ -5,6 +5,7 @@ import os
 import time
 from uuid import UUID, uuid4
 
+from opentelemetry import trace
 from redis import Redis
 from redis.exceptions import ResponseError
 
@@ -120,12 +121,16 @@ def process_entry(
     # A timeout is deliberately not acknowledged as success; the existing
     # lease/fencing and retry path controls subsequent delivery.
     time.sleep(duration_ms / 1000)
-    probe(
-        enabled=config.downstream_enabled,
-        url=config.downstream_url,
-        timeout_ms=config.downstream_timeout_ms,
-        attempts=config.downstream_attempts,
-    )
+    if config.downstream_enabled:
+        with trace.get_tracer(__name__).start_as_current_span(
+            "opsproof.job", attributes={"opsproof.job.id": str(job_id)}
+        ):
+            probe(
+                enabled=True,
+                url=config.downstream_url,
+                timeout_ms=config.downstream_timeout_ms,
+                attempts=config.downstream_attempts,
+            )
 
     with pool().connection() as conn:
         finished = conn.execute(

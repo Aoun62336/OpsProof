@@ -25,6 +25,9 @@ from .contracts import (
 from .db import pool, redis_client
 from .incidents import router as incident_router
 from .kubernetes_operations import router as kubernetes_router
+from .m6_access import require_application_role
+from .m6_reuse import router as m6_reuse_router
+from .m6_trial_api import router as m6_trial_router
 from .metrics import install_metrics
 from .operations import router as operations_router
 from .store import enqueue, event
@@ -40,6 +43,8 @@ app.include_router(auth_router)
 app.include_router(incident_router)
 app.include_router(operations_router)
 app.include_router(kubernetes_router)
+app.include_router(m6_trial_router)
+app.include_router(m6_reuse_router)
 
 
 class SummaryView(BaseModel):
@@ -59,6 +64,8 @@ def ready() -> dict[str, str]:
     try:
         with pool().connection() as conn:
             conn.execute("SELECT 1")
+            if settings().m6_enabled:
+                require_application_role(conn)
         redis_client().ping()
     except Exception as exc:
         raise HTTPException(

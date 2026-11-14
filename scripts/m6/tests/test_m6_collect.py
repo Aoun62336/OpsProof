@@ -15,12 +15,16 @@ def test_null_lag_is_unknown_not_zero():
     assert not row["lag_known"]
 
 
-@pytest.mark.parametrize("sample", [[],
-    [{"name": "wrong", "lag": 0, "pending": 0}],
-    [{"name": "opsproof-workers", "lag": -1, "pending": 0}],
-    [{"name": "opsproof-workers", "lag": 0, "pending": None}],
-    [{"name": "opsproof-workers", "lag": True, "pending": 0}],
-])
+@pytest.mark.parametrize(
+    "sample",
+    [
+        [],
+        [{"name": "wrong", "lag": 0, "pending": 0}],
+        [{"name": "opsproof-workers", "lag": -1, "pending": 0}],
+        [{"name": "opsproof-workers", "lag": 0, "pending": None}],
+        [{"name": "opsproof-workers", "lag": True, "pending": 0}],
+    ],
+)
 def test_bad_or_missing_redis_group_rejected(sample):
     with pytest.raises(ValueError):
         parse_group(sample)

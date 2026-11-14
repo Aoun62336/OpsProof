@@ -8,6 +8,7 @@ import uvicorn
 from .action import run as run_action
 from .db import pool, redis_client
 from .evidence import run as run_evidence
+from .m6_trial_worker import run as run_trial
 from .shutdown import lifecycle
 from .streams import dispatcher
 
@@ -21,6 +22,7 @@ def main() -> None:
             "dispatch",
             "evidence",
             "action",
+            "trial",
         ],
     )
     args = parser.parse_args()
@@ -49,7 +51,12 @@ def main() -> None:
     else:
         with lifecycle():
             try:
-                runners = {"dispatch": dispatcher, "evidence": run_evidence, "action": run_action}
+                runners = {
+                    "dispatch": dispatcher,
+                    "evidence": run_evidence,
+                    "action": run_action,
+                    "trial": run_trial,
+                }
                 runners[args.role]()
             finally:
                 if redis_client.cache_info().currsize:

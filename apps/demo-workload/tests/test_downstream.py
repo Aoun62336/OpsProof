@@ -1,4 +1,5 @@
 """Bounded fail-closed M6 test-only downstream contract tests."""
+
 from unittest.mock import patch
 
 import pytest
@@ -8,9 +9,15 @@ from opsproof_demo.downstream import ALLOWED_URL, probe
 
 class Response:
     status = 200
-    def __enter__(self): return self
-    def __exit__(self, *_args): return False
-    def read(self, _limit): return b'{"status":"ok"}'
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def read(self, _limit):
+        return b'{"status":"ok"}'
 
 
 def test_off_does_not_contact_network():

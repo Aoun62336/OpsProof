@@ -15,10 +15,17 @@ checks. See
 [the current closure report](docs/operations/M4_ACCEPTANCE_CLOSURE_2026-11-07.md)
 and [the preceding local validation](docs/operations/M4_LOCAL_VALIDATION_REPORT.md).
 
-Milestones 5–7 (Kubernetes/GitOps, six-scenario benchmarking, cost-gated AWS
-verification and public release) remain outstanding. No production deployment,
-measured reliability improvement, live AI model qualification or AWS EKS
-verification is claimed.
+Milestone 5 has recorded local acceptance, with the historical progressive-delivery
+correlation caveat retained in its report. M6 now has a validated durable-ledger
+source foundation, an authenticated read-only console and experimental local
+scenario adapters. Full M6 acceptance remains incomplete: live fault/capacity/reuse
+verification is blocked by host memory, and external model calls are disabled by
+the owner. M7 cloud verification and publication remain outstanding.
+
+See [the M6 execution plan](docs/engineering/M6_EXECUTION_PLAN_2026-11-14.md)
+and [the current M6 acceptance report](docs/experiments/M6_ACCEPTANCE_REPORT_2026-11-14.md).
+No production deployment, measured M6 reliability improvement, live model
+qualification or AWS EKS verification is claimed.
 
 ## Architecture
 

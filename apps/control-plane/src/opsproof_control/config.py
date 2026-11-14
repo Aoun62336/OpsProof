@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     inspection_key: str = ""
     recovery_key: str = ""
     recovery_enabled: bool = False
+    m6_enabled: bool = False
+    m6_arm_enabled: bool = False
+    m6_reuse_enabled: bool = False
     kubernetes_recovery_enabled: bool = False
     prometheus_url: str = "http://prometheus:9090"
     ai_enabled: bool = False

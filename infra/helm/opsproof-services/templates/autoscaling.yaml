@@ -36,8 +36,13 @@ kind: HorizontalPodAutoscaler
 metadata: {name: {{ .Release.Name }}-api-cpu}
 spec:
   scaleTargetRef:
+    {{- if and .Values.rollout.enabled .Values.autoscaling.hpa.rolloutTargetEnabled }}
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    {{- else }}
     apiVersion: apps/v1
     kind: Deployment
+    {{- end }}
     name: {{ .Release.Name }}-api
   minReplicas: {{ .Values.autoscaling.hpa.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.hpa.maxReplicas }}

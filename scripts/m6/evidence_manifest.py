@@ -10,8 +10,20 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-FORBIDDEN = frozenset((".env", "kubeconfig", "secret", "secrets", "token", "credential",
-                       "credentials", "private_key", "id_rsa", "id_ed25519"))
+FORBIDDEN = frozenset(
+    (
+        ".env",
+        "kubeconfig",
+        "secret",
+        "secrets",
+        "token",
+        "credential",
+        "credentials",
+        "private_key",
+        "id_rsa",
+        "id_ed25519",
+    )
+)
 
 
 def hash_evidence(root: Path, paths: list[Path]) -> dict:
@@ -24,15 +36,17 @@ def hash_evidence(root: Path, paths: list[Path]) -> dict:
         requested = root / candidate
         # Resolve only after checking the requested path and each parent for
         # symlinks; an internal symlink is still disallowed even if safe today.
-        if requested.is_symlink() or any(parent.is_symlink() for parent in requested.parents
-                                         if parent != root and parent.is_relative_to(root)):
+        if requested.is_symlink() or any(
+            parent.is_symlink()
+            for parent in requested.parents
+            if parent != root and parent.is_relative_to(root)
+        ):
             raise ValueError("Symbolic links are not accepted as evidence")
         path = requested.resolve(strict=True)
         if not path.is_relative_to(root):
             raise ValueError("Evidence must stay inside project root")
         relative = path.relative_to(root)
-        if any(any(bad in part.lower() for bad in FORBIDDEN)
-               for part in relative.parts):
+        if any(any(bad in part.lower() for bad in FORBIDDEN) for part in relative.parts):
             raise ValueError("Sensitive or linked evidence path blocked")
         if not path.is_file() or path.stat().st_size > 10_000_000:
             raise ValueError("Evidence file must be regular and <=10 MB")
@@ -40,14 +54,19 @@ def hash_evidence(root: Path, paths: list[Path]) -> dict:
             raise ValueError("Duplicated evidence source")
         seen.add(relative.as_posix())
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        hashes.append({"path": relative.as_posix(), "bytes": path.stat().st_size,
-                       "sha256": digest})
-    return {"manifest_version": 1, "created_utc": datetime.now(UTC).isoformat(),
-            "files": sorted(hashes, key=lambda x: x["path"]),
-            "limitations": (
-                "Checksums demonstrate byte identity only, "
-                "not authenticity or causality"
-            )}
+        hashes.append(
+            {
+                "path": relative.as_posix(),
+                "bytes": path.stat().st_size,
+                "sha256": digest,
+            }
+        )
+    return {
+        "manifest_version": 1,
+        "created_utc": datetime.now(UTC).isoformat(),
+        "files": sorted(hashes, key=lambda x: x["path"]),
+        "limitations": ("Checksums demonstrate byte identity only, not authenticity or causality"),
+    }
 
 
 def main():

@@ -46,6 +46,12 @@ const links = [
     end: false,
   },
   {
+    label: "M6 trials",
+    path: "/trials",
+    icon: FlaskConical,
+    end: false,
+  },
+  {
     label: "Evidence",
     path: "/reports",
     icon: BookOpenText,
@@ -100,7 +106,9 @@ export function AppShell({
       ? "Overview"
       : location.pathname.startsWith("/experiments")
         ? "Experiments"
-        : location.pathname.startsWith("/reports")
+        : location.pathname.startsWith("/trials")
+          ? "M6 trials"
+          : location.pathname.startsWith("/reports")
           ? "Evidence"
           : "Workspace";
 

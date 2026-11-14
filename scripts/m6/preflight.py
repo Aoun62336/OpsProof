@@ -11,9 +11,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 if __package__:
-    from .contracts import assert_local_scope, assert_isolated_k3d_api
+    from .contracts import assert_isolated_k3d_api, assert_local_scope
 else:
-    from contracts import assert_local_scope, assert_isolated_k3d_api
+    from contracts import assert_isolated_k3d_api, assert_local_scope
 
 
 def inspect(kubeconfig: Path) -> dict:
@@ -21,8 +21,9 @@ def inspect(kubeconfig: Path) -> dict:
     prefix = ["kubectl", "--kubeconfig", str(kubeconfig), "--context", "k3d-opsproof"]
 
     def call(args):
-        proc = subprocess.run([*prefix, *args], capture_output=True, text=True, timeout=20,
-                              check=False)
+        proc = subprocess.run(
+            [*prefix, *args], capture_output=True, text=True, timeout=20, check=False
+        )
         if proc.returncode:
             raise RuntimeError(f"kubectl {' '.join(args[:2])} failed (code {proc.returncode})")
         return proc.stdout
@@ -35,9 +36,13 @@ def inspect(kubeconfig: Path) -> dict:
     nodes = json.loads(call(["get", "nodes", "-o", "json"]))
     if not nodes.get("items"):
         raise RuntimeError("Cluster has no nodes")
-    ready = [any(c.get("type") == "Ready" and c.get("status") == "True"
-                 for c in node.get("status", {}).get("conditions", []))
-             for node in nodes["items"]]
+    ready = [
+        any(
+            c.get("type") == "Ready" and c.get("status") == "True"
+            for c in node.get("status", {}).get("conditions", [])
+        )
+        for node in nodes["items"]
+    ]
     if not all(ready):
         raise RuntimeError("At least one local node is NotReady")
     namespaces = json.loads(call(["get", "namespaces", "-o", "json"]))

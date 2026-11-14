@@ -5,6 +5,9 @@
 {{- $roles = append $roles "worker" -}}
 {{- else -}}
 {{- $roles = append (append $roles "evidence") "action" -}}
+{{- if $root.Values.m6.trialWorkerEnabled -}}
+{{- $roles = append $roles "trial" -}}
+{{- end -}}
 {{- end -}}
 {{- range $role := $roles }}
 ---

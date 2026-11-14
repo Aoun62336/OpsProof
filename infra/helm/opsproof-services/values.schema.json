@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "m6DependencyProbeEnabled": {"type": "boolean"},
+    "autoscaling": {
+      "type": "object",
+      "properties": {
+        "hpa": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "rolloutTargetEnabled": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    "m6": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "armEnabled": {"type": "boolean"},
+        "trialWorkerEnabled": {"type": "boolean"},
+        "reuseEnabled": {"type": "boolean"},
+        "runtimeSecretName": {"type": "string", "maxLength": 63, "pattern": "^$|^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"}
+      }
+    },
+    "demoDownstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "delayMs": {"type": "integer", "minimum": 0, "maximum": 2000}
+      }
+    }
+  }
+}

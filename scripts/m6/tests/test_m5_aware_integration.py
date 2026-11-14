@@ -17,7 +17,7 @@ def test_existing_m5_routes_and_operator_ui_survive():
     ui = read("apps/web/src/app/App.tsx")
     assert '@router.get("/workloads")' in routing
     assert '@router.post("/recoveries"' in routing
-    assert 'KubernetesPage' in ui
+    assert "KubernetesPage" in ui
     for route in ("/workloads", "/deployments", "/capacity", "/runbooks"):
         assert route in ui
 
@@ -38,20 +38,20 @@ def test_m5_helm_workflows_default_safe_and_recovery_ownership_unchanged():
     helpers = read("infra/helm/opsproof-services/templates/_helpers.tpl")
     chart = read("infra/helm/opsproof-services/templates/workloads.yaml")
     assert "demoDownstream:\n  enabled: false" in values
-    assert 'demoDownstream.delayMs must be an integer in 0..2000' in helpers
-    assert 'Recovery and KEDA must not own the same worker replicas' in helpers
-    assert 'opsproof.io/recovery-policy: restore-single-worker-v1' in chart
+    assert "demoDownstream.delayMs must be an integer in 0..2000" in helpers
+    assert "Recovery and KEDA must not own the same worker replicas" in helpers
+    assert "opsproof.io/recovery-policy: restore-single-worker-v1" in chart
 
 
 def test_cloud_requires_explicit_cost_and_operator_identity():
     infra = read("infra/terraform/main.tf")
     vars = read("infra/terraform/variables.tf")
     eks = read("infra/terraform/modules/eks/main.tf")
-    assert 'default     = false' in vars
-    assert 'I_APPROVE_TEMPORARY_OPSPROOF_AWS_CHARGES' in infra
-    assert 'var.expected_account_id == data.aws_caller_identity.active[0].account_id' in infra
-    assert 'bootstrap_cluster_creator_admin_permissions = false' in eks
-    assert 'retention_in_days = 1' in eks
+    assert "default     = false" in vars
+    assert "I_APPROVE_TEMPORARY_OPSPROOF_AWS_CHARGES" in infra
+    assert "var.expected_account_id == data.aws_caller_identity.active[0].account_id" in infra
+    assert "bootstrap_cluster_creator_admin_permissions = false" in eks
+    assert "retention_in_days = 1" in eks
 
 
 def test_release_is_manual_and_never_autoprovisions_aws():

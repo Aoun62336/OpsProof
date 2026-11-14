@@ -11,6 +11,7 @@ import { ExperimentsPage } from "../pages/ExperimentsPage";
 import { ExperimentDetailPage } from "../pages/ExperimentDetailPage";
 import { ReportsPage } from "../pages/ReportsPage";
 import { KubernetesPage } from "../pages/KubernetesPage";
+import { M6TrialsPage } from "../pages/M6TrialsPage";
 
 
 export default function App() {
@@ -97,6 +98,11 @@ export default function App() {
           <Route
             path="/experiments/:runId"
             element={<ExperimentDetailPage />}
+          />
+
+          <Route
+            path="/trials"
+            element={<M6TrialsPage />}
           />
 
           <Route

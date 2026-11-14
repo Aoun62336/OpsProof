@@ -3,6 +3,8 @@
 {{- $digest := .Values.image.digest -}}
 {{- if not (or $tag $digest) -}}{{ fail "image.tag or image.digest required" }}{{- end -}}
 {{- if and $digest (not (regexMatch "^sha256:[a-f0-9]{64}$" $digest)) -}}{{ fail "invalid sha256 image.digest" }}{{- end -}}
+{{- if not (and (regexMatch "^[0-9]{1,4}$" (toString .Values.fixture.delayMs)) (le (int .Values.fixture.delayMs) 2000)) -}}{{ fail "reuse fixture delay must be 0..2000 integer" }}{{- end -}}
+{{- if .Values.createNamespace }}
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -11,6 +13,7 @@ metadata:
     pod-security.kubernetes.io/enforce: restricted
     opsproof.io/profile: m6-reuse
 ---
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -70,3 +73,37 @@ metadata: {name: reuse-default-deny, namespace: opsproof-reuse-test}
 spec:
   podSelector: {}
   policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: reuse-observer-ingress, namespace: opsproof-reuse-test}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: opsproof-reuse-target}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: opsproof-control}
+          podSelector:
+            matchLabels: {app.kubernetes.io/instance: control}
+            matchExpressions:
+              - {key: opsproof.io/role, operator: In, values: [api, evidence]}
+      ports: [{port: 8080, protocol: TCP}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: reuse-observer-egress, namespace: opsproof-control}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/instance: control}
+    matchExpressions:
+      - {key: opsproof.io/role, operator: In, values: [api, evidence]}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: opsproof-reuse-test}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: opsproof-reuse-target}
+      ports: [{port: 8080, protocol: TCP}]

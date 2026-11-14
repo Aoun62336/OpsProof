@@ -16,9 +16,17 @@ else:
     from contracts import CATALOG, Scenario
 
 REQUIRED_FIELDS = (
-    "scenario", "source_revision", "image_digest", "run_id", "environment",
-    "injected_at_utc", "verified_at_utc", "injection_mechanism",
-    "independent_verification", "cleanup_verified", "evidence_files",
+    "scenario",
+    "source_revision",
+    "image_digest",
+    "run_id",
+    "environment",
+    "injected_at_utc",
+    "verified_at_utc",
+    "injection_mechanism",
+    "independent_verification",
+    "cleanup_verified",
+    "evidence_files",
 )
 
 
@@ -55,28 +63,32 @@ def validate(records: list[dict]) -> dict:
         if record.get("cleanup_verified") is not True:
             failures.append(f"{scenario}: cleanup not proven")
         evidence_files = record.get("evidence_files")
-        if (not isinstance(evidence_files, list) or len(evidence_files) < 2
-                or any(not isinstance(item, str) or not item.strip() for item in evidence_files)):
+        if (
+            not isinstance(evidence_files, list)
+            or len(evidence_files) < 2
+            or any(not isinstance(item, str) or not item.strip() for item in evidence_files)
+        ):
             failures.append(f"{scenario}: insufficient raw evidence references")
         try:
             started = datetime.fromisoformat(record["injected_at_utc"].replace("Z", "+00:00"))
             verified = datetime.fromisoformat(record["verified_at_utc"].replace("Z", "+00:00"))
             if started.tzinfo is None or verified.tzinfo is None or verified <= started:
                 raise ValueError("Wrong time order")
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             failures.append(f"{scenario}: timestamps invalid")
         if record["injection_mechanism"] != CATALOG[scenario].mechanism:
             failures.append(f"{scenario}: injection mechanism inconsistent with catalog")
     if seen != set(CATALOG):
         raise ValueError("Scenario catalog coverage incomplete")
-    return {"metadata_consistent": not failures,
-            "independent_runtime_acceptance": "NOT_VERIFIED_BY_THIS_SCRIPT",
-            "covered": sorted(str(x) for x in seen),
-            "failures": failures,
-            "limitations": (
-                "Checks self-reported metadata only. "
-                "Independent manual/live evidence audit mandatory."
-            )}
+    return {
+        "metadata_consistent": not failures,
+        "independent_runtime_acceptance": "NOT_VERIFIED_BY_THIS_SCRIPT",
+        "covered": sorted(str(x) for x in seen),
+        "failures": failures,
+        "limitations": (
+            "Checks self-reported metadata only. Independent manual/live evidence audit mandatory."
+        ),
+    }
 
 
 def main():

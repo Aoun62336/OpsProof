@@ -11,8 +11,12 @@ from typing import Literal
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 Hypothesis = Literal[
-    "worker_saturation", "faulty_release", "database_connectivity",
-    "worker_failure", "downstream_latency", "unknown",
+    "worker_saturation",
+    "faulty_release",
+    "database_connectivity",
+    "worker_failure",
+    "downstream_latency",
+    "unknown",
 ]
 
 
@@ -39,7 +43,7 @@ class Observation(BaseModel):
 
 
 class Finding(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     hypothesis: Hypothesis
     abstained: bool
     reason: str
@@ -56,49 +60,80 @@ def deterministic_m6(obs: Observation, *, now: datetime | None = None) -> Findin
     observed_now = now if now is not None else datetime.now(UTC)
     age = (observed_now - obs.observed_at).total_seconds()
     if not 0 <= age <= 60 or not obs.metrics_fresh:
-        return Finding(hypothesis="unknown", abstained=True,
-                       reason="missing_or_stale_metrics", supporting_signals=[])
+        return Finding(
+            hypothesis="unknown",
+            abstained=True,
+            reason="missing_or_stale_metrics",
+            supporting_signals=[],
+        )
     if obs.collection_errors or obs.contradictions:
-        return Finding(hypothesis="unknown", abstained=True,
-                       reason="incomplete_or_contradictory_evidence", supporting_signals=[])
+        return Finding(
+            hypothesis="unknown",
+            abstained=True,
+            reason="incomplete_or_contradictory_evidence",
+            supporting_signals=[],
+        )
 
     candidates: list[tuple[Hypothesis, list[str]]] = []
-    if (obs.queue_lag is not None and obs.queue_lag >= 10
-            and obs.queue_age_seconds is not None and obs.queue_age_seconds >= 5
-            and obs.active_workers is not None and obs.active_workers > 0):
+    if (
+        obs.queue_lag is not None
+        and obs.queue_lag >= 10
+        and obs.queue_age_seconds is not None
+        and obs.queue_age_seconds >= 5
+        and obs.active_workers is not None
+        and obs.active_workers > 0
+    ):
         candidates.append(
             ("worker_saturation", ["queue_lag", "queue_age_seconds", "active_workers"])
         )
-    if (obs.candidate_error_rate is not None and obs.candidate_error_rate >= 0.05
-            and obs.rollout_analysis_failed is True):
+    if (
+        obs.candidate_error_rate is not None
+        and obs.candidate_error_rate >= 0.05
+        and obs.rollout_analysis_failed is True
+    ):
         candidates.append(("faulty_release", ["candidate_error_rate", "rollout_analysis_failed"]))
-    if (obs.db_probe_ok is False and obs.db_connection_errors is not None
-            and obs.db_connection_errors > 0):
+    if (
+        obs.db_probe_ok is False
+        and obs.db_connection_errors is not None
+        and obs.db_connection_errors > 0
+    ):
         candidates.append(("database_connectivity", ["db_probe_ok", "db_connection_errors"]))
-    if (obs.active_workers == 0 and obs.worker_restarts is not None
-            and obs.worker_restarts > 0 and obs.logs_fresh
-            and obs.queue_lag is not None and obs.queue_lag > 0):
+    if (
+        obs.active_workers == 0
+        and obs.worker_restarts is not None
+        and obs.worker_restarts > 0
+        and obs.logs_fresh
+        and obs.queue_lag is not None
+        and obs.queue_lag > 0
+    ):
         candidates.append(
-            ("worker_failure", ["active_workers", "worker_restarts",
-                                "logs_fresh", "queue_lag"])
+            ("worker_failure", ["active_workers", "worker_restarts", "logs_fresh", "queue_lag"])
         )
-    if (obs.downstream_p95_seconds is not None and obs.downstream_p95_seconds >= 0.5
-            and obs.downstream_timeouts is not None and obs.downstream_timeouts > 0
-            and obs.traces_fresh):
+    if (
+        obs.downstream_p95_seconds is not None
+        and obs.downstream_p95_seconds >= 0.5
+        and obs.downstream_timeouts is not None
+        and obs.downstream_timeouts > 0
+        and obs.traces_fresh
+    ):
         candidates.append(
-            ("downstream_latency", ["downstream_p95_seconds",
-                                    "downstream_timeouts", "traces_fresh"])
+            (
+                "downstream_latency",
+                ["downstream_p95_seconds", "downstream_timeouts", "traces_fresh"],
+            )
         )
 
     if len(candidates) != 1:
         return Finding(
-            hypothesis="unknown", abstained=True,
+            hypothesis="unknown",
+            abstained=True,
             reason="multiple_possible_causes" if candidates else "insufficient_correlated_signals",
             supporting_signals=[],
         )
     hypothesis, sources = candidates[0]
     return Finding(
-        hypothesis=hypothesis, abstained=False,
+        hypothesis=hypothesis,
+        abstained=False,
         reason="correlated_signature_only_not_causal_proof",
         supporting_signals=sources,
     )

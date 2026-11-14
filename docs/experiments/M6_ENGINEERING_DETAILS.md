@@ -52,7 +52,7 @@ If the user changes M5's benchmark format, revise the adapter after auditing the
 
 ### 4. Receipt does not mean completion
 
-k6 prints one receipt for each attempted job. `reconcile_jobs.py` rejects missing receipts, duplicate keys, mismatched/duplicate IDs, wrong response identities, failed jobs, unsupported states, missing timestamps and non-completion by its deadline. Its recorded job p95 uses nearest-rank on the exact completed job set. This is an **observed local job latency**, not a production latency percentile or proof of exactly-once execution.
+k6 prints one receipt for each attempted job. `reconcile_jobs.py` rejects missing receipts, reused submission identifiers, mismatched/duplicate IDs, wrong response identities, failed jobs, unsupported states, missing timestamps and non-completion by its deadline. Its recorded job p95 uses nearest-rank on the exact completed job set. This is an **observed local job latency**, not a production latency percentile or proof of exactly-once execution.
 
 ### 5. Credibility of evidence
 

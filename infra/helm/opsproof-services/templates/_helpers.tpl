@@ -3,6 +3,12 @@
 {{- fail "component must be demo or control" -}}
 {{- end -}}
 {{- $_ := required "image.repository must be set" .Values.image.repository -}}
+{{- if and .Values.m6DependencyProbeEnabled (ne .Values.component "demo") -}}
+{{- fail "M6 dependency probe is only valid for demo" -}}
+{{- end -}}
+{{- if and .Values.m6.enabled .Values.aiEnabled -}}
+{{- fail "Local M6 does not permit model calls" -}}
+{{- end -}}
 {{- if .Values.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.image.digest) -}}
 {{- fail "image.digest must be sha256:<64 lowercase hex>" -}}
@@ -18,8 +24,26 @@
 {{- fail "demoDownstream.delayMs must be an integer in 0..2000" -}}
 {{- end -}}
 {{- end -}}
+{{- if and (or .Values.m6.enabled .Values.m6.armEnabled .Values.m6.trialWorkerEnabled .Values.m6.reuseEnabled) (ne .Values.component "control") -}}
+{{- fail "M6 ledger is only valid for control component" -}}
+{{- end -}}
+{{- if and .Values.m6.reuseEnabled (not .Values.m6.enabled) -}}
+{{- fail "M6 reuse requires enabled ledger" -}}
+{{- end -}}
+{{- if and .Values.m6.armEnabled (not .Values.m6.trialWorkerEnabled) -}}
+{{- fail "M6 arming requires the dedicated trial worker" -}}
+{{- end -}}
+{{- if and .Values.m6.trialWorkerEnabled (or (ne .Values.component "control") (not .Values.m6.enabled)) -}}
+{{- fail "M6 trial worker requires enabled control component" -}}
+{{- end -}}
 {{- if and .Values.worker.recoveryManaged .Values.autoscaling.keda.enabled -}}
 {{- fail "Recovery and KEDA must not own the same worker replicas" -}}
+{{- end -}}
+{{- if and .Values.m6.enabled (empty .Values.m6.runtimeSecretName) -}}
+{{- fail "Enabled M6 requires restricted runtime secret" -}}
+{{- end -}}
+{{- if and .Values.autoscaling.hpa.rolloutTargetEnabled (or (ne .Values.component "demo") (not .Values.rollout.enabled) (not .Values.autoscaling.hpa.enabled)) -}}
+{{- fail "Rollout HPA opt-in requires demo Rollout and enabled HPA" -}}
 {{- end -}}
 {{- end -}}
 {{- define "opsproof.image" -}}
@@ -40,6 +64,9 @@
 {{- end }}
 {{- else }}
 - secretRef: {name: opsproof-control-runtime}
+{{- if $root.Values.m6.enabled }}
+- secretRef: {name: {{ $root.Values.m6.runtimeSecretName }}}
+{{- end }}
 {{- if eq $role "api" }}
 - secretRef: {name: opsproof-control-operator}
 - secretRef: {name: opsproof-control-alert}
@@ -55,6 +82,14 @@
 {{- $root := .root -}}
 {{- $role := .role -}}
 {{- if eq $root.Values.component "control" }}
+{{- if $root.Values.m6.enabled }}
+- name: OPSPROOF_CONTROL_M6_ENABLED
+  value: "true"
+- name: OPSPROOF_CONTROL_M6_ARM_ENABLED
+  value: {{ $root.Values.m6.armEnabled | quote }}
+- name: OPSPROOF_CONTROL_M6_REUSE_ENABLED
+  value: {{ and (has $role (list "api" "evidence")) $root.Values.m6.reuseEnabled | ternary "true" "false" | quote }}
+{{- end }}
 - name: OPSPROOF_CONTROL_KUBERNETES_RECOVERY_ENABLED
   value: {{ and (has $role (list "api" "action" "evidence")) $root.Values.kubernetesRecoveryEnabled | ternary "true" "false" | quote }}
 - name: OPSPROOF_CONTROL_RECOVERY_ENABLED
@@ -69,6 +104,9 @@
 {{- if and (eq $root.Values.component "demo") (eq $role "worker") $root.Values.demoDownstream.enabled }}
 - {name: OPSPROOF_DOWNSTREAM_ENABLED, value: "true"}
 {{- end }}
+{{- if and (eq $root.Values.component "demo") (eq $role "api") $root.Values.m6DependencyProbeEnabled }}
+- {name: OPSPROOF_M6_DEPENDENCY_PROBE_ENABLED, value: "true"}
+{{- end }}
 {{- if $root.Values.telemetry.enabled }}
 - name: OTEL_EXPORTER_OTLP_ENDPOINT
   value: {{ $root.Values.telemetry.endpoint | quote }}
@@ -78,7 +116,8 @@
 - {name: OTEL_METRICS_EXPORTER, value: none}
 - {name: OTEL_PYTHON_LOG_AUTO_INSTRUMENTATION, value: "true"}
 - {name: OTEL_TRACES_SAMPLER, value: parentbased_traceidratio}
-- {name: OTEL_TRACES_SAMPLER_ARG, value: "0.25"}
+- name: OTEL_TRACES_SAMPLER_ARG
+  value: {{ and (eq $root.Values.component "demo") $root.Values.demoDownstream.enabled | ternary "1.0" "0.25" | quote }}
 - name: OTEL_SERVICE_NAME
   value: {{ printf "opsproof-%s-%s" $root.Values.component $role | quote }}
 {{- end }}
@@ -104,7 +143,7 @@ containers:
     args: [{{ ternary "dispatcher" $role (and (eq $root.Values.component "demo") (eq $role "dispatch")) | quote }}]
     envFrom:
 {{ include "opsproof.env" (dict "root" $root "role" $role) | indent 6 }}
-    {{- if or (eq $root.Values.component "control") $root.Values.telemetry.enabled (and (eq $root.Values.component "demo") (eq $role "worker") $root.Values.demoDownstream.enabled) }}
+    {{- if or (eq $root.Values.component "control") $root.Values.telemetry.enabled (and (eq $root.Values.component "demo") (or (and (eq $role "worker") $root.Values.demoDownstream.enabled) (and (eq $role "api") $root.Values.m6DependencyProbeEnabled))) }}
     env:
 {{ include "opsproof.envVars" (dict "root" $root "role" $role) | indent 6 }}
     {{- end }}

@@ -1,3 +1,4 @@
+createNamespace: true
 image:
   repository: "" # Actual reviewed registry name
   tag: ""        # Exact approved image tag from this repository

@@ -31,8 +31,9 @@ def validate_trial(record: dict, mode: str) -> tuple[dict, tuple]:
     ids = [job.get("id") for job in workload["jobs"]]
     if any(not id_ for id_ in ids) or len(set(ids)) != len(ids):
         raise ValueError("Duplicate or missing durable job IDs")
-    if any(job.get("status") != "completed" or job.get("attempts") != 1
-           for job in workload["jobs"]):
+    if any(
+        job.get("status") != "completed" or job.get("attempts") != 1 for job in workload["jobs"]
+    ):
         raise ValueError("Unexpected job state/retries")
     for measure in MEASURES:
         value = workload.get(measure)
@@ -56,10 +57,15 @@ def analyze(grouped: dict[str, list[dict]], minimum_trials: int = 3) -> dict:
         raise ValueError("Fixed, HPA and KEDA modes all required")
     identity = None
     unique_timestamps = set()
-    output = {"trial_gate": minimum_trials, "modes": {}, "limitations": [
-        "Local controlled trials only; not a production SLO or statistical significance claim",
-        "HPA scales the API and KEDA scales workers; they address different bottlenecks",
-    ]}
+    used_jobs = set()
+    output = {
+        "trial_gate": minimum_trials,
+        "modes": {},
+        "limitations": [
+            "Local controlled trials only; not a production SLO or statistical significance claim",
+            "HPA scales the API and KEDA scales workers; they address different bottlenecks",
+        ],
+    }
     for mode in MODES:
         records = grouped[mode]
         if len(records) < minimum_trials:
@@ -67,6 +73,10 @@ def analyze(grouped: dict[str, list[dict]], minimum_trials: int = 3) -> dict:
         numbers = defaultdict(list)
         for record in records:
             workload, trial_identity = validate_trial(record, mode)
+            job_ids = {job["id"] for job in workload["jobs"]}
+            if used_jobs.intersection(job_ids):
+                raise ValueError("Durable job IDs reused across trials; trials are not independent")
+            used_jobs.update(job_ids)
             if identity is None:
                 identity = trial_identity
             if identity != trial_identity:
@@ -117,10 +127,17 @@ def main():
     report = analyze(groups, args.minimum_trials)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"trials": {m: report["modes"][m]["trials"] for m in MODES},
-                      "keda_vs_fixed_p95_reduction_percent": (
-                          report["keda_vs_fixed_p95_reduction_percent"]
-                      )}, indent=2))
+    print(
+        json.dumps(
+            {
+                "trials": {m: report["modes"][m]["trials"] for m in MODES},
+                "keda_vs_fixed_p95_reduction_percent": (
+                    report["keda_vs_fixed_p95_reduction_percent"]
+                ),
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

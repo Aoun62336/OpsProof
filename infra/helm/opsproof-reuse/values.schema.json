@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "createNamespace": {"type": "boolean"},
+    "fixture": {
+      "type": "object",
+      "properties": {"delayMs": {"type": "integer", "minimum": 0, "maximum": 2000}}
+    }
+  }
+}

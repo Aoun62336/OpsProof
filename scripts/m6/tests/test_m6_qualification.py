@@ -3,8 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.m6.qualify import benchmark, evaluate_case
-
+from scripts.m6.qualify import benchmark
 
 DATASET = Path(__file__).parents[3] / "benchmarks/ai/qualification_v1.json"
 

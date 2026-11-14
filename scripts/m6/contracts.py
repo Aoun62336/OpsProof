@@ -33,47 +33,65 @@ class ScenarioContract:
 
 CATALOG: Final = {
     Scenario.WORKER_SATURATION: ScenarioContract(
-        Scenario.WORKER_SATURATION, "opsproof-demo/Deployment/demo-worker",
-        "bounded durable job submission", "Redis pending/lag, age, replicas, completion",
-        ("exact_job_ids_completed", "no_unreconciled_jobs"), False, "keda_and_queue_integrity",
+        Scenario.WORKER_SATURATION,
+        "opsproof-demo/Deployment/demo-worker",
+        "bounded durable job submission",
+        "Redis pending/lag, age, replicas, completion",
+        ("exact_job_ids_completed", "no_unreconciled_jobs"),
+        False,
+        "keda_and_queue_integrity",
     ),
     Scenario.FAULTY_RELEASE: ScenarioContract(
-        Scenario.FAULTY_RELEASE, "opsproof-demo/Rollout/demo-api",
-        "Git-owned approved candidate image", "candidate errors, AnalysisRun, rollout events",
+        Scenario.FAULTY_RELEASE,
+        "opsproof-demo/Rollout/demo-api",
+        "Git-owned approved candidate image",
+        "candidate errors, AnalysisRun, rollout events",
         ("stable_revision_serving", "candidate_aborted_or_promoted", "no_data_loss"),
-        True, "rollouts_and_gateway",
+        True,
+        "rollouts_and_gateway",
     ),
     Scenario.DATABASE_CONNECTIVITY: ScenarioContract(
-        Scenario.DATABASE_CONNECTIVITY, "opsproof-demo/PostgreSQL/demo-deps-db",
+        Scenario.DATABASE_CONNECTIVITY,
+        "opsproof-demo/PostgreSQL/demo-deps-db",
         "reviewed temporary namespace-scoped test network policy",
         "readiness, DB errors, preserved durable IDs",
-        ("reads_and_writes_restored", "data_integrity_preserved"), True,
+        ("reads_and_writes_restored", "data_integrity_preserved"),
+        True,
         "network_policy_and_gitops_ownership",
     ),
     Scenario.WORKER_FAILURE: ScenarioContract(
-        Scenario.WORKER_FAILURE, "opsproof-demo/Deployment/demo-worker",
+        Scenario.WORKER_FAILURE,
+        "opsproof-demo/Deployment/demo-worker",
         "controlled single Pod termination with bounded in-flight work",
         "Redis PEL, lease fencing, replacement and exact completion",
-        ("acknowledged_jobs_complete", "no_duplicate_durable_completion"), True,
+        ("acknowledged_jobs_complete", "no_duplicate_durable_completion"),
+        True,
         "consumer_failure_recovery",
     ),
     Scenario.DOWNSTREAM_LATENCY: ScenarioContract(
-        Scenario.DOWNSTREAM_LATENCY, "opsproof-demo/test-only-downstream",
-        "disabled-by-default bounded HTTP latency fixture", "HTTP timeouts, traces, retries",
-        ("latency_fixture_disabled", "normal_response_restored"), True,
+        Scenario.DOWNSTREAM_LATENCY,
+        "opsproof-demo/test-only-downstream",
+        "disabled-by-default bounded HTTP latency fixture",
+        "HTTP timeouts, traces, retries",
+        ("latency_fixture_disabled", "normal_response_restored"),
+        True,
         "validated_test_dependency",
     ),
     Scenario.MISLEADING_EVIDENCE: ScenarioContract(
-        Scenario.MISLEADING_EVIDENCE, "opsproof-control/read-only-evidence",
-        "replayed contradictory or stale test evidence", "diagnostic abstention and denial",
-        ("no_unauthorized_action", "unknown_outcome_preserved"), False,
+        Scenario.MISLEADING_EVIDENCE,
+        "opsproof-control/read-only-evidence",
+        "replayed contradictory or stale test evidence",
+        "diagnostic abstention and denial",
+        ("no_unauthorized_action", "unknown_outcome_preserved"),
+        False,
         "m4_evidence_policy",
     ),
 }
 
 
-def assert_local_scope(*, kubeconfig: Path, context: str, mutation: bool,
-                       acknowledged: bool = False) -> None:
+def assert_local_scope(
+    *, kubeconfig: Path, context: str, mutation: bool, acknowledged: bool = False
+) -> None:
     if context != "k3d-opsproof":
         raise ValueError("Refusing any context other than k3d-opsproof")
     if not kubeconfig.is_file():
@@ -92,7 +110,14 @@ def assert_bounded_workload(*, count: int, duration_ms: int, max_count: int = 12
 def assert_isolated_k3d_api(server: str) -> None:
     """Enforce the exact loopback API endpoint from approved M5 k3d config."""
     parsed = urlparse(server)
-    if (parsed.scheme != "https" or parsed.hostname != "127.0.0.1"
-            or parsed.port != 6550 or parsed.username or parsed.password
-            or parsed.path not in ("", "/") or parsed.query or parsed.fragment):
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != "127.0.0.1"
+        or parsed.port != 6550
+        or parsed.username
+        or parsed.password
+        or parsed.path not in ("", "/")
+        or parsed.query
+        or parsed.fragment
+    ):
         raise ValueError("Only the local https://127.0.0.1:6550 API is authorized")

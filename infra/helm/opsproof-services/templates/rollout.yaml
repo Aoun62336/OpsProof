@@ -1,5 +1,5 @@
 {{- if .Values.rollout.enabled }}
-{{- if or (ne .Values.component "demo") .Values.autoscaling.hpa.enabled }}
+{{- if or (ne .Values.component "demo") (and .Values.autoscaling.hpa.enabled (not .Values.autoscaling.hpa.rolloutTargetEnabled)) }}
 {{- fail "Rollout profile requires demo and HPA disabled during ownership cutover" }}
 {{- end }}
 apiVersion: argoproj.io/v1alpha1
@@ -7,7 +7,9 @@ kind: Rollout
 metadata:
   name: demo-api
 spec:
+  {{- if not .Values.autoscaling.hpa.enabled }}
   replicas: 1
+  {{- end }}
   revisionHistoryLimit: 3
   selector:
     matchLabels: {app.kubernetes.io/instance: demo, opsproof.io/role: api, opsproof.io/controller: rollouts}

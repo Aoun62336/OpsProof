@@ -16,12 +16,13 @@ class Settings(BaseSettings):
 
     inspection_key: str = ""
     recovery_key: str = ""
+    m6_dependency_probe_enabled: bool = False
 
     # Fixed in-namespace, test-only HTTP downstream; disabled in all M5 profiles.
     downstream_enabled: bool = False
-    downstream_url: Literal[
+    downstream_url: Literal["http://demo-downstream.opsproof-demo.svc.cluster.local:8080/work"] = (
         "http://demo-downstream.opsproof-demo.svc.cluster.local:8080/work"
-    ] = "http://demo-downstream.opsproof-demo.svc.cluster.local:8080/work"
+    )
     downstream_timeout_ms: int = Field(default=400, ge=100, le=2000)
     downstream_attempts: int = Field(default=1, ge=1, le=2)
 

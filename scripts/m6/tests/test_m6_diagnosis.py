@@ -3,16 +3,18 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from pydantic import ValidationError
-
 from opsproof_control.m6_diagnosis import Observation, deterministic_m6
+from pydantic import ValidationError
 
 
 def observation(**changes):
     defaults = {
         "observed_at": datetime.now(UTC),
-        "target": "opsproof-demo", "metrics_fresh": True,
-        "queue_lag": 25, "queue_age_seconds": 10.0, "active_workers": 1,
+        "target": "opsproof-demo",
+        "metrics_fresh": True,
+        "queue_lag": 25,
+        "queue_age_seconds": 10.0,
+        "active_workers": 1,
     }
     defaults.update(changes)
     return Observation.model_validate(defaults)
@@ -26,16 +28,19 @@ def test_saturated_signature_is_not_a_recovery_approval():
     assert "not_causal_proof" in value.reason
 
 
-@pytest.mark.parametrize("changes", [
-    {"metrics_fresh": False},
-    {"observed_at": datetime.now(UTC) - timedelta(seconds=61)},
-    {"observed_at": datetime.now(UTC) + timedelta(seconds=15)},
-    {"collection_errors": ["missing samples"]},
-    {"contradictions": ["different clock windows"]},
-    {"queue_age_seconds": None},
-    {"queue_lag": 0},
-    {"active_workers": None},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"metrics_fresh": False},
+        {"observed_at": datetime.now(UTC) - timedelta(seconds=61)},
+        {"observed_at": datetime.now(UTC) + timedelta(seconds=15)},
+        {"collection_errors": ["missing samples"]},
+        {"contradictions": ["different clock windows"]},
+        {"queue_age_seconds": None},
+        {"queue_lag": 0},
+        {"active_workers": None},
+    ],
+)
 def test_missing_stale_or_inconsistent_evidence_abstains(changes):
     assert deterministic_m6(observation(**changes)).abstained
 
@@ -54,12 +59,10 @@ def test_worker_failure_requires_live_logs_and_queued_work():
 
 
 def test_downstream_requires_trace_corroboration():
-    base = dict(queue_lag=0, active_workers=1, downstream_p95_seconds=0.9,
-                downstream_timeouts=4)
+    base = dict(queue_lag=0, active_workers=1, downstream_p95_seconds=0.9, downstream_timeouts=4)
     assert deterministic_m6(observation(**base)).abstained
     assert (
-        deterministic_m6(observation(**base, traces_fresh=True)).hypothesis
-        == "downstream_latency"
+        deterministic_m6(observation(**base, traces_fresh=True)).hypothesis == "downstream_latency"
     )
 
 
@@ -70,3 +73,19 @@ def test_arbitrary_target_and_unbounded_metrics_rejected():
         observation(queue_lag=-1)
     with pytest.raises(ValidationError):
         observation(unknown_parameter=True)
+
+
+def test_diagnosis_output_rejects_coerced_approval_like_boolean():
+    from opsproof_control.m6_diagnosis import Finding
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        Finding.model_validate(
+            {
+                "hypothesis": "unknown",
+                "abstained": "yes",
+                "reason": "missing",
+                "supporting_signals": [],
+                "action": "none",
+            }
+        )
