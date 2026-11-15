@@ -7,6 +7,8 @@ local context is used; there is no fallback to the user's default context.
 import hashlib
 import json
 import os
+import re
+import shutil
 import socket
 import subprocess
 import time
@@ -16,7 +18,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-from scripts.m5.preflight import GIB, ROOT, collect, memory_available
+from scripts.m5.preflight import GIB, ROOT, collect, command, memory_available
 from scripts.m6.collect_queue_state import parse_group
 from scripts.m6.run_k6_local import local_prefix
 
@@ -75,18 +77,51 @@ def source_identity():
 def resource_preflight(profile="trial"):
     if profile not in ("startup", "trial"):
         raise ValueError("Unknown resource profile")
-    result = collect()  # read-only; unlike m5.preflight.main(), writes no M5 evidence
-    # The existing 5 GiB gate is for starting the comprehensive environment.
-    # Once that environment is running, bounded trials reserve 2 GiB headroom
-    # and retain the existing 1 GiB emergency stop. M5's own gate is unchanged.
-    if profile == "trial":
-        result["blockers"] = [
-            reason for reason in result["blockers"] if reason != "Host free RAM below 5 GiB"
-        ]
-        result["minimum_host_free_bytes"] = 2 * GIB
-        if result["host_free_bytes"] < 2 * GIB:
-            result["blockers"].append("Host free RAM below 2 GiB for bounded active-cluster trial")
-        result["passed"] = not result["blockers"]
+    if profile == "startup":
+        result = collect()
+    else:
+        # A running cluster exposes its actual capacity through Kubernetes.
+        # Host Docker-pipe access is unnecessary for these bounded trials.
+        memory = memory_available()
+        disk = shutil.disk_usage(ROOT).free
+        checks = {}
+        reasons = []
+        if memory < 2 * GIB:
+            reasons.append("Host free RAM below 2 GiB for bounded active-cluster trial")
+        if disk < 15 * GIB:
+            reasons.append("Workspace disk free below 15 GiB")
+        try:
+            kube = local_prefix(ROOT / ".runtime/m5/kubeconfig.yaml")
+            checks["nodes"] = command([*kube, "get", "nodes", "-o", "json"])
+            if checks["nodes"]["exit_code"]:
+                raise ValueError("Local Kubernetes capacity unavailable")
+            nodes = json.loads(checks["nodes"]["output"])["items"]
+            if len(nodes) != 1 or nodes[0]["metadata"]["name"] != "k3d-opsproof-server-0":
+                raise ValueError("Unexpected local cluster node identity")
+            node = nodes[0]
+            capacity = node["status"]["capacity"]
+            quantity = re.fullmatch(r"([0-9]+)Ki", capacity["memory"])
+            if not quantity or int(quantity[1]) * 1024 < 5 * GIB:
+                raise ValueError("Running Kubernetes node memory below 5 GiB or unavailable")
+            if not capacity["cpu"].isdigit() or int(capacity["cpu"]) < 1:
+                raise ValueError("Running Kubernetes node CPU capacity unavailable")
+            if not any(
+                c["type"] == "Ready" and c["status"] == "True" for c in node["status"]["conditions"]
+            ):
+                raise ValueError("Local Kubernetes node is not Ready")
+        except OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError:
+            reasons.append("Ready local node identity and >=5 GiB capacity not established")
+        result = {
+            "timestamp_utc": utc(),
+            "host_free_bytes": memory,
+            "disk_free_bytes": disk,
+            "minimum_host_free_bytes": 2 * GIB,
+            "minimum_disk_free_bytes": 15 * GIB,
+            "capacity_source": "live local Kubernetes node",
+            "checks": checks,
+            "blockers": reasons,
+            "passed": not reasons,
+        }
     result["profile"] = profile
     result["emergency_stop_free_bytes"] = GIB
     return result

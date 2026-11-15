@@ -1,12 +1,15 @@
 """Regressions for failures found during actual local acceptance execution."""
 
+import json
 from contextlib import nullcontext
 from copy import deepcopy
+from types import SimpleNamespace
 
 import psycopg
 import pytest
 
-from scripts.m6.local_environment import LocalEnvironment
+from scripts.m6 import local_environment
+from scripts.m6.local_environment import GIB, LocalEnvironment
 from scripts.m6.restricted_access import RestrictedAccess
 
 
@@ -71,3 +74,40 @@ def test_already_restored_source_is_idempotent_but_foreign_changes_are_refused(m
     current["spec"]["source"]["helm"]["parameters"] = [{"name": "foreign", "value": "change"}]
     with pytest.raises(RuntimeError, match="ownership changed"):
         env.restore_demo(original, [])
+
+
+@pytest.mark.parametrize(
+    "change", [None, "low_host_ram", "low_node_ram", "foreign_node", "not_ready"]
+)
+def test_active_preflight_uses_live_capacity_and_retains_resource_boundaries(monkeypatch, change):
+    node = {
+        "metadata": {"name": "k3d-opsproof-server-0"},
+        "status": {
+            "capacity": {"memory": "10185332Ki", "cpu": "6"},
+            "conditions": [{"type": "Ready", "status": "True"}],
+        },
+    }
+    if change == "low_node_ram":
+        node["status"]["capacity"]["memory"] = "1024Ki"
+    elif change == "foreign_node":
+        node["metadata"]["name"] = "unrelated-node"
+    elif change == "not_ready":
+        node["status"]["conditions"][0]["status"] = "False"
+    monkeypatch.setattr(
+        local_environment, "memory_available", lambda: GIB if change == "low_host_ram" else 3 * GIB
+    )
+    monkeypatch.setattr(
+        local_environment.shutil, "disk_usage", lambda _: SimpleNamespace(free=20 * GIB)
+    )
+    monkeypatch.setattr(local_environment, "local_prefix", lambda _: ["kubectl"])
+
+    def query(args):
+        assert args == ["kubectl", "get", "nodes", "-o", "json"]
+        return {"exit_code": 0, "output": json.dumps({"items": [node]})}
+
+    monkeypatch.setattr(local_environment, "command", query)
+    result = local_environment.resource_preflight()
+    assert result["passed"] is (change is None)
+    assert result["minimum_host_free_bytes"] == 2 * GIB
+    assert result["minimum_disk_free_bytes"] == 15 * GIB
+    assert result["emergency_stop_free_bytes"] == GIB
