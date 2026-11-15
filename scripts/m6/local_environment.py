@@ -109,7 +109,7 @@ def resource_preflight(profile="trial"):
                 c["type"] == "Ready" and c["status"] == "True" for c in node["status"]["conditions"]
             ):
                 raise ValueError("Local Kubernetes node is not Ready")
-        except OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError:
+        except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):  # fmt: skip
             reasons.append("Ready local node identity and >=5 GiB capacity not established")
         result = {
             "timestamp_utc": utc(),
