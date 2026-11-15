@@ -12,15 +12,18 @@ by the owner's explicit decision on 14 November 2026.
 - Bounded active-cluster trials require 2 GiB available host RAM before starting.
   The emergency stop remains 1 GiB. These are separate startup/steady-state
   profiles; the M5 bootstrap guard and existing k6 guard are unchanged.
-- After startup, Windows settled near 1.96 GiB available despite reclaiming
-  disposable Linux filesystem cache. No faults or load were dispatched then.
+- Earlier startup attempts had insufficient active-trial headroom. The accepted
+  runs subsequently passed the recorded resource checks. The resumed session
+  measures the running node through Kubernetes when Docker pipe access is denied.
+  The verified node exposes six CPUs and approximately 9.7 GiB memory.
 - The optional measurement profile temporarily scales only Grafana and the
   Argo CD UI server to zero. It preserves exact Deployment UID, Pod template,
   original replica count, images, resource limits, credentials and PVCs.
 - Prometheus, Alertmanager, Loki, Tempo, OTLP collection, Argo CD reconciliation
   and repository server, Rollouts, KEDA, demo/control services and the OpsProof
   web interface remain running. The two paused UIs are verified in a separate
-  stage and restored before returning the cluster to its original stopped state.
+  stage and restored with readiness verification after measurements. The final
+  local cluster is running with both UIs restored.
 - All comparable capacity runs must use this same declared profile. Results
   cannot be mixed with historical M5 runs or called full-profile measurements.
 - If this profile cannot satisfy the unchanged trial/abort floors, runtime work
@@ -57,5 +60,17 @@ is introduced. The separate k6 protocol retains its own limits and evidence.
 
 Synthetic deterministic qualification is distinct from held-out real incidents.
 No held-out labels, model accuracy, optimization gain or savings are invented.
-Groq/Gemini qualification remains BLOCKED while calls are disabled. AWS costs
-are prospective models only; no provisioning, publication or spending occurs.
+The owner deferred Groq/Gemini qualification and AWS provisioning to the next
+milestone. The retained AWS cost model records its prospective assumptions.
+
+## Recorded completion on 15 November 2026
+
+All six scenarios have passing independent verification. The worker-crash pass
+used the owner's separately approved exact-container SIGKILL in the local k3d
+node. Ordinary Pod deletion can allow the short job to finish during shutdown,
+which is recorded as a failed hypothesis when restoration is verified.
+
+The accepted capacity comparison has three passing runs per mode. Actual served
+background rates are retained alongside the nominal 80-request/second target.
+The report and matrix identify the retained failed attempts, the owner-deferred
+provider work and the independent review steps.

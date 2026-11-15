@@ -16,16 +16,17 @@ checks. See
 and [the preceding local validation](docs/operations/M4_LOCAL_VALIDATION_REPORT.md).
 
 Milestone 5 has recorded local acceptance, with the historical progressive-delivery
-correlation caveat retained in its report. M6 now has a validated durable-ledger
-source foundation, an authenticated read-only console and experimental local
-scenario adapters. Full M6 acceptance remains incomplete: live fault/capacity/reuse
-verification is blocked by host memory, and external model calls are disabled by
-the owner. M7 cloud verification and publication remain outstanding.
+correlation caveat retained in its report. M6 has completed its authorized local
+implementation and verification. Six fault scenarios, real k6, three passing
+capacity trials per fixed/HPA/KEDA mode, second-workload observations, the deployed
+operator UI and cleanup checks have retained evidence. Independent ground-truth
+and final acceptance reviews are pending. The owner deferred provider evaluations
+and AWS provisioning to the next milestone.
 
 See [the M6 execution plan](docs/engineering/M6_EXECUTION_PLAN_2026-11-14.md)
 and [the current M6 acceptance report](docs/experiments/M6_ACCEPTANCE_REPORT_2026-11-14.md).
-No production deployment, measured M6 reliability improvement, live model
-qualification or AWS EKS verification is claimed.
+The report records measured local results, source/image identities, retained
+failed attempts, security findings and the dated illustrative cost model.
 
 ## Architecture
 

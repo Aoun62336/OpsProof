@@ -1,9 +1,10 @@
 # OpsProof: M5-aware M6 + M7 source integration
 
-> **14 November checkpoint:** This delivery description is historical. The M6
-> ledger and validation work has advanced; use the
+> **15 November update:** The sections below preserve the earlier M5-aware
+> source-integration record. The completed local M6 verification is recorded in the
 > [current M6 acceptance report](docs/experiments/M6_ACCEPTANCE_REPORT_2026-11-14.md).
-> Full M6 and M7 are still not accepted. No publication or AWS provisioning occurred.
+> Independent acceptance review is pending. Provider evaluations and AWS
+> provisioning follow the owner's next-milestone decision.
 
 **Source basis:** User-supplied `OpsProof_M5_Final_Source.zip` (9 November 2026), not the obsolete `OpsProof(3).zip` or previous M6/M7 staged ZIP.
 

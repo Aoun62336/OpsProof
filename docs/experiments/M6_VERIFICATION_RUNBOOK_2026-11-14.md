@@ -1,116 +1,94 @@
-# M6 verification and continuation runbook — 14 November 2026
+# M6 verification runbook
 
-The [acceptance report](M6_ACCEPTANCE_REPORT_2026-11-14.md) defines the current
-limits. These commands reproduce isolated checks. They do not accept the six
-live adapters or authorize cloud/model spending. All paths below start at the
-repository root. PowerShell and Windows Git Bash can run these commands; use
-`npm` in Git Bash if `npm.cmd` does not resolve.
+Updated 15 November 2026. The [acceptance report](M6_ACCEPTANCE_REPORT_2026-11-14.md) and [matrix](M6_ACCEPTANCE_MATRIX_2026-11-14.md) identify the executed results and remaining reviews.
 
-## Prerequisites
+## Toolchain and source checks
 
-- Python 3.14.10 and uv 0.13.7 for the locked applications; Node/npm from the
-  existing project toolchain; installed Playwright Chromium.
-- Docker Desktop Linux engine for disposable PostgreSQL and image checks.
-  Keep the full k3d cluster stopped during these isolated checks.
-- Helm, k3d, kubectl and k6 for later live work. Native chart validation currently
-  also uses Python 3.12 with PyYAML; this helper dependency is outside app locks.
-- Local Gitleaks 8.30.1 archive/executable under `.runtime/m5/security-tools`,
-  verified by the checksum in `scripts/m6/validate_source.py`. Trivy 0.76.2 is
-  downloaded and checksum checked by the image scanner.
-- Preserve `.env`, `.runtime`, kubeconfig and existing Docker data locally.
-  Do not copy them into source or public artifacts. The source zip deliberately
-  excludes them and is not a ready-to-run configured deployment.
+Use Python 3.14.10 for both locked applications, uv, the repository's Node/npm toolchain, Helm, kubectl, k3d and k6. The host chart-inspection helper uses Python 3.12 with PyYAML. The existing local cluster and private environment configuration are prerequisites for live checks.
 
-## Isolated checks
+Run these commands from the repository root in Windows Git Bash. Each source validator invocation creates a unique evidence directory.
 
 ```bash
 uv sync --project apps/control-plane --locked
 uv sync --project apps/demo-workload --locked
 npm.cmd --prefix apps/web ci
-node apps/web/node_modules/@playwright/test/cli.js install chromium
 python -m scripts.m6.validate_source
 ```
 
-`validate_source` runs locked Python lint/format/tests, web lint/unit/build,
-21 Helm profiles, k6 syntax, whitespace and a source secret scan. It writes
-unique `checks-*` directories under `.runtime/m6/acceptance/source` and requires
-an unchanged source hash throughout. SQL tests skipped here must pass below.
-The scanner is currently a native Windows helper; Linux CI uses its own pinned
-checks rather than this Windows wrapper. Installing dependencies can require
-network access; the tests do not call real model providers.
+The source validator runs Python lint/format/regressions, frontend lint/tests/build, 25 Helm profiles, k6 syntax, whitespace and the pinned source secret scanner. SQL tests require the separate real database validation below. In managed Windows sessions, an explicit writable `UV_CACHE_DIR` can be set for uv's cache.
+
+The final implementation was also verified from a fresh detached Git worktree. Both Python environments and npm dependencies were installed from their locks using cached packages. The saved import provenance points into that worktree. Its commands, outputs and source hashes are in the reproduction evidence.
+
+## Real SQL and isolated browser validation
 
 ```bash
 uv run --project apps/control-plane --locked python scripts/m6/validate_postgres.py --browser
 ```
 
-This launches an owned PostgreSQL 18 container on localhost port 15432, migrates
-to 0005, inserts an M5 preservation sentinel, applies 0006 and runs real SQL/API
-tests. `--browser` adds actual FastAPI and Playwright on local ports 8090/5173.
-The script uses a random ephemeral password, an isolated API key and no M5
-database credentials. It removes its owned container and stops its servers.
-Expected result: `passed: true`, `m5_rows_preserved: true`, browser exit zero and
-`cleanup_verified: true`. Do not point its SQL tests at a real database.
+This command requires local Docker access and creates an owned disposable PostgreSQL 18 container on localhost port 15432. It migrates through the preserved M5 schema, inserts preservation data, applies 0006/0007 and runs 27 SQL tests. The browser option exercises a real isolated API/database using the existing frontend. The harness removes its container and stops its servers. A passing result includes migration, preserved rows, integration, browser and cleanup checks.
 
-```bash
-uv run --project apps/control-plane --locked python -m scripts.m6.qualify --provider deterministic --output .runtime/m6/acceptance/deterministic-qualification.json
-python -m scripts.m6.build_images_local
-python -m scripts.m6.inspect_image_runtime
-python -m scripts.m6.smoke_images
-python -m scripts.m6.scan_images
-python -m scripts.m6.fetch_pricing
-python -m scripts.m6.finops_model
-```
+The final M6 application/migration bytes match the retained passing PostgreSQL run. Subsequent host-runner and documentation commits are identified separately in the verification index.
 
-The deterministic check uses the versioned synthetic dataset. It is not a
-Groq/Gemini comparison. Image builds need 2 GiB free host RAM and stop below
-1 GiB. They tag local images, record exact local image IDs and publish nothing.
-Runtime inventory and smoke checks use isolated nonroot containers with no
-network. Missing downstream databases intentionally cause readiness 503 while
-liveness remains 200. Trivy saves and scans the exact local image IDs, including
-unfixed vulnerabilities. Inspect the findings; a successful scanner process
-does not imply security acceptance. Pricing downloads are public AWS catalogs,
-not account APIs; the model uses selected Mumbai rows fetched within 24 hours.
-
-The source and evidence archives include SHA-256 manifests. Compare hashes
-before reviewing or sharing. Full browser traces may carry ephemeral session
-material and remain private outside the selected evidence archive.
-
-## Live continuation is still experimental
-
-Do not treat the following sequence as an already accepted deployment recipe.
-First resolve restricted actuator authority and trusted verification producers
-listed in the report. Then review the fixed protocols in
-[M6_LOCAL_EXECUTION_PROFILE.md](M6_LOCAL_EXECUTION_PROFILE.md), including their
-resource bounds and original-state restoration rules.
+## Local deployment and resource profile
 
 ```bash
 python -m scripts.m6.start_local
 ```
 
-This starts the existing `k3d-opsproof`, preserves its volumes, verifies its
-identity and refreshes narrowly validated private API endpoint peers in the two
-existing policies. It requires the existing 5 GiB startup resource floor.
-It does not deploy the new M6 images or migrate the M5 control database.
-After startup, require the full known-good stack and at least 2 GiB free RAM;
-stop below 1 GiB. The previous attempt failed this gate. A larger machine or
-an explicitly reviewed infrastructure change is required before live load.
+Startup uses the existing k3d cluster and explicit `.runtime/m5/kubeconfig.yaml` context `k3d-opsproof`. It checks the existing 5 GiB host RAM, 5 GiB Docker capacity and 15 GiB disk floors and preserves PVC identities. It refreshes the reviewed private API endpoint peers when required.
 
-Review `python -m scripts.m6.run_local_trial --help` for the explicit
-`M6_LOCAL_FAULT_TRIAL` acknowledgment, six allowed scenario identifiers and
-optional capacity modes. There is no accepted live example command in this
-handover because authority and runtime verification remain incomplete. Keep
-arming and all experiment flags off until those gaps are resolved. Separate
-fixed/HPA/KEDA comparisons require at least nine passing comparable runs, not
-one run per mode. Keep every failed and aborted attempt.
+Active trials require 2 GiB free host RAM and 15 GiB free disk, with the existing 1 GiB emergency stop. Live Kubernetes node identity, Ready status and at least 5 GiB node capacity establish the running cluster's capacity. The verified node exposes six CPUs and approximately 9.7 GiB memory. Active trials can use that API measurement when the desktop sandbox cannot open Docker's Windows pipe.
 
-If a trial becomes uncertain, retain its reservation. Establish original
-resource identities and verify current cleanup independently before recording
-reconciliation. Do not edit the terminal row or call an indeterminate trial a
-success. Restore only owned configuration; do not delete the cluster, its PVCs,
-or broad Docker volumes. `ui_test_profile.py restore --stop-cluster` is the
-specific recovery used for the optional UI pause; its record says replicas
-were restored but readiness was not verified before stopping.
+The verified deployment serves application/chart commit `093b7ae` with content matching the later delivery. Migration 0007, the owned nonowner runtime Secret and the separate trial coordinator are enabled locally. HTTP arming and AI are disabled in the local deployment. Reuse is enabled only during its bounded check and restored afterward. The deployment records contain actual images, Application parameters, Secret UID and database-role provenance.
 
-Real Groq/Gemini evaluation remains blocked by the user's current instruction.
-Do not add authorization flags or use provider credentials to bypass it. AWS
-infrastructure creation and M7 promotion are outside this local handover.
+The optional measurement profile pauses Grafana and the Argo CD UI server while controllers, collectors, data services and the OpsProof UI run. Every accepted capacity trial used that profile. Restore and verify both UIs after measurements.
+
+```bash
+uv run --project apps/control-plane --locked python -m scripts.m6.ui_test_profile restore
+```
+
+## Bounded fault trials and reconciliation
+
+Review [the local execution profile](M6_LOCAL_EXECUTION_PROFILE.md) before dispatch. The CLI acknowledges a local fault experiment, verifies a healthy baseline and creates a new durable trial.
+
+```bash
+uv run --project apps/control-plane --locked python -m scripts.m6.run_local_trial --scenario worker_saturation --acknowledge M6_LOCAL_FAULT_TRIAL
+```
+
+The fixed catalog also includes `faulty_release`, `database_connectivity`, `worker_failure`, `downstream_latency` and `misleading_evidence`. The worker-failure CLI uses exact Pod deletion. A short job can complete during shutdown, producing a failed hypothesis with verified cleanup. The passing hard-crash evidence used the owner's separately approved one-off container signal test. Its exact helper and target guards are retained with the local-review evidence.
+
+Success requires an independent matching hypothesis and cleanup receipt. Missing hypothesis evidence can produce a failed trial after restoration. Unknown dispatch or restoration retains an indeterminate record. Cleanup reconciliation appends evidence and releases the reservation when restoration is independently established.
+
+```bash
+uv run --project apps/control-plane --locked python -m scripts.m6.reconcile_local_trial --run-directory .runtime/m6/trials/RETAINED_RUN_ID --acknowledge M6_RECONCILE_ONLY
+```
+
+Use the actual retained run directory. Reconciliation uses the original checkpoint and performs cleanup only. Inspect the original result, reconciliation result, independent receipt and access-cleanup record together.
+
+## k6 and capacity measurements
+
+```bash
+uv run --project apps/control-plane --locked python -m scripts.m6.run_k6_local --run-id m6-review-20261115-a1 --rate 2 --seconds 30 --duration-ms 250 --vus 4 --acknowledge M6_LOCAL_DURABLE_JOBS
+```
+
+Choose a fresh lowercase run ID matching the CLI contract. This profile submits exactly 60 bounded jobs and reconciles their durable outcomes. The recorded stop test injected a below-threshold memory reading, stopped an actual owned k6 process and checked both submitted jobs in PostgreSQL and Redis.
+
+```bash
+uv run --project apps/control-plane --locked python -m scripts.m6.run_local_trial --scenario worker_saturation --capacity-mode fixed --acknowledge M6_LOCAL_FAULT_TRIAL
+uv run --project apps/control-plane --locked python -m scripts.m6.run_local_trial --scenario worker_saturation --capacity-mode hpa --acknowledge M6_LOCAL_FAULT_TRIAL
+uv run --project apps/control-plane --locked python -m scripts.m6.run_local_trial --scenario worker_saturation --capacity-mode keda --acknowledge M6_LOCAL_FAULT_TRIAL
+```
+
+Execute sequentially and collect at least three independently passing trials per mode under the same profile. The capacity protocol uses 60 jobs at 2,000 ms, a 120-second background target of 80 requests per second, bounded concurrency and nearest-rank percentiles. Actual served rates, failures, IDs, resource samples and scale transitions are retained. Failed attempts keep their original outcome. The analysis CLI accepts repeated `--trial MODE:PATH` arguments and requires all three modes with at least three valid equivalent trials.
+
+## Additional verification and evidence review
+
+The retained operator checks deploy the existing reuse Helm contract, collect actual normal/delayed/recovered investigations, verify unsupported targeting and remove the owned resources. The image comparison uses preserved M5 and current M6 images with the same read-only protocol and limits. The deployed browser check covers authentication, CSRF, actual trial evidence, desktop/mobile navigation, accessibility and session revocation.
+
+Deterministic synthetic diagnosis uses the versioned dataset. Six frozen real-fault bundles and separate ground truth support the next independent evaluation review. The owner deferred real provider evaluation and AWS provisioning to the next milestone.
+
+```bash
+uv run --project apps/control-plane --locked python -m scripts.m6.qualify --provider deterministic --output .runtime/m6/acceptance/NEW_DETERMINISTIC_RESULT.json
+```
+
+The verification index links all selected results, failed attempts, source/image identities, final platform state and archive hashes. Verify the SHA-256 manifests before review or sharing. Environment files, kubeconfigs, temporary credentials, browser traces and caches have private classification. Independent ground-truth and final acceptance review remain pending.
