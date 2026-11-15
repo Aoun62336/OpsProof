@@ -138,8 +138,6 @@ def verify(env, state, *, cleanup_only=False, run_directory=None):
         pods = env.get("pods")["items"]
         if any(p["metadata"]["uid"] == state["old_worker"]["uid"] for p in pods):
             raise ValueError("Terminated worker still present")
-        if not jobs or jobs[0]["attempts"] != 2:
-            raise ValueError("Interrupted work was not retried")
     current = prometheus(env)
     # Trace identities come from the independent observer's actual requests.
     state = {
@@ -149,16 +147,8 @@ def verify(env, state, *, cleanup_only=False, run_directory=None):
     signals = telemetry(env, state) if not cleanup_only else {}
     if not current["fresh"]:
         raise ValueError("Current Prometheus freshness not established")
-    if (
-        scenario in ("worker_saturation", "worker_failure", "downstream_latency")
-        and not cleanup_only
-        and not signals["logs_relevant"]
-    ):
-        raise ValueError("No job-linked worker log in the actual trial window")
-    if scenario == "faulty_release" and not cleanup_only and not signals["traces"]:
-        raise ValueError("No actual failed-release request trace")
-    if scenario == "downstream_latency" and not cleanup_only and not signals["downstream_linked"]:
-        raise ValueError("Actual delayed dependency client/server trace linkage missing")
+    # Hypothesis requirements belong to establish(). A restored workload with
+    # insufficient fault evidence can be verified clean and recorded failed.
     hypothesis = establish(state, samples, jobs, signals) if not cleanup_only else False
     if cleanup_only:
         raw = json.dumps(

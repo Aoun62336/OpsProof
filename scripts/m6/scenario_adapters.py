@@ -263,8 +263,15 @@ class WorkerFailure(Adapter):
             and p["metadata"]["uid"] != self.state["old_worker"]["uid"]
             and p["status"]["phase"] == "Running"
         ]
-        if len(replacement) != 1 or jobs[0]["attempts"] != 2:
+        if len(replacement) != 1:
             raise RuntimeError("Replacement and interrupted-attempt recovery not established")
+        if jobs[0]["attempts"] != 2:
+            return {
+                "hypothesis_observed": False,
+                "jobs": jobs,
+                "replacement_uid": replacement[0]["metadata"]["uid"],
+                "reason": "Worker replacement completed without exactly one interrupted retry",
+            }
         job_id = str(UUID(jobs[0]["id"]))
         duplicate = self.env.duplicate_job(job_id)
         time.sleep(3)

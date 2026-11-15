@@ -143,7 +143,7 @@ def telemetry(env, state):
     else:
         log_match = bool(log_values)
     traces = []
-    if state["scenario"] == "downstream_latency":
+    if state["scenario"] == "downstream_latency" and state["job_ids"]:
         # Search only actual job-linked worker spans; never use a generic probe
         # as a substitute for the required delayed HTTP client/server trace.
         job = str(UUID(state["job_ids"][0]))
