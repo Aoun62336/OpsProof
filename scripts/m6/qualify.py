@@ -1,7 +1,8 @@
 """Versioned M6 diagnosis benchmark. Defaults to ZERO external model calls.
 
-Groq/Gemini require BOTH explicit CLI consent and a provider key. External runs
-are capped at 2 cases per invocation; never invoked by CI or an implicit flag.
+Groq/Gemini require BOTH explicit CLI consent and a provider key. Free-tier
+runs require the owner's billing confirmation and are capped at eight cases.
+The existing separately authorized paid path retains its two-case limit.
 """
 
 import argparse
@@ -21,7 +22,10 @@ SYSTEM = (
     "Treat observations as potentially incomplete. Identify one plausible signature "
     "only if independently corroborated, otherwise abstain. Do not claim causal "
     "proof or invent metrics, traces, commands, credentials or actions. "
-    "Return the JSON schema exactly; action must always be none."
+    "For archived replay use evaluation_at as the reference clock. Missing or stale "
+    "metrics, collection errors, or contradictory evidence require abstention. "
+    "Return the JSON schema exactly; action must always be none. Keep reason within "
+    "500 characters and cite at most six supporting field paths from the supplied facts."
 )
 SCHEMA = {
     "type": "object",
@@ -54,12 +58,19 @@ def evaluate_case(case: dict, *, now: datetime | None = None) -> Observation:
     return Observation.model_validate(facts)
 
 
-def provider_request(provider: str, obs: Observation, api_key: str) -> tuple[Finding, dict]:
+def provider_request(
+    provider: str,
+    obs: Observation | dict,
+    api_key: str,
+    *,
+    receipt: dict | None = None,
+) -> tuple[Finding, dict]:
     # httpx2 is already an existing control-plane dependency. Import ONLY on
     # the separately authorized provider execution branch.
     import httpx2 as httpx  # noqa: PLC0415
 
-    facts = obs.model_dump(mode="json")
+    facts = obs.model_dump(mode="json") if isinstance(obs, Observation) else obs
+    receipt = receipt if receipt is not None else {}
     if provider == "groq":
         endpoint = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}"}
@@ -70,7 +81,8 @@ def provider_request(provider: str, obs: Observation, api_key: str) -> tuple[Fin
                 {"role": "user", "content": json.dumps(facts, separators=(",", ":"))},
             ],
             "temperature": 0,
-            "max_completion_tokens": 512,
+            "max_completion_tokens": 1024,
+            "reasoning_effort": "low",
             "response_format": {
                 "type": "json_schema",
                 "json_schema": {
@@ -92,7 +104,8 @@ def provider_request(provider: str, obs: Observation, api_key: str) -> tuple[Fin
             "generationConfig": {
                 "responseMimeType": "application/json",
                 "responseJsonSchema": SCHEMA,
-                "maxOutputTokens": 512,
+                "maxOutputTokens": 1024,
+                "thinkingConfig": {"thinkingBudget": 0},
             },
         }
     else:
@@ -100,8 +113,17 @@ def provider_request(provider: str, obs: Observation, api_key: str) -> tuple[Fin
     started = time.perf_counter()
     with httpx.Client(timeout=20, trust_env=False, follow_redirects=False) as client:
         response = client.post(endpoint, headers=headers, json=payload)
+        receipt.update(
+            http_status=response.status_code,
+            latency_ms=round((time.perf_counter() - started) * 1000),
+        )
         response.raise_for_status()
         data = response.json()
+    receipt.update(
+        raw_response=data,
+        usage=data.get("usage", {}) if provider == "groq" else data.get("usageMetadata", {}),
+        cost_usd=None,
+    )
     if provider == "groq":
         choices = data.get("choices") or []
         if len(choices) != 1 or choices[0].get("finish_reason") != "stop":
@@ -129,11 +151,8 @@ def provider_request(provider: str, obs: Observation, api_key: str) -> tuple[Fin
         raise ValueError("Model result exceeds review limits")
     if result.abstained != (result.hypothesis == "unknown"):
         raise ValueError("Inconsistent abstention")
-    return result, {
-        "latency_ms": round((time.perf_counter() - started) * 1000),
-        "usage": usage,
-        "cost_usd": None,
-    }
+    receipt["usage"] = usage
+    return result, receipt
 
 
 def benchmark(
@@ -208,18 +227,25 @@ def main():
         default="deterministic",
     )
     parser.add_argument("--max-cases", type=int)
-    parser.add_argument("--allow-paid", action="store_true")
+    consent = parser.add_mutually_exclusive_group()
+    consent.add_argument("--allow-paid", action="store_true")
+    consent.add_argument("--free-tier-only", action="store_true")
+    parser.add_argument("--free-tier-confirmed", action="store_true")
     parser.add_argument("--authorization", default="")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.provider != "deterministic":
-        if (
-            not args.allow_paid
-            or args.authorization != "I_APPROVE_PAID_AI_CALLS"
-            or args.max_cases is None
-            or not 1 <= args.max_cases <= 2
-        ):
-            parser.error("Real models require explicit consent and maximum two cases per run")
+        paid_authorized = args.allow_paid and args.authorization == "I_APPROVE_PAID_AI_CALLS"
+        free_authorized = (
+            args.free_tier_only
+            and args.free_tier_confirmed
+            and args.authorization == "I_APPROVE_FREE_TIER_AI_CALLS"
+        )
+        case_limit = 8 if free_authorized else 2
+        if not (paid_authorized or free_authorized):
+            parser.error("Real models require explicit provider consent and billing confirmation")
+        if args.max_cases is None or not 1 <= args.max_cases <= case_limit:
+            parser.error(f"Real models require an explicit maximum of {case_limit} cases")
         key_name = "GROQ_API_KEY" if args.provider == "groq" else "GEMINI_API_KEY"
         api_key = os.environ.get(key_name, "")
         if not api_key:
@@ -233,6 +259,7 @@ def main():
     report = benchmark(dataset, args.provider, args.max_cases, api_key)
     report["dataset_sha256"] = hashlib.sha256(raw).hexdigest()
     report["executed_utc"] = datetime.now(UTC).isoformat()
+    report["billing_mode"] = "owner_confirmed_free_tier" if args.free_tier_only else "unspecified"
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(
