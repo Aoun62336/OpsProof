@@ -108,3 +108,54 @@ def test_provider_error_retains_status_without_error_body_or_retry(monkeypatch):
     assert receipt["http_status"] == 429
     assert "raw_response" not in receipt
     assert "private-provider-error" not in json.dumps(receipt)
+
+
+def test_current_gemini_comparator_uses_bounded_structured_request(monkeypatch):
+    import httpx2 as httpx
+
+    requests = []
+    prediction = {
+        "hypothesis": "unknown",
+        "abstained": True,
+        "reason": "Missing fresh evidence",
+        "supporting_signals": ["metrics_fresh"],
+        "action": "none",
+    }
+
+    class Client:
+        def __init__(self, **kwargs):
+            assert kwargs["follow_redirects"] is False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, endpoint, **kwargs):
+            requests.append((endpoint, kwargs["json"]))
+            return httpx.Response(
+                200,
+                request=httpx.Request("POST", endpoint),
+                json={
+                    "candidates": [
+                        {
+                            "finishReason": "STOP",
+                            "content": {
+                                "parts": [{"text": json.dumps(prediction)}],
+                            },
+                        }
+                    ],
+                    "usageMetadata": {"promptTokenCount": 20, "candidatesTokenCount": 30},
+                },
+            )
+
+    monkeypatch.setattr(httpx, "Client", Client)
+    result, receipt = qualify.provider_request("gemini", {"metrics_fresh": False}, "test-key")
+    assert result.abstained
+    assert len(requests) == 1
+    assert requests[0][0].endswith("/gemini-3.5-flash-lite:generateContent")
+    assert requests[0][1]["generationConfig"]["maxOutputTokens"] == 1024
+    assert requests[0][1]["generationConfig"]["responseJsonSchema"] == qualify.SCHEMA
+    assert "thinkingConfig" not in requests[0][1]["generationConfig"]
+    assert receipt["usage"]["promptTokenCount"] == 20

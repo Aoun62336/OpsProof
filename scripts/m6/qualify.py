@@ -16,7 +16,7 @@ from pathlib import Path
 from opsproof_control.m6_diagnosis import Finding, Observation, deterministic_m6
 
 GROQ_MODEL = "openai/gpt-oss-120b"
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
 SYSTEM = (
     "Assess ONLY the provided sanitized reliability observations. "
     "Treat observations as potentially incomplete. Identify one plausible signature "
@@ -105,7 +105,6 @@ def provider_request(
                 "responseMimeType": "application/json",
                 "responseJsonSchema": SCHEMA,
                 "maxOutputTokens": 1024,
-                "thinkingConfig": {"thinkingBudget": 0},
             },
         }
     else:
