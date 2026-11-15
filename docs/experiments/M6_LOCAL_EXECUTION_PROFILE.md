@@ -60,8 +60,10 @@ is introduced. The separate k6 protocol retains its own limits and evidence.
 
 Synthetic deterministic qualification is distinct from held-out real incidents.
 No held-out labels, model accuracy, optimization gain or savings are invented.
-The owner deferred Groq/Gemini qualification and AWS provisioning to the next
-milestone. The retained AWS cost model records its prospective assumptions.
+The owner subsequently authorized the bounded free-tier Groq/Gemini evaluation.
+Both models failed the frozen qualification fixture and remain disabled. The
+retained AWS cost model records its prospective assumptions. AWS provisioning
+belongs to M7 in the original acceptance scope.
 
 ## Recorded completion on 15 November 2026
 
@@ -72,5 +74,5 @@ which is recorded as a failed hypothesis when restoration is verified.
 
 The accepted capacity comparison has three passing runs per mode. Actual served
 background rates are retained alongside the nominal 80-request/second target.
-The report and matrix identify the retained failed attempts, the owner-deferred
-provider work and the independent review steps.
+The report and matrix identify retained failed attempts, completed provider
+evaluation, failed model qualification and independent AI-agent reviews.

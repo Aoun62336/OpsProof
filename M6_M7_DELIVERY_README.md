@@ -3,8 +3,9 @@
 > **15 November update:** The sections below preserve the earlier M5-aware
 > source-integration record. The completed local M6 verification is recorded in the
 > [current M6 acceptance report](docs/experiments/M6_ACCEPTANCE_REPORT_2026-11-14.md).
-> Independent acceptance review is pending. Provider evaluations and AWS
-> provisioning follow the owner's next-milestone decision.
+> The bounded provider comparison and independent AI-agent review are recorded
+> there. Both external models failed fixture qualification and remain disabled.
+> AWS provisioning belongs to M7 under the original acceptance scope.
 
 **Source basis:** User-supplied `OpsProof_M5_Final_Source.zip` (9 November 2026), not the obsolete `OpsProof(3).zip` or previous M6/M7 staged ZIP.
 

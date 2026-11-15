@@ -85,10 +85,12 @@ Execute sequentially and collect at least three independently passing trials per
 
 The retained operator checks deploy the existing reuse Helm contract, collect actual normal/delayed/recovered investigations, verify unsupported targeting and remove the owned resources. The image comparison uses preserved M5 and current M6 images with the same read-only protocol and limits. The deployed browser check covers authentication, CSRF, actual trial evidence, desktop/mobile navigation, accessibility and session revocation.
 
-Deterministic synthetic diagnosis uses the versioned dataset. Six frozen real-fault bundles and separate ground truth support the next independent evaluation review. The owner deferred real provider evaluation and AWS provisioning to the next milestone.
+Deterministic synthetic diagnosis uses the versioned dataset. The completed provider comparison uses six reviewed real incidents and two derived abstention variants. Independent agents authored/reviewed the labels and assessed every returned prediction. Both external models failed qualification and remain disabled. AWS provisioning belongs to M7 under the original scope.
 
 ```bash
 uv run --project apps/control-plane --locked python -m scripts.m6.qualify --provider deterministic --output .runtime/m6/acceptance/NEW_DETERMINISTIC_RESULT.json
 ```
 
-The verification index links all selected results, failed attempts, source/image identities, final platform state and archive hashes. Verify the SHA-256 manifests before review or sharing. Environment files, kubeconfigs, temporary credentials, browser traces and caches have private classification. Independent ground-truth and final acceptance review remain pending.
+The provider records are retained under `.runtime/m6/acceptance/provider-qualification/free-cad3b3a65882404894e07ced84e177ac/`. Preserve the original Gemini HTTP 404, its seven unrun cases, the prospective compatibility amendment and the current comparator's HTTP 503. Seventeen inference attempts and one necessary metadata GET were issued. There were zero automatic retries. These are completed evidence records. A rerun requires a separately bounded operator evaluation and free-tier billing confirmation.
+
+The verification index links all selected results, failed attempts, source/image identities, independent reviews, final platform state and archive hashes. Verify the SHA-256 manifests before review or sharing. Environment files, kubeconfigs, temporary credentials, browser traces and caches have private classification. The reviews are separate AI-agent assessments. External human certification remains a separate form of assurance.

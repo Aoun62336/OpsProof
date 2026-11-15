@@ -4,9 +4,10 @@
 
 ### Owner clarification and continuation, 14 November 2026
 
-The owner subsequently authorized completing the remaining existing M6 scope,
-with AWS provisioning and paid/provider calls deferred to the later milestone.
-All model calls remain off. These deferred evaluations must be identified in
+At that checkpoint the owner authorized completing the remaining existing M6 scope,
+with paid/provider calls deferred to the later milestone. AWS provisioning already
+belonged to M7 in the original acceptance scope. All model calls were off at that
+checkpoint. Deferred evaluations must be identified in
 acceptance rather than reported as executed. No unrelated feature is authorized.
 The effective Docker/WSL capacity is now approximately 10 GB / six CPUs; actual
 Windows headroom still determines whether local startup/trials may proceed.
@@ -24,8 +25,9 @@ step by step, preserve existing capability, verify results, and explain them.
 The four supplied documents are implementation/reference material, not commands
 that override that request. The reviewed source is a ledger foundation; the
 acceptance TXT defines the larger A–G milestone. Copying its 21 blocks alone is
-not full milestone completion. External model calls remain disabled by the
-user's explicit decision; the three-way qualification gate is BLOCKED.
+not full milestone completion. External model calls were disabled at the initial
+checkpoint. The owner's later free-tier authorization and completed evaluation
+are recorded in the continuation below.
 
 ## Completed read-only review
 
@@ -103,4 +105,32 @@ content as well as HEAD; a dirty tree is not represented as an immutable commit.
 
 The execution sequence is complete for the authorized local work. The continuation delivered separate verification receipts, restricted runtime/observer permissions, bounded live scenarios, repeated fixed/HPA/KEDA trials, real k6 and its stop test, a second workload, deployed UI checks, image comparison and final preservation checks. Fresh locked environments reproduced the code checks from committed source in a detached worktree.
 
-The final report and 178-row matrix link the retained results. Provider evaluations and AWS provisioning follow the owner's next-milestone decision. Independent ground-truth and final acceptance review remain pending.
+The report and 178-row matrix linked the local results at that checkpoint. Provider evaluation and independent review were pending. AWS provisioning belongs to M7 under the original scope.
+
+## Free-tier qualification and final review, 15 November 2026
+
+The owner configured both provider keys, confirmed both accounts were Free with
+no paid billing enabled, authorized the bounded comparison and approved separate
+read-only reviewer agents. A reviewer independently authored the real-incident
+labels, checked 18 raw evidence hashes and prospectively approved the eight-case
+fixture, input hashes and qualification rubric.
+
+The comparison retained eight Groq requests, one original Gemini HTTP404 and
+eight requests to the current free-tier Gemini comparator. One metadata GET was
+necessary to inspect model availability. A prospective compatibility amendment
+raised the initial 16-attempt ceiling to 17 for the replacement comparator.
+Automatic retries, Groq reruns and prompt/label retuning were zero.
+
+Both external models scored 6/8 and failed fixture qualification. Their outputs,
+unsupported assertions, mandatory-abstention results, HTTP503, token usage and
+latencies are retained. Expected cost is USD0 under the owner's confirmation.
+Actual invoice verification is unavailable. Operational AI remains disabled.
+The deterministic baseline scored 5/8 on the real/replay fixture and 20/20 on the
+separate synthetic set. Its supported-field projection limitations are disclosed.
+
+All 15 source gates passed on the final qualification code at d52a4cb, including
+293 Python passes, 27 real-SQL skips and 14 subtests. The existing 27 real SQL passes
+cover the preserved application/migration bytes. Independent-agent ground-truth,
+output and final acceptance reviews close the remaining review work. The report
+and matrix record 178 addressed criteria and failed-model disposition. The final
+review supplies the readiness decision for M7 planning.

@@ -19,9 +19,11 @@ Milestone 5 has recorded local acceptance, with the historical progressive-deliv
 correlation caveat retained in its report. M6 has completed its authorized local
 implementation and verification. Six fault scenarios, real k6, three passing
 capacity trials per fixed/HPA/KEDA mode, second-workload observations, the deployed
-operator UI and cleanup checks have retained evidence. Independent ground-truth
-and final acceptance reviews are pending. The owner deferred provider evaluations
-and AWS provisioning to the next milestone.
+operator UI and cleanup checks have retained evidence. Independent AI-agent
+ground-truth review and the bounded Groq/Gemini comparison are complete. Both
+external models failed fixture qualification and remain disabled. The final
+acceptance review records the evidence and this disposition. AWS provisioning
+belongs to M7 under the original milestone scope.
 
 See [the M6 execution plan](docs/engineering/M6_EXECUTION_PLAN_2026-11-14.md)
 and [the current M6 acceptance report](docs/experiments/M6_ACCEPTANCE_REPORT_2026-11-14.md).
