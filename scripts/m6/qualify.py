@@ -6,6 +6,7 @@ The existing separately authorized paid path retains its two-case limit.
 """
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -13,7 +14,16 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from opsproof_control.m6_diagnosis import Finding, Observation, deterministic_m6
+from opsproof_control.m6_diagnosis import (
+    DOWNSTREAM_MIN_P95_SECONDS,
+    METRICS_MAX_AGE_SECONDS,
+    RELEASE_MIN_ERROR_FRACTION,
+    SATURATION_MIN_QUEUE_MESSAGES,
+    SATURATION_MIN_WAIT_SECONDS,
+    Finding,
+    Observation,
+    deterministic_m6,
+)
 
 GROQ_MODEL = "openai/gpt-oss-120b"
 GEMINI_MODEL = "gemini-3.5-flash-lite"
@@ -58,6 +68,106 @@ def evaluate_case(case: dict, *, now: datetime | None = None) -> Observation:
     return Observation.model_validate(facts)
 
 
+def provider_facts(obs: Observation | dict, *, now: datetime | None = None) -> dict:
+    """Describe supplied evidence without filling missing measurements or labels."""
+    facts = obs.model_dump(mode="json") if isinstance(obs, Observation) else copy.deepcopy(obs)
+    reference = facts.get("evaluation_at", (now or datetime.now(UTC)).isoformat())
+    observation = facts.get("observation", facts)
+    age = None
+    try:
+        captured = datetime.fromisoformat(observation["observed_at"].replace("Z", "+00:00"))
+        clock = datetime.fromisoformat(reference.replace("Z", "+00:00"))
+        if captured.utcoffset() is not None and clock.utcoffset() is not None:
+            age = (clock - captured).total_seconds()
+    except KeyError, TypeError, ValueError, AttributeError:
+        pass
+    facts["evidence_contract"] = {
+        "units": {
+            "queue_lag": (
+                "undelivered Redis Stream job messages, excluding pending/in-flight entries. "
+                "Duplicate job IDs may occur."
+            ),
+            "queue_age_seconds": "seconds since the oldest waiting job was created",
+            "active_workers": "available worker replicas",
+            "worker_restarts": "container restarts, not Pod replacements",
+            "db_connection_errors": "observed failed connection probes or recorded errors",
+            "candidate_error_rate": "fraction from 0 to 1 for candidate-only requests",
+            "downstream_p95_seconds": "seconds, measured 95th percentile",
+            "downstream_timeouts": "observed timeout count, possibly a lower bound",
+        },
+        "freshness": {
+            "reference_time": reference,
+            "observation_age_seconds": age,
+            "maximum_age_seconds": METRICS_MAX_AGE_SECONDS,
+            "metrics_fresh_at_reference": (
+                age is not None
+                and 0 <= age <= METRICS_MAX_AGE_SECONDS
+                and observation.get("metrics_fresh") is True
+            ),
+            "rule": (
+                "Missing, future or stale metrics require abstention. "
+                "Channel flags apply separately."
+            ),
+        },
+        "signature_thresholds": {
+            "worker_saturation": {
+                "queue_lag_min_messages": SATURATION_MIN_QUEUE_MESSAGES,
+                "queue_age_min_seconds": SATURATION_MIN_WAIT_SECONDS,
+                "active_workers_greater_than": 0,
+            },
+            "faulty_release": {
+                "candidate_error_fraction_min": RELEASE_MIN_ERROR_FRACTION,
+                "rollout_analysis_failed_required": True,
+            },
+            "database_connectivity": {
+                "failed_database_probe_required": True,
+                "connection_errors_greater_than": 0,
+            },
+            "worker_failure": {
+                "active_workers": 0,
+                "worker_restarts_greater_than": 0,
+                "queue_lag_greater_than": 0,
+                "fresh_logs_required": True,
+            },
+            "downstream_latency": {
+                "measured_p95_min_seconds": DOWNSTREAM_MIN_P95_SECONDS,
+                "positive_timeout_count_and_fresh_traces_required": True,
+            },
+        },
+        "threshold_scope": (
+            "Configured signature criteria. Production SLO thresholds are unavailable."
+        ),
+        "expected_queue_behaviour": (
+            "A burst may temporarily increase waiting jobs. Positive backlog alone does not "
+            "establish a fault. Correlate waiting age, available workers and recorded evidence. "
+            "A drained queue has zero waiting jobs. Pending jobs are already delivered "
+            "and may be processing."
+        ),
+        "grounding": (
+            "Cite exact supplied field paths. Thresholds and units describe interpretation. "
+            "Missing percentile, rate, restart count or window cannot be inferred from "
+            "a different statistic. Findings authorize no action."
+        ),
+    }
+    return facts
+
+
+def validate_evidence_paths(finding: Finding, facts: dict) -> None:
+    """Resolve JSON field paths only. Factual reasoning still requires review."""
+    for path in finding.supporting_signals:
+        value = facts
+        for part in path.split("."):
+            if isinstance(value, dict) and part in value:
+                value = value[part]
+            elif isinstance(value, list) and part.isascii() and part.isdecimal():
+                index = int(part)
+                if index >= len(value):
+                    raise ValueError("Model cited a missing evidence path")
+                value = value[index]
+            else:
+                raise ValueError("Model cited a missing evidence path")
+
+
 def provider_request(
     provider: str,
     obs: Observation | dict,
@@ -69,7 +179,7 @@ def provider_request(
     # the separately authorized provider execution branch.
     import httpx2 as httpx  # noqa: PLC0415
 
-    facts = obs.model_dump(mode="json") if isinstance(obs, Observation) else obs
+    facts = provider_facts(obs)
     receipt = receipt if receipt is not None else {}
     if provider == "groq":
         endpoint = "https://api.groq.com/openai/v1/chat/completions"
@@ -150,6 +260,7 @@ def provider_request(
         raise ValueError("Model result exceeds review limits")
     if result.abstained != (result.hypothesis == "unknown"):
         raise ValueError("Inconsistent abstention")
+    validate_evidence_paths(result, facts)
     receipt["usage"] = usage
     return result, receipt
 

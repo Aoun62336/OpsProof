@@ -1,0 +1,10 @@
+{
+  "dataset_id": "opsproof-m6-capacity-held-out-v1",
+  "model_evaluation_status": "NOT_RUN_OFFLINE_PREPARATION_ONLY",
+  "provider_calls": 0,
+  "cases": 4,
+  "independence": "Source trials differ from the original eight regression cases. Labels supplied by a separate read-only reviewer before candidate evaluation.",
+  "limitation": "Narrow capacity coverage. Four observations from three trials. No six-scenario or prospective accuracy claim.",
+  "future_evaluation": "Send only cases.id and provider_facts(cases.facts) to models. Keep labels and provenance out of model inputs. Freeze identical augmented request facts for every candidate before requesting new authorization.",
+  "original_eight": "Preserved unchanged as regression evidence."
+}

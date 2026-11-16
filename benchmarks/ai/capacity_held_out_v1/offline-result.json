@@ -1,0 +1,64 @@
+{
+  "provider": "deterministic",
+  "case_count": 4,
+  "correct": 4,
+  "model_calls": 0,
+  "cases": [
+    {
+      "id": "b11fab3394471616e3f7a4f48cba7919",
+      "prediction": {
+        "hypothesis": "worker_saturation",
+        "abstained": false,
+        "reason": "correlated_signature_only_not_causal_proof",
+        "supporting_signals": [
+          "queue_lag",
+          "queue_age_seconds",
+          "active_workers"
+        ],
+        "action": "none"
+      },
+      "correct": true
+    },
+    {
+      "id": "aa4feed2b48b5c73b4aee3a413cd9dfb",
+      "prediction": {
+        "hypothesis": "worker_saturation",
+        "abstained": false,
+        "reason": "correlated_signature_only_not_causal_proof",
+        "supporting_signals": [
+          "queue_lag",
+          "queue_age_seconds",
+          "active_workers"
+        ],
+        "action": "none"
+      },
+      "correct": true
+    },
+    {
+      "id": "8785be1e232d0f966f5e30873f865049",
+      "prediction": {
+        "hypothesis": "worker_saturation",
+        "abstained": false,
+        "reason": "correlated_signature_only_not_causal_proof",
+        "supporting_signals": [
+          "queue_lag",
+          "queue_age_seconds",
+          "active_workers"
+        ],
+        "action": "none"
+      },
+      "correct": true
+    },
+    {
+      "id": "6ce26bda26c44dc6aa7f500385e71f1d",
+      "prediction": {
+        "hypothesis": "unknown",
+        "abstained": true,
+        "reason": "insufficient_correlated_signals",
+        "supporting_signals": [],
+        "action": "none"
+      },
+      "correct": true
+    }
+  ]
+}

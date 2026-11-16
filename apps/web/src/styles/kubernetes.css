@@ -1,0 +1,410 @@
+.kube-page {
+  display: grid;
+  gap: 22px;
+}
+.kube-page .page-header {
+  margin-bottom: 4px;
+}
+.kube-workload {
+  display: grid;
+  gap: 17px;
+  min-width: 0;
+}
+.kube-observed,
+.kube-panel__header,
+.kube-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.kube-observed time,
+.kube-caption {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.kube-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 560;
+}
+.kube-status svg {
+  flex: none;
+}
+.kube-status--success {
+  color: var(--succeeded);
+}
+.kube-status--warning {
+  color: var(--warning);
+}
+.kube-status--failed {
+  color: var(--failed);
+}
+.kube-status--running {
+  color: var(--running);
+}
+.kube-status--verifying {
+  color: var(--verifying);
+}
+.kube-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.kube-metric {
+  padding: 21px;
+}
+.kube-metric__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.kube-metric__label svg {
+  flex: none;
+}
+.kube-metric__value {
+  margin: 12px 0 5px;
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.kube-metric__value small {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--ink-soft);
+}
+.kube-panel {
+  padding: 0;
+  overflow: hidden;
+}
+.kube-panel__header {
+  padding: 21px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.kube-panel__header h2,
+.kube-panel__header h3 {
+  margin: 0 0 4px;
+}
+.kube-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.kube-identity h2 {
+  overflow-wrap: anywhere;
+}
+.kube-icon {
+  display: inline-flex;
+  flex: none;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--porcelain);
+  color: var(--forest-soft);
+}
+.kube-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 23px;
+  margin: 0;
+  padding: 24px;
+}
+.kube-details > div {
+  min-width: 0;
+}
+.kube-details dt {
+  margin-bottom: 7px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.kube-details dd {
+  margin: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.kube-details .mono {
+  font-size: 12px;
+}
+.kube-details__wide {
+  grid-column: 1 / -1;
+}
+.kube-replicas {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.kube-replica {
+  display: inline-flex;
+  padding: 7px;
+  border-radius: 6px;
+  color: var(--ink-soft);
+  background: var(--porcelain);
+}
+.kube-replica--ready {
+  color: var(--succeeded);
+}
+.kube-resources {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 35px;
+  padding: 27px 24px;
+}
+.kube-resource {
+  min-width: 0;
+}
+.kube-resource h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 14px;
+}
+.kube-resource__value {
+  margin: 17px 0 14px;
+  font-size: 27px;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.kube-resource__value span {
+  font-size: 13px;
+  color: var(--ink-soft);
+  letter-spacing: 0;
+}
+.kube-resource progress {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 8px;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--line);
+  color: var(--forest-soft);
+}
+.kube-resource progress::-webkit-progress-bar {
+  background: var(--line);
+}
+.kube-resource progress::-webkit-progress-value {
+  background: var(--forest-soft);
+  border-radius: 8px;
+}
+.kube-resource progress::-moz-progress-bar {
+  background: var(--forest-soft);
+  border-radius: 8px;
+}
+.kube-resource__scale {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+.kube-panel__footer {
+  margin: 0;
+  padding: 15px 24px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.kube-image {
+  padding: 17px;
+  margin: 24px 24px 0;
+  background: var(--porcelain);
+  border-radius: 7px;
+}
+.kube-image .kube-caption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.kube-image > .mono {
+  margin: 10px 0 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.kube-technical {
+  padding: 15px 24px;
+  border-top: 1px solid var(--line);
+}
+.kube-technical summary {
+  width: fit-content;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+.kube-technical .kube-details {
+  padding: 20px 0 5px;
+}
+.kube-notice {
+  margin: 0;
+  padding: 13px 16px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--bronze);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.kube-runbook-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.kube-runbook__heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.kube-runbook h2 {
+  margin-bottom: 12px;
+}
+.kube-runbook h3 {
+  margin: 23px 0 11px;
+}
+.kube-runbook > p {
+  font-size: 13px;
+}
+.kube-prerequisites {
+  display: grid;
+  gap: 10px;
+  padding-left: 19px;
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.kube-prerequisites li::marker {
+  color: var(--forest-soft);
+}
+.kube-form {
+  display: grid;
+  gap: 17px;
+  margin-top: 23px;
+}
+.kube-form .button {
+  justify-self: start;
+  white-space: normal;
+}
+.kube-history {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.kube-section-heading h2 {
+  margin: 0;
+}
+.kube-recovery__body {
+  padding: 20px 24px;
+}
+.kube-recovery__body > p {
+  margin: 0 0 16px;
+}
+.kube-verified {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--succeeded);
+  font-size: 13px;
+}
+.kube-verified svg {
+  flex: none;
+}
+.kube-approval {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.kube-approval p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.kube-approval .button {
+  white-space: normal;
+}
+.kube-details--flush {
+  padding: 0;
+}
+@media (max-width: 1050px) {
+  .kube-runbook-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 680px) {
+  .kube-page {
+    gap: 19px;
+  }
+  .kube-metrics {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .kube-metric {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 5px 12px;
+    padding: 16px;
+  }
+  .kube-metric__value {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    margin: 0;
+    font-size: 25px;
+  }
+  .kube-metric .kube-caption {
+    grid-column: 1;
+  }
+  .kube-panel__header {
+    padding: 18px;
+  }
+  .kube-resources {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding: 22px 18px;
+  }
+  .kube-details {
+    grid-template-columns: 1fr;
+    gap: 19px;
+    padding: 20px 18px;
+  }
+  .kube-details--flush {
+    padding: 0;
+  }
+  .kube-technical,
+  .kube-panel__footer {
+    padding: 14px 18px;
+  }
+  .kube-image {
+    margin: 18px 18px 0;
+  }
+  .kube-observed {
+    align-items: flex-start;
+  }
+  .kube-recovery__body {
+    padding: 20px 18px;
+  }
+}

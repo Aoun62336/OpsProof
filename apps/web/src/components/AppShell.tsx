@@ -11,8 +11,11 @@ import {
 
 import {
   ArrowUpRight,
+  Boxes,
   BookOpenText,
   FlaskConical,
+  Gauge,
+  GitBranch,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -23,9 +26,9 @@ import {
 import { Brand } from "./Brand";
 
 const links = [
-  { label: "Workloads", path: "/workloads", icon: LayoutDashboard, end: false },
-  { label: "Deployments", path: "/deployments", icon: ArrowUpRight, end: false },
-  { label: "Capacity", path: "/capacity", icon: LayoutDashboard, end: false },
+  { label: "Workloads", path: "/workloads", icon: Boxes, end: false },
+  { label: "Deployments", path: "/deployments", icon: GitBranch, end: false },
+  { label: "Capacity", path: "/capacity", icon: Gauge, end: false },
   { label: "Runbooks", path: "/runbooks", icon: BookOpenText, end: false },
   {
     label: "Overview",
@@ -110,7 +113,7 @@ export function AppShell({
           ? "M6 trials"
           : location.pathname.startsWith("/reports")
           ? "Evidence"
-          : "Workspace";
+          : links.find(link => link.path !== "/" && location.pathname.startsWith(link.path))?.label ?? "Workspace";
 
   function closeDrawer() {
     drawer.current?.close();

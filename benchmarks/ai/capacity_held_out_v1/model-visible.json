@@ -1,0 +1,157 @@
+{
+  "dataset_id": "opsproof-m6-capacity-held-out-v1",
+  "cases": [
+    {
+      "id": "b11fab3394471616e3f7a4f48cba7919",
+      "facts": {
+        "evaluation_at": "2026-11-14T16:20:44.610605+00:00",
+        "context": "Archived retrospective observation. Evaluate freshness against evaluation_at. Queue waiting age is reconstructed from exact durable job timestamps.",
+        "observation": {
+          "observed_at": "2026-11-14T16:20:44.610605+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "logs_fresh": false,
+          "traces_fresh": false,
+          "queue_lag": 52,
+          "queue_age_seconds": 12.795833,
+          "active_workers": 1
+        },
+        "recorded_evidence": {
+          "demo_ready_http_status": 200,
+          "control_ready_http_status": 200,
+          "queue": {
+            "lag": 52,
+            "pending": 1,
+            "lag_known": true
+          },
+          "stats": {
+            "queued": 52,
+            "processing": 1
+          },
+          "worker": {
+            "desired": 1,
+            "available": 1
+          },
+          "durable_jobs": {
+            "waiting_at_capture": 52,
+            "oldest_waiting_age_seconds": 12.795833
+          }
+        }
+      }
+    },
+    {
+      "id": "aa4feed2b48b5c73b4aee3a413cd9dfb",
+      "facts": {
+        "evaluation_at": "2026-11-15T06:54:38.327038+00:00",
+        "context": "Archived retrospective observation. Evaluate freshness against evaluation_at. Queue waiting age is reconstructed from exact durable job timestamps.",
+        "observation": {
+          "observed_at": "2026-11-15T06:54:38.327038+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "logs_fresh": false,
+          "traces_fresh": false,
+          "queue_lag": 52,
+          "queue_age_seconds": 12.89441,
+          "active_workers": 1
+        },
+        "recorded_evidence": {
+          "demo_ready_http_status": 200,
+          "control_ready_http_status": 200,
+          "queue": {
+            "lag": 52,
+            "pending": 1,
+            "lag_known": true
+          },
+          "stats": {
+            "queued": 52,
+            "processing": 1
+          },
+          "worker": {
+            "desired": 1,
+            "available": 1
+          },
+          "durable_jobs": {
+            "waiting_at_capture": 52,
+            "oldest_waiting_age_seconds": 12.89441
+          }
+        }
+      }
+    },
+    {
+      "id": "8785be1e232d0f966f5e30873f865049",
+      "facts": {
+        "evaluation_at": "2026-11-14T16:29:55.691318+00:00",
+        "context": "Archived retrospective observation. Evaluate freshness against evaluation_at. Queue waiting age is reconstructed from exact durable job timestamps.",
+        "observation": {
+          "observed_at": "2026-11-14T16:29:55.691318+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "logs_fresh": false,
+          "traces_fresh": false,
+          "queue_lag": 36,
+          "queue_age_seconds": 17.622585,
+          "active_workers": 3
+        },
+        "recorded_evidence": {
+          "demo_ready_http_status": 200,
+          "control_ready_http_status": 200,
+          "queue": {
+            "lag": 36,
+            "pending": 3,
+            "lag_known": true
+          },
+          "stats": {
+            "queued": 36,
+            "processing": 3
+          },
+          "worker": {
+            "desired": 3,
+            "available": 3
+          },
+          "durable_jobs": {
+            "waiting_at_capture": 36,
+            "oldest_waiting_age_seconds": 17.622585
+          }
+        }
+      }
+    },
+    {
+      "id": "6ce26bda26c44dc6aa7f500385e71f1d",
+      "facts": {
+        "evaluation_at": "2026-11-14T16:32:28.680329+00:00",
+        "context": "Archived retrospective observation. Evaluate freshness against evaluation_at. Queue waiting age is reconstructed from exact durable job timestamps.",
+        "observation": {
+          "observed_at": "2026-11-14T16:32:28.680329+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "logs_fresh": false,
+          "traces_fresh": false,
+          "queue_lag": 0,
+          "queue_age_seconds": 0.0,
+          "active_workers": 1
+        },
+        "recorded_evidence": {
+          "demo_ready_http_status": 200,
+          "control_ready_http_status": 200,
+          "queue": {
+            "lag": 0,
+            "pending": 0,
+            "lag_known": true
+          },
+          "stats": {
+            "queued": 0,
+            "processing": 0
+          },
+          "worker": {
+            "desired": 1,
+            "available": 1
+          },
+          "durable_jobs": {
+            "waiting_at_capture": 0,
+            "oldest_waiting_age_seconds": 0.0
+          }
+        }
+      }
+    }
+  ]
+}

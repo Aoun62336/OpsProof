@@ -24,6 +24,7 @@ export interface KubernetesObservation {
 export interface KubernetesRecovery {
   id: string; status: string; target_image: string; target_uid: string;
   expires_at: string; created_at: string; error: string | null;
+  completed_at?: string | null;
 }
 export const getKubernetesWorkloads = () => request<{ enabled: boolean; observations: KubernetesObservation[] }>("/kubernetes/workloads");
 export const getKubernetesRecoveries = () => request<KubernetesRecovery[]>("/kubernetes/recoveries");

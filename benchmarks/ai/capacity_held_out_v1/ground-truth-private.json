@@ -1,0 +1,119 @@
+{
+  "independent_reviewer": "/root/ground_truth_review",
+  "verdict": "APPROVED_FOR_OFFLINE_FREEZING",
+  "cases": [
+    {
+      "id": "b11fab3394471616e3f7a4f48cba7919",
+      "expected_hypothesis": "worker_saturation",
+      "expected_abstained": false
+    },
+    {
+      "id": "aa4feed2b48b5c73b4aee3a413cd9dfb",
+      "expected_hypothesis": "worker_saturation",
+      "expected_abstained": false
+    },
+    {
+      "id": "8785be1e232d0f966f5e30873f865049",
+      "expected_hypothesis": "worker_saturation",
+      "expected_abstained": false
+    },
+    {
+      "id": "6ce26bda26c44dc6aa7f500385e71f1d",
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true
+    }
+  ],
+  "provenance": [
+    {
+      "id": "b11fab3394471616e3f7a4f48cba7919",
+      "run_id": "m6-978bb3fac87346f58df224dd68e3a151",
+      "sample_index_zero_based": 32,
+      "canonical_facts_sha256": "1d82732c1c22574ba63a39748372bb1f1bae730ab1e7f81fddd3ff1078fa98a6",
+      "sources": [
+        {
+          "path": ".runtime/m6/trials/m6-978bb3fac87346f58df224dd68e3a151/observer/samples.jsonl",
+          "sha256": "ce46965a63a17f47a7708c823c0173aed8de9f9380e3881940ac16b9da4c548f"
+        },
+        {
+          "path": ".runtime/m6/trials/m6-978bb3fac87346f58df224dd68e3a151/independent-result.json",
+          "sha256": "77a0e47dc2f58ffbf1e8f7a857536a6fef644052201be65270e8f11335234174"
+        },
+        {
+          "path": ".runtime/m6/trials/m6-978bb3fac87346f58df224dd68e3a151/result.json",
+          "sha256": "bec45a93538983d7620f8f45f8fe619c2af73907b9372106ecc6e7a88b0abd09"
+        }
+      ],
+      "collected_until": "2026-11-14T16:20:45.225875+00:00",
+      "age_formula": "capture minus earliest created_at among created_at <= capture < started_at; empty queue age = 0"
+    },
+    {
+      "id": "aa4feed2b48b5c73b4aee3a413cd9dfb",
+      "run_id": "m6-e2b50980550b48aead8c23f71b21f242",
+      "sample_index_zero_based": 34,
+      "canonical_facts_sha256": "223499478e1f94545f7d89f422091aeabadfcadc93a5f87287ed475193b183cd",
+      "sources": [
+        {
+          "path": ".runtime/m6/trials/m6-e2b50980550b48aead8c23f71b21f242/observer/samples.jsonl",
+          "sha256": "64c2174f2ec573643cf968da2f3bc5aa30ce93441a31ae1b52c87cb6142f1262"
+        },
+        {
+          "path": ".runtime/m6/trials/m6-e2b50980550b48aead8c23f71b21f242/independent-result.json",
+          "sha256": "2b7af85f6cea8f43f08fe61af4bbd6e5d598cca087a0b8ae0f6deb1c9236b38d"
+        },
+        {
+          "path": ".runtime/m6/trials/m6-e2b50980550b48aead8c23f71b21f242/result.json",
+          "sha256": "7d9d5aa0892aa3d74a7e105d0d982c8e18ee56095a78aaf53df249334d486d4d"
+        }
+      ],
+      "collected_until": "2026-11-15T06:54:39.128010+00:00",
+      "age_formula": "capture minus earliest created_at among created_at <= capture < started_at; empty queue age = 0"
+    },
+    {
+      "id": "8785be1e232d0f966f5e30873f865049",
+      "run_id": "m6-1864f309f696441b9e46ce40bc146854",
+      "sample_index_zero_based": 38,
+      "canonical_facts_sha256": "2a0f742bdf5d29f779de8be33770c03e8808612bda9b35989482fa00e50eef60",
+      "sources": [
+        {
+          "path": ".runtime/m6/trials/m6-1864f309f696441b9e46ce40bc146854/observer/samples.jsonl",
+          "sha256": "f804dda071c791ba97c5869057e7c7c879211ffae859c86b8204c1508dfbe3c0"
+        },
+        {
+          "path": ".runtime/m6/trials/m6-1864f309f696441b9e46ce40bc146854/independent-result.json",
+          "sha256": "393a06c7f185ef5555acfc450c2a76773abfc6a2ef47aef5ef0940a2bc3148d7"
+        },
+        {
+          "path": ".runtime/m6/trials/m6-1864f309f696441b9e46ce40bc146854/result.json",
+          "sha256": "0ee417f32cf7e2ad31748d59095996d507609641ddec1f9a6c6076deb220bb88"
+        }
+      ],
+      "collected_until": "2026-11-14T16:29:56.186279+00:00",
+      "age_formula": "capture minus earliest created_at among created_at <= capture < started_at; empty queue age = 0"
+    },
+    {
+      "id": "6ce26bda26c44dc6aa7f500385e71f1d",
+      "run_id": "m6-1864f309f696441b9e46ce40bc146854",
+      "sample_index_zero_based": 166,
+      "canonical_facts_sha256": "54e573bbf99938d69e5eb757bdf750c41c27de165ae2d6d66a4553bc187797be",
+      "sources": [
+        {
+          "path": ".runtime/m6/trials/m6-1864f309f696441b9e46ce40bc146854/observer/samples.jsonl",
+          "sha256": "f804dda071c791ba97c5869057e7c7c879211ffae859c86b8204c1508dfbe3c0"
+        },
+        {
+          "path": ".runtime/m6/trials/m6-1864f309f696441b9e46ce40bc146854/independent-result.json",
+          "sha256": "393a06c7f185ef5555acfc450c2a76773abfc6a2ef47aef5ef0940a2bc3148d7"
+        },
+        {
+          "path": ".runtime/m6/trials/m6-1864f309f696441b9e46ce40bc146854/result.json",
+          "sha256": "0ee417f32cf7e2ad31748d59095996d507609641ddec1f9a6c6076deb220bb88"
+        }
+      ],
+      "collected_until": "2026-11-14T16:32:29.175558+00:00",
+      "age_formula": "capture minus earliest created_at among created_at <= capture < started_at; empty queue age = 0"
+    }
+  ],
+  "scope": "Three backlog observations from three unused real trials and one post-drain observation. Narrow capacity coverage.",
+  "freshness_basis": "Direct measurements collected within each sub-second archived window. No Prometheus scrape timestamp is asserted.",
+  "limitation": "Retrospective reconstruction from exact same-trial durable job timestamps. Positive and drained samples from the KEDA trial are correlated."
+}

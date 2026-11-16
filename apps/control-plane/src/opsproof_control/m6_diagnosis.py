@@ -10,6 +10,12 @@ from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
+METRICS_MAX_AGE_SECONDS = 60
+SATURATION_MIN_QUEUE_MESSAGES = 10
+SATURATION_MIN_WAIT_SECONDS = 5
+RELEASE_MIN_ERROR_FRACTION = 0.05
+DOWNSTREAM_MIN_P95_SECONDS = 0.5
+
 Hypothesis = Literal[
     "worker_saturation",
     "faulty_release",
@@ -59,7 +65,7 @@ def deterministic_m6(obs: Observation, *, now: datetime | None = None) -> Findin
     """
     observed_now = now if now is not None else datetime.now(UTC)
     age = (observed_now - obs.observed_at).total_seconds()
-    if not 0 <= age <= 60 or not obs.metrics_fresh:
+    if not 0 <= age <= METRICS_MAX_AGE_SECONDS or not obs.metrics_fresh:
         return Finding(
             hypothesis="unknown",
             abstained=True,
@@ -77,9 +83,9 @@ def deterministic_m6(obs: Observation, *, now: datetime | None = None) -> Findin
     candidates: list[tuple[Hypothesis, list[str]]] = []
     if (
         obs.queue_lag is not None
-        and obs.queue_lag >= 10
+        and obs.queue_lag >= SATURATION_MIN_QUEUE_MESSAGES
         and obs.queue_age_seconds is not None
-        and obs.queue_age_seconds >= 5
+        and obs.queue_age_seconds >= SATURATION_MIN_WAIT_SECONDS
         and obs.active_workers is not None
         and obs.active_workers > 0
     ):
@@ -88,7 +94,7 @@ def deterministic_m6(obs: Observation, *, now: datetime | None = None) -> Findin
         )
     if (
         obs.candidate_error_rate is not None
-        and obs.candidate_error_rate >= 0.05
+        and obs.candidate_error_rate >= RELEASE_MIN_ERROR_FRACTION
         and obs.rollout_analysis_failed is True
     ):
         candidates.append(("faulty_release", ["candidate_error_rate", "rollout_analysis_failed"]))
@@ -111,7 +117,7 @@ def deterministic_m6(obs: Observation, *, now: datetime | None = None) -> Findin
         )
     if (
         obs.downstream_p95_seconds is not None
-        and obs.downstream_p95_seconds >= 0.5
+        and obs.downstream_p95_seconds >= DOWNSTREAM_MIN_P95_SECONDS
         and obs.downstream_timeouts is not None
         and obs.downstream_timeouts > 0
         and obs.traces_fresh

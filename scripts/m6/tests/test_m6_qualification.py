@@ -159,3 +159,160 @@ def test_current_gemini_comparator_uses_bounded_structured_request(monkeypatch):
     assert requests[0][1]["generationConfig"]["responseJsonSchema"] == qualify.SCHEMA
     assert "thinkingConfig" not in requests[0][1]["generationConfig"]
     assert receipt["usage"]["promptTokenCount"] == 20
+
+
+def test_evidence_contract_preserves_inputs_units_and_replay_clock():
+    original = {
+        "evaluation_at": "2026-11-14T10:00:00+00:00",
+        "observation": {
+            "observed_at": "2026-11-14T09:59:55+00:00",
+            "metrics_fresh": True,
+            "queue_lag": 52,
+        },
+    }
+    before = json.dumps(original, sort_keys=True)
+    facts = qualify.provider_facts(original)
+    assert json.dumps(original, sort_keys=True) == before
+    contract = facts["evidence_contract"]
+    assert "undelivered Redis Stream job messages" in contract["units"]["queue_lag"]
+    assert contract["freshness"]["observation_age_seconds"] == 5
+    assert contract["freshness"]["metrics_fresh_at_reference"] is True
+    assert contract["signature_thresholds"]["worker_saturation"]["queue_lag_min_messages"] == 10
+    assert contract["signature_thresholds"]["worker_saturation"]["queue_age_min_seconds"] == 5
+    assert "Production SLO thresholds are unavailable" in contract["threshold_scope"]
+
+
+@pytest.mark.parametrize(
+    "timestamp", [None, "invalid", "2026-11-14T10:00:01+00:00", "2026-11-14T09:58:59+00:00"]
+)
+def test_missing_future_and_stale_metrics_are_explicitly_unusable(timestamp):
+    facts = qualify.provider_facts(
+        {
+            "evaluation_at": "2026-11-14T10:00:00+00:00",
+            "observation": {"observed_at": timestamp, "metrics_fresh": True},
+        }
+    )
+    assert facts["evidence_contract"]["freshness"]["metrics_fresh_at_reference"] is False
+
+
+@pytest.mark.parametrize("path", ["observation.queue_lag", "samples.0.value"])
+def test_exact_evidence_paths_resolve_without_evaluating_code(path):
+    finding = qualify.Finding(
+        hypothesis="unknown", abstained=True, reason="review", supporting_signals=[path]
+    )
+    qualify.validate_evidence_paths(
+        finding, {"observation": {"queue_lag": 0}, "samples": [{"value": False}]}
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "recorded_evidence.downstream_timeouts",
+        "observation.missing",
+        "samples.1.value",
+        "samples.-1.value",
+        "",
+        "__class__",
+    ],
+)
+def test_missing_citations_fail_closed(path):
+    finding = qualify.Finding(
+        hypothesis="unknown", abstained=True, reason="review", supporting_signals=[path]
+    )
+    with pytest.raises(ValueError, match="evidence"):
+        qualify.validate_evidence_paths(
+            finding,
+            {
+                "observation": {"downstream_timeouts": 1, "queue_age_seconds": None},
+                "recorded_evidence": {},
+                "samples": [{"value": 0}],
+            },
+        )
+
+
+def test_provider_response_rejects_invented_path_through_normal_entry(monkeypatch):
+    import httpx2 as httpx
+
+    calls = []
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, endpoint, **kwargs):
+            calls.append(kwargs["json"])
+            return httpx.Response(
+                200,
+                request=httpx.Request("POST", endpoint),
+                json={
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {
+                                "content": json.dumps(
+                                    {
+                                        "hypothesis": "unknown",
+                                        "abstained": True,
+                                        "reason": "review",
+                                        "supporting_signals": ["invented.path"],
+                                        "action": "none",
+                                    }
+                                )
+                            },
+                        }
+                    ],
+                },
+            )
+
+    monkeypatch.setattr(httpx, "Client", Client)
+    with pytest.raises(ValueError, match="missing evidence path"):
+        qualify.provider_request("groq", {"metrics_fresh": False}, "test-key")
+    assert len(calls) == 1
+    submitted = json.loads(calls[0]["messages"][1]["content"])
+    assert submitted["evidence_contract"]["units"]["queue_lag"].startswith("undelivered")
+
+
+def test_null_collector_status_can_support_abstention():
+    finding = qualify.Finding(
+        hypothesis="unknown",
+        abstained=True,
+        reason="Collector status unavailable",
+        supporting_signals=["recorded_evidence.metrics_collector_http_status"],
+    )
+    qualify.validate_evidence_paths(
+        finding, {"recorded_evidence": {"metrics_collector_http_status": None}}
+    )
+
+
+def test_frozen_held_out_cases_and_independent_labels_offline():
+    import hashlib
+    from datetime import datetime
+
+    from opsproof_control.m6_diagnosis import Observation, deterministic_m6
+
+    directory = DATASET.parent / "capacity_held_out_v1"
+    hashes = json.loads((directory / "sha256.json").read_text())
+    for name, expected in hashes.items():
+        assert hashlib.sha256((directory / name).read_bytes()).hexdigest() == expected
+    visible = json.loads((directory / "model-visible.json").read_text())
+    private = json.loads((directory / "ground-truth-private.json").read_text())
+    assert private["independent_reviewer"] == "/root/ground_truth_review"
+    assert len(visible["cases"]) == len(private["cases"]) == 4
+    for case, label in zip(visible["cases"], private["cases"], strict=True):
+        assert case["id"] == label["id"]
+        assert set(case) == {"id", "facts"}
+        assert "expected_hypothesis" not in json.dumps(case)
+        observation = Observation.model_validate_json(json.dumps(case["facts"]["observation"]))
+        finding = deterministic_m6(
+            observation, now=datetime.fromisoformat(case["facts"]["evaluation_at"])
+        )
+        assert finding.hypothesis == label["expected_hypothesis"]
+        assert finding.abstained == label["expected_abstained"]
+        assert finding.action == "none"
