@@ -186,17 +186,17 @@ failure is retained, with the reviewed successful rerun in
 
 Final source gate: `.runtime/verification/source/checks-3684498dbd0a49aca6c3d43e94027c29/result.json`.
 SQL/browser receipt: `.runtime/m6/acceptance/postgres/opsproof-m6-pg-test-3cf252c102/result.json`.
-Final image scan: `.runtime/m6/acceptance/images/scan-9a76d5d50e5045429db0f986ad720234/result.json`.
+Final image scan: `.runtime/m6/acceptance/images/scan-73c67f94937c4ceda89aaa98e5c65420/result.json`.
 
 | Component | Final image | Local image ID |
 |---|---|---|
 | demo | `opsproof-demo:src-cf28d11cf0705eb1` | `sha256:a0d2a1fd590b9585acfebf9c9ba9b03fc7d7b66d4c573e5ad007f15ddd9fd553` |
 | control | `opsproof-control:src-ecd7cf563ceb0a6b` | `sha256:5dfae56d279b70a89662675312f54a23b2aa92af911646629a8410e7f8f2595a` |
-| web | `opsproof-web:src-5011fb8da2440f14` | `sha256:207200c335644a3743f1dc56f93892c9dd3e7129882dbd484879d9af9c5592c4` |
+| web | `opsproof-web:src-839fe954902e5dd6` | `sha256:9e0a56bfb5ef170eade6593132a6d63a4e99bbb5eb1b3b6cd8f174170780c7ff` |
 
-Seventeen disposable image-scan tar exports were removed only after confirming
+Twenty disposable image-scan tar exports were removed only after confirming
 their completed scan reports and matching image IDs still existed in Docker.
-This recovered 809.5 MiB in
+This recovered 955.3 MiB in
 addition to the seven ZIP packages. Four exports remain because the original
 image IDs are unavailable locally, so they preserve distinct evidence. Their
 retention/removal manifest is `.runtime/evidence/removed-image-exports.json`.
@@ -209,3 +209,14 @@ Repository standardization is complete within the verified local scope. The know
 base-image vulnerability findings remain explicitly open. GitHub-hosted workflows
 were validated locally but not run remotely. No new Kubernetes integration/fault
 run or final AWS acceptance is claimed. M7 requires the owner's next approval.
+
+### Final checkout identity
+
+After the local fast-forward, Git normalized only line endings in `types.ts` and
+`investigations.css`. Their previous hashes matched the exact CRLF representation
+of the current files. The web image was rebuilt from the final clean checkout,
+then all image smoke checks and the final vulnerability scan were repeated. All
+three component context hashes now match the final checkout exactly. The final
+web build command and identity are in
+`.runtime/verification/repository/final-web-image.json`. Both k3d containers stayed
+exited; Docker Desktop was restored to its original stopped state after validation.
