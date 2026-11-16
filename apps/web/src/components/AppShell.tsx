@@ -49,7 +49,7 @@ const links = [
     end: false,
   },
   {
-    label: "M6 trials",
+    label: "Trials",
     path: "/trials",
     icon: FlaskConical,
     end: false,
@@ -110,7 +110,7 @@ export function AppShell({
       : location.pathname.startsWith("/experiments")
         ? "Experiments"
         : location.pathname.startsWith("/trials")
-          ? "M6 trials"
+          ? "Trials"
           : location.pathname.startsWith("/reports")
           ? "Evidence"
           : links.find(link => link.path !== "/" && location.pathname.startsWith(link.path))?.label ?? "Workspace";

@@ -9,9 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main() -> None:
     path = ROOT / ".env"
     if not path.exists():
-        raise SystemExit(
-            "Root .env missing. Restore existing local configuration first."
-        )
+        raise SystemExit("Root .env missing. Restore existing local configuration first.")
     content = path.read_text(encoding="utf-8")
     names = {
         line.partition("=")[0].strip()
@@ -24,9 +22,7 @@ def main() -> None:
         "OPSPROOF_CONTROL_RECOVERY_ENABLED": "false",
         "OPSPROOF_CONTROL_AI_ENABLED": "false",
     }
-    additions = [
-        f"{name}={value}" for name, value in values.items() if name not in names
-    ]
+    additions = [f"{name}={value}" for name, value in values.items() if name not in names]
     if additions:
         with path.open("a", encoding="utf-8") as output:
             output.write("\n" if content and not content.endswith("\n") else "")

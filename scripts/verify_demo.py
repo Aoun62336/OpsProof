@@ -4,10 +4,10 @@ import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from time import sleep, monotonic
-from uuid import uuid4
+from time import monotonic, sleep
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
+from uuid import uuid4
 
 BASE_URL = "http://127.0.0.1:8088"
 RUN_FILE = Path(".runtime/outage_run.json")
@@ -59,23 +59,17 @@ def wait_completed(ids: list[str]) -> None:
     remaining = set(ids)
     while remaining:
         if monotonic() > deadline:
-            raise TimeoutError(
-                f"{len(remaining)} jobs did not complete before deadline"
-            )
+            raise TimeoutError(f"{len(remaining)} jobs did not complete before deadline")
         for job_id in list(remaining):
             code, job = request(
                 "GET",
                 f"/api/v1/jobs/{job_id}",
             )
             if code != 200:
-                raise RuntimeError(
-                    f"Cannot inspect job {job_id}: HTTP {code}"
-                )
+                raise RuntimeError(f"Cannot inspect job {job_id}: HTTP {code}")
             status = job["status"]
             if status == "failed":
-                raise RuntimeError(
-                    f"Job {job_id} failed; recovery is not successful"
-                )
+                raise RuntimeError(f"Job {job_id} failed; recovery is not successful")
             if status == "completed":
                 remaining.discard(job_id)
         if remaining:
@@ -113,10 +107,7 @@ def smoke() -> None:
 
     wait_completed([job["id"]])
 
-    print(
-        "PASS: readiness, idempotency, "
-        "conflict rejection, completed job"
-    )
+    print("PASS: readiness, idempotency, conflict rejection, completed job")
 
 
 def outage_submit() -> None:
@@ -128,9 +119,7 @@ def outage_submit() -> None:
         )[1]["status"]
         for job_id in ids
     ]
-    assert all(
-        state == "queued" for state in states
-    ), states
+    assert all(state == "queued" for state in states), states
 
     RUN_FILE.parent.mkdir(exist_ok=True)
     report = {
@@ -161,10 +150,7 @@ def outage_verify() -> None:
         json.dumps(report, indent=2),
         encoding="utf-8",
     )
-    print(
-        f"PASS: all {len(ids)} queued jobs "
-        "completed after worker recovery"
-    )
+    print(f"PASS: all {len(ids)} queued jobs completed after worker recovery")
 
 
 COMMANDS = {
@@ -178,4 +164,3 @@ if __name__ == "__main__":
         print(f"Usage: verify_demo.py [{' | '.join(COMMANDS)}]")
         sys.exit(1)
     COMMANDS[sys.argv[1]]()
-

@@ -31,7 +31,7 @@ def eventually(check, description):
             if check():
                 print(f"PASS: {description}", flush=True)
                 return
-        except (HTTPError, URLError, TimeoutError):
+        except HTTPError, URLError, TimeoutError:
             pass
         time.sleep(2)
     raise RuntimeError(f"Timed out: {description}")
@@ -151,9 +151,7 @@ def main():
     def has_log(base, service, needle, request_headers=None):
         data = get(log_url(base, service, needle), request_headers)
         return data.get("status") == "success" and any(
-            needle in value[1]
-            for stream in data["data"]["result"]
-            for value in stream["values"]
+            needle in value[1] for stream in data["data"]["result"] for value in stream["values"]
         )
 
     # Unlike the synthetic collector probe, this job must be processed by the
@@ -171,8 +169,7 @@ def main():
         job = json.load(response)
     job_id = str(job["id"])
     eventually(
-        lambda: get(f"http://127.0.0.1:8088/api/v1/jobs/{job_id}").get("status")
-        == "completed",
+        lambda: get(f"http://127.0.0.1:8088/api/v1/jobs/{job_id}").get("status") == "completed",
         "one real bounded demo job completed",
     )
 

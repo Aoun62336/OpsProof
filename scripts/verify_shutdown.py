@@ -87,9 +87,7 @@ def verify():
     stats = demo("/api/v1/stats")
     assert stats["queued"] == stats["processing"] == 0, "Finish existing jobs first"
     summary = api("/api/v1/summary")
-    assert all(
-        summary["counts"][state] == 0 for state in ("queued", "running", "verifying")
-    )
+    assert all(summary["counts"][state] == 0 for state in ("queued", "running", "verifying"))
     assert not any(
         row["status"] in ("pending_approval", "approved", "running", "verifying")
         for row in api("/api/v1/recoveries")
@@ -120,9 +118,7 @@ def verify():
         report["experiment_id"] = run_id
         wait_for(lambda: api(f"/api/v1/experiments/{run_id}")["status"] == "verifying")
         events = api(f"/api/v1/experiments/{run_id}/events")
-        job_ids = next(
-            e["details"]["job_ids"] for e in events if e["type"] == "jobs_processed"
-        )
+        job_ids = next(e["details"]["job_ids"] for e in events if e["type"] == "jobs_processed")
         report["job_ids"] = job_ids
         processing = wait_for(
             lambda: next(
@@ -189,10 +185,7 @@ def verify():
     finally:
         # Restore workers even if an assertion fails; leave all durable work recoverable.
         command(DEMO + ["start", "dispatcher", "worker"])
-        command(
-            CONTROL
-            + ["start", "control-dispatcher", "action-worker", "evidence-worker"]
-        )
+        command(CONTROL + ["start", "control-dispatcher", "action-worker", "evidence-worker"])
 
     result = wait_for(
         lambda: (
@@ -204,9 +197,7 @@ def verify():
     assert result["result"]["verified_completed"] == 8
     assert set(result["result"]["job_ids"]) == set(job_ids)
     jobs = [demo(f"/api/v1/jobs/{id}") for id in job_ids]
-    assert all(job["status"] == "completed" and job["attempts"] == 1 for job in jobs), (
-        jobs
-    )
+    assert all(job["status"] == "completed" and job["attempts"] == 1 for job in jobs), jobs
     report["completed_jobs"] = jobs
     report["experiment"] = result
     # Recheck both consumer processes with no work, including the review-thread join.
@@ -220,15 +211,10 @@ def verify():
         )
     finally:
         command(DEMO + ["start", "dispatcher", "worker"])
-        command(
-            CONTROL
-            + ["start", "control-dispatcher", "action-worker", "evidence-worker"]
-        )
+        command(CONTROL + ["start", "control-dispatcher", "action-worker", "evidence-worker"])
     OUTPUT.parent.mkdir(exist_ok=True)
     OUTPUT.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    print(
-        f"PASS: exact jobs completed once; evidence resumed after restart. Evidence: {OUTPUT}"
-    )
+    print(f"PASS: exact jobs completed once; evidence resumed after restart. Evidence: {OUTPUT}")
 
 
 if __name__ == "__main__":

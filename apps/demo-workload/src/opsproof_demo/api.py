@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 from .config import settings
 from .contracts import CreateJob, JobCounts, JobDetails
 from .db import pool
-from .m6_probe import probe as probe_database
+from .dependency_probe import probe as probe_database
 from .metrics import install_metrics
 from .worker_control import hold_state, resume_worker
 

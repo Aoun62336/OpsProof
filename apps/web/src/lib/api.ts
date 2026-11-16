@@ -312,7 +312,7 @@ export function getRecoveryEvents(
 }
 
 // M6 ledger is an opt-in, read-only console surface. Mutations are not exposed here.
-export interface M6Trial {
+export interface Trial {
   id: string;
   scenario: string;
   target: string;
@@ -329,16 +329,16 @@ export interface M6Trial {
   dispatch_intent_at?: string | null;
   target_uid?: string | null;
 }
-export interface M6TrialEvent {
+export interface TrialEvent {
   id: number;
   kind: string;
   details: Record<string, unknown>;
   created_at: string;
 }
-export const getM6Trials = () => request<M6Trial[]>("/m6/trials");
-export const getM6TrialEvents = (id: string) =>
-  request<M6TrialEvent[]>(`/m6/trials/${encodeURIComponent(id)}/events`);
-export interface M6TrialArtifact {
+export const getTrials = () => request<Trial[]>("/m6/trials");
+export const getTrialEvents = (id: string) =>
+  request<TrialEvent[]>(`/m6/trials/${encodeURIComponent(id)}/events`);
+export interface TrialArtifact {
   id: number;
   kind: string;
   relative_path: string;
@@ -346,10 +346,10 @@ export interface M6TrialArtifact {
   created_at: string;
   observations?: Record<string, unknown>;
 }
-export const getM6TrialArtifacts = (id: string) =>
-  request<M6TrialArtifact[]>(`/m6/trials/${encodeURIComponent(id)}/artifacts`);
+export const getTrialArtifacts = (id: string) =>
+  request<TrialArtifact[]>(`/m6/trials/${encodeURIComponent(id)}/artifacts`);
 
-export interface M6Verification {
+export interface TrialVerification {
   observer_id: string;
   dispatch_id: string;
   target_uid: string;
@@ -360,5 +360,5 @@ export interface M6Verification {
   observer_sha256: string;
   checks: Record<string, boolean>;
 }
-export const getM6Verifications = (id: string) =>
-  request<M6Verification[]>(`/m6/trials/${encodeURIComponent(id)}/verifications`);
+export const getTrialVerifications = (id: string) =>
+  request<TrialVerification[]>(`/m6/trials/${encodeURIComponent(id)}/verifications`);

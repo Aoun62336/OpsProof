@@ -1,4 +1,4 @@
-# Enforce LF line endings for all text files in this repository.
+# Enforce LF for maintained text; frozen evidence fixtures retain exact bytes.
 # This overrides any developer's local core.autocrlf setting and ensures
 # consistent line endings across Linux containers, macOS, and Windows.
 
@@ -14,3 +14,7 @@
 *.gz   binary
 *.zip  binary
 *.tar  binary
+
+# These frozen fixtures have recorded byte-level SHA256 hashes.
+# Preserve their original bytes across Windows and Linux checkouts.
+benchmarks/ai/capacity_held_out_v1/*.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

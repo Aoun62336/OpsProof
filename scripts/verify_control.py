@@ -7,7 +7,6 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
-
 BASE_URL = "http://127.0.0.1:8090"
 OUTPUT = Path(".runtime/control-first-run.json")
 
@@ -15,15 +14,11 @@ OUTPUT = Path(".runtime/control-first-run.json")
 def api_key() -> str:
     env_file = Path(".env")
 
-    for line in env_file.read_text(
-        encoding="utf-8"
-    ).splitlines():
+    for line in env_file.read_text(encoding="utf-8").splitlines():
         if line.startswith("OPSPROOF_CONTROL_API_KEY="):
             return line.split("=", 1)[1].strip()
 
-    raise RuntimeError(
-        "OPSPROOF_CONTROL_API_KEY not found in .env"
-    )
+    raise RuntimeError("OPSPROOF_CONTROL_API_KEY not found in .env")
 
 
 def request(
@@ -43,11 +38,7 @@ def request(
     if key is not None:
         headers["Idempotency-Key"] = key
 
-    body = (
-        json.dumps(payload).encode("utf-8")
-        if payload is not None
-        else None
-    )
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
 
     req = Request(
         f"{BASE_URL}{path}",
@@ -62,9 +53,7 @@ def request(
             return response.status, data
 
     except HTTPError as exc:
-        data = json.loads(
-            exc.read().decode("utf-8")
-        )
+        data = json.loads(exc.read().decode("utf-8"))
         return exc.code, data
 
 
@@ -147,16 +136,12 @@ def verify() -> None:
             break
 
         if result["status"] == "failed":
-            raise RuntimeError(
-                f"Experiment failed: {result['error']}"
-            )
+            raise RuntimeError(f"Experiment failed: {result['error']}")
 
         time.sleep(1)
 
     else:
-        raise TimeoutError(
-            "Control-plane experiment did not finish"
-        )
+        raise TimeoutError("Control-plane experiment did not finish")
 
     assert result["result"]["submitted"] == 5
     assert result["result"]["verified_completed"] == 5
@@ -168,10 +153,7 @@ def verify() -> None:
 
     assert events_code == 200
 
-    event_types = {
-        item["type"]
-        for item in events
-    }
+    event_types = {item["type"] for item in events}
 
     required_events = {
         "created",

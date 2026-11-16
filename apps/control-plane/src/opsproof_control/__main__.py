@@ -8,9 +8,9 @@ import uvicorn
 from .action import run as run_action
 from .db import pool, redis_client
 from .evidence import run as run_evidence
-from .m6_trial_worker import run as run_trial
 from .shutdown import lifecycle
 from .streams import dispatcher
+from .trial_worker import run as run_trial
 
 
 def main() -> None:

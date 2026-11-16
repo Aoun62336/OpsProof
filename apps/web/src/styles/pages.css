@@ -587,17 +587,17 @@
     font-size: 31px;
   }
 }
-.m6-trials code, .m6-trials li {
+.trial-ledger code, .trial-ledger li {
   overflow-wrap: anywhere;
 }
 
-.m6-trials .panel {
+.trial-ledger .panel {
   padding: 24px;
   margin-bottom: 20px;
   min-width: 0;
 }
 
-.m6-trials pre {
+.trial-ledger pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

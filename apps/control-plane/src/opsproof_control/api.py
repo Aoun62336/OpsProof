@@ -25,12 +25,12 @@ from .contracts import (
 from .db import pool, redis_client
 from .incidents import router as incident_router
 from .kubernetes_operations import router as kubernetes_router
-from .m6_access import require_application_role
-from .m6_reuse import router as m6_reuse_router
-from .m6_trial_api import router as m6_trial_router
 from .metrics import install_metrics
 from .operations import router as operations_router
 from .store import enqueue, event
+from .trial_access import require_application_role
+from .trial_api import router as trial_router
+from .workload_reuse import router as workload_reuse_router
 
 app = FastAPI(
     title="OpsProof Control API",
@@ -43,8 +43,8 @@ app.include_router(auth_router)
 app.include_router(incident_router)
 app.include_router(operations_router)
 app.include_router(kubernetes_router)
-app.include_router(m6_trial_router)
-app.include_router(m6_reuse_router)
+app.include_router(trial_router)
+app.include_router(workload_reuse_router)
 
 
 class SummaryView(BaseModel):

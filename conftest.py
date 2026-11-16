@@ -1,8 +1,5 @@
-"""
-Root conftest.py – adds the repository root to sys.path so that the
-``scripts`` package (and sub-packages scripts.m5, scripts.m6, scripts.m7)
-are importable with their fully-qualified names from any test directory.
-"""
+"""Make repository tooling importable during test collection."""
+
 import sys
 from pathlib import Path
 
