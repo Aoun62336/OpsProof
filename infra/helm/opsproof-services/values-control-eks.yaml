@@ -1,0 +1,21 @@
+# Apply only with reviewed post-M6 control chart; not a standalone values file.
+component: control
+controlRdsTls:
+  enabled: true
+  caConfigMapName: opsproof-rds-ca
+recoveryEnabled: false
+kubernetesRecoveryEnabled: false
+aiEnabled: false
+telemetry:
+  enabled: true
+  endpoint: http://otel-collector.opsproof-observability.svc.cluster.local:4318
+
+# Application database access uses only the opsproof_app role.
+# Migration Job uses opsproof_migrate; master credentials only enter a one-time Job.
+redisTls:
+  enabled: true
+
+environment: temporary-eks
+kubernetesObservationEnabled: true
+
+cookieOrigins: http://localhost:8081,http://127.0.0.1:8081

@@ -1,0 +1,17 @@
+# SAFE DEFAULT. Never run with paid resources enabled until ALL release gates pass.
+region = "ap-south-1"
+owner_tag = "opsproof"
+enable_paid_resources = false
+# The following values belong in a PRIVATE ignored .auto.tfvars (do NOT commit):
+# expected_account_id = "ACTUAL_ACCOUNT_ID"
+# approval_reference = "reviewed-quote-and-approved-change-ticket"
+# approval_acknowledgement = "I_APPROVE_TEMPORARY_OPSPROOF_AWS_CHARGES"
+# maximum_approved_hours = 12
+# gross_budget_usd = 40
+# operator_public_cidr = "ACTUAL_IP/32"
+# operator_role_arn = "ACTUAL_OPERATOR_ROLE_ARN"
+# kubernetes_version = "ACTUAL_SUPPORTED_STANDARD_VERSION"
+# availability_zones = ["ACTUAL_REGION_AZ_1", "ACTUAL_REGION_AZ_2"]
+# alb_controller_policy_file = "ABSOLUTE_PATH_TO_REVIEWED_OFFICIAL_POLICY_JSON"
+
+# bootstrap_cni_node_policy = true # only for initial creation; set false after verifying separate aws-node Pod Identity

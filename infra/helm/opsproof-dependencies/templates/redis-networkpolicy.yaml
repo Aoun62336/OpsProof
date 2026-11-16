@@ -1,0 +1,22 @@
+{{- if .Values.redis.security.enabled }}
+# EKS VPC CNI network policy must be enabled and independently denied/allowed tested.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-redis-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: opsproof-redis
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/part-of: opsproof}
+        {{- if eq .Release.Namespace "opsproof-demo" }}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: keda}
+        {{- end }}
+      ports: [{protocol: TCP, port: 6379}]
+{{- end }}

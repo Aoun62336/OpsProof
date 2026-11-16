@@ -61,6 +61,7 @@ spec:
   type: ClusterIP
   selector: {app.kubernetes.io/name: opsproof-web}
   ports: [{name: http, port: 8080, targetPort: http}]
+{{- if .Values.gatewayRoute.enabled }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -75,3 +76,5 @@ spec:
         - path: {type: PathPrefix, value: /}
       backendRefs:
         - {name: opsproof-web, port: 8080, weight: 1}
+
+{{- end }}

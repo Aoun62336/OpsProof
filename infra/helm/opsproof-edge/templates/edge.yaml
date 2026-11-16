@@ -1,0 +1,102 @@
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.image.digest) -}}
+{{- fail "immutable image.digest required" -}}
+{{- end -}}
+{{- if not (regexMatch "^[12]$" (toString .Values.replicas)) -}}
+{{- fail "only 1 or 2 edge replicas permitted" -}}
+{{- end -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opsproof-edge
+  labels: {app.kubernetes.io/part-of: opsproof}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opsproof-edge
+  labels: {app.kubernetes.io/name: opsproof-edge}
+spec:
+  replicas: {{ .Values.replicas }}
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels: {app.kubernetes.io/name: opsproof-edge}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: opsproof-edge}
+    spec:
+      serviceAccountName: opsproof-edge
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile: {type: RuntimeDefault}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {app.kubernetes.io/name: opsproof-edge}
+      containers:
+        - name: edge
+          image: {{ printf "%s@%s" (required "image.repository required" .Values.image.repository) .Values.image.digest | quote }}
+          imagePullPolicy: IfNotPresent
+          ports: [{name: http, containerPort: 8080}]
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: cache, mountPath: /var/cache/nginx}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - {name: tmp, emptyDir: {sizeLimit: 16Mi}}
+        - {name: cache, emptyDir: {sizeLimit: 16Mi}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opsproof-edge
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: opsproof-edge}
+  ports: [{name: http, port: 80, targetPort: http}]
+{{ if .Values.albEnabled }}
+{{ if not (regexMatch "^sg-[a-f0-9]{8,17}$" .Values.albSecurityGroupId) }}
+{{ fail "reviewed albSecurityGroupId required" }}
+{{ end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: opsproof-edge
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    alb.ingress.kubernetes.io/security-groups: {{ .Values.albSecurityGroupId | quote }}
+    alb.ingress.kubernetes.io/manage-backend-security-group-rules: "true"
+    alb.ingress.kubernetes.io/load-balancer-attributes: deletion_protection.enabled=false
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: opsproof-edge
+                port: {name: http}
+{{ end }}

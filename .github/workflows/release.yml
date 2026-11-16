@@ -77,6 +77,9 @@ jobs:
           - name: web
             context: apps/web
             dockerfile: apps/web/Dockerfile
+          - name: edge
+            context: apps/edge-proof
+            dockerfile: apps/edge-proof/Dockerfile
     permissions:
       contents: read
       packages: write
@@ -104,7 +107,7 @@ jobs:
           echo "IMAGE=$image" >> "$GITHUB_ENV"
           echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}/opsproof-${NAME}" >> "$GITHUB_ENV"
       - name: Trivy image policy (must pass before publication)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # immutable signed release; SHA pin review required
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
           image-ref: ${{ env.IMAGE }}
@@ -132,7 +135,7 @@ jobs:
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo 'No verified push digest'; exit 1; }
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
       - name: Build provenance attestation
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # verify full action SHA and external availability before final release
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.publish.outputs.digest }}
@@ -146,9 +149,60 @@ jobs:
           push-to-registry: true
       - name: Release evidence digest record
         shell: bash
+        env:
+          ROLE: ${{ matrix.name }}
+          PUBLISHED_DIGEST: ${{ steps.publish.outputs.digest }}
         run: |
-          set -euo pipefail
-          printf '{"source_sha":"%s","image":"%s","digest":"%s","attestation_requested":true}\n' "$GITHUB_SHA" "$IMAGE_NAME" '${{ steps.publish.outputs.digest }}' > release-evidence.json
-          python3 -m json.tool release-evidence.json
-      - name: Note locally recorded digests
-        run: cat release-evidence.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          record = {
+              "role": os.environ["ROLE"],
+              "source_sha": os.environ["GITHUB_SHA"],
+              "repository": os.environ["GITHUB_REPOSITORY"].lower(),
+              "workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "digest": os.environ["PUBLISHED_DIGEST"],
+          }
+          Path("release-evidence.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+          PY
+      - name: Retain digest receipt and SBOM
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: release-${{ matrix.name }}
+          path: |
+            release-evidence.json
+            sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 30
+  assemble-release:
+    needs: build-scan-publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: release-*
+          path: .runtime/cloud/release-receipts
+          merge-multiple: false
+      - name: Assemble exact four-image release identity
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python3 -m scripts.cloud.assemble_release_manifest \
+            --receipts .runtime/cloud/release-receipts \
+            --source-sha "$SOURCE_SHA" --repository "$REPOSITORY" --run-id "$RUN_ID" \
+            --output .runtime/cloud/release-manifest.json
+          python3 -m scripts.cloud.verify_release_manifest --input .runtime/cloud/release-manifest.json
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: approved-release-manifest
+          path: .runtime/cloud/release-manifest.json
+          if-no-files-found: error
+          retention-days: 30

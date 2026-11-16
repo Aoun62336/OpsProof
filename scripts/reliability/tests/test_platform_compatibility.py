@@ -3,6 +3,7 @@
 These are source-level regression guards, not Kubernetes acceptance tests.
 """
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -44,14 +45,14 @@ def test_m5_helm_workflows_default_safe_and_recovery_ownership_unchanged():
 
 
 def test_cloud_requires_explicit_cost_and_operator_identity():
-    infra = read("infra/terraform/main.tf")
-    vars = read("infra/terraform/variables.tf")
-    eks = read("infra/terraform/modules/eks/main.tf")
-    assert "default     = false" in vars
+    infra = read("infra/terraform/platform/gate.tf")
+    vars = read("infra/terraform/platform/variables.tf")
+    eks = read("infra/terraform/platform/eks.tf")
+    assert re.search(r"default\s*=\s*false", vars)
     assert "I_APPROVE_TEMPORARY_OPSPROOF_AWS_CHARGES" in infra
-    assert "var.expected_account_id == data.aws_caller_identity.active[0].account_id" in infra
-    assert "bootstrap_cluster_creator_admin_permissions = false" in eks
-    assert "retention_in_days = 1" in eks
+    assert "data.aws_caller_identity.current[0].account_id == var.expected_account_id" in infra
+    assert re.search(r"bootstrap_cluster_creator_admin_permissions\s*=\s*false", eks)
+    assert re.search(r"retention_in_days\s*=\s*1", eks)
 
 
 def test_release_is_manual_and_never_autoprovisions_aws():

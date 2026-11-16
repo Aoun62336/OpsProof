@@ -84,6 +84,10 @@ def main():
     identity = source_identity()
     write_json(output / "source-before.json", identity)
     env = {**os.environ, "PYTHONPATH": str(ROOT)}
+    env["PYTEST_ADDOPTS"] = (
+        f'--basetemp="{(output / "pytest-temp").as_posix()}" '
+        f'-o cache_dir="{(output / "pytest-cache").as_posix()}"'
+    )
     control = ["uv", "run", "--project", "apps/control-plane", "--locked"]
     demo = ["uv", "run", "--project", "apps/demo-workload", "--locked"]
     checks = [
@@ -158,6 +162,20 @@ def main():
                 "python",
                 "-m",
                 "scripts.reliability.validate_charts",
+            ],
+        ),
+        (
+            "cloud-helm",
+            [*control, "--with", "PyYAML==6.0.3", "python", "-m", "scripts.cloud.validate_charts"],
+        ),
+        (
+            "workflow-pins",
+            [
+                *control,
+                "python",
+                "-m",
+                "scripts.cloud.check_workflow_pins",
+                *[str(path) for path in sorted((ROOT / ".github/workflows").glob("*.yml"))],
             ],
         ),
         ("k6-syntax", ["node", "--check", "benchmarks/k6/jobs.js"]),

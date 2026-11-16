@@ -1,0 +1,12 @@
+# M7: real demo Postgres and Redis on EBS. No RDS for faultable demo.
+postgres:
+  networkPolicy:
+    enabled: true
+  enabled: true
+  storageClassName: opsproof-ebs-gp3
+  storage: 10Gi
+redis:
+  security:
+    enabled: true
+  storageClassName: opsproof-ebs-gp3
+  storage: 5Gi

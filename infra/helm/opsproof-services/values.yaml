@@ -7,6 +7,8 @@ image:
 telemetry:
   enabled: false
   endpoint: http://otel-collector.opsproof-observability.svc.cluster.local:4318
+environment: local
+kubernetesObservationEnabled: false
 recoveryEnabled: false
 kubernetesRecoveryEnabled: false
 aiEnabled: false
@@ -58,3 +60,10 @@ m6:
   trialWorkerEnabled: false
   reuseEnabled: false
   runtimeSecretName: "" # Required when M6 is enabled; overrides only the nonowner DB URL
+
+# Optional cloud connections preserve all local defaults and ledger guards.
+controlRdsTls:
+  enabled: false
+  caConfigMapName: opsproof-rds-ca
+redisTls:
+  enabled: false

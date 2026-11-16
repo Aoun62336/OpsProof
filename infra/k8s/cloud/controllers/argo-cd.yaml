@@ -1,0 +1,42 @@
+# Pinned argo-cd chart; private UI and namespace-scoped workload reconciliation.
+createClusterRoles: false
+createAggregateRoles: false
+configs:
+  cm:
+    exec.enabled: false
+    resource.respectRBAC: normal
+  params:
+    controller.status.processors: "5"
+    controller.operation.processors: "1"
+    reposerver.parallelism.limit: "1"
+controller:
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 192Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+server:
+  replicas: 1
+  service: {type: ClusterIP}
+  resources:
+    requests: {cpu: 50m, memory: 96Mi}
+    limits: {cpu: 300m, memory: 256Mi}
+repoServer:
+  replicas: 1
+  automountServiceAccountToken: false
+  serviceAccount:
+    automountServiceAccountToken: false
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 384Mi}
+redis:
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {cpu: 200m, memory: 128Mi}
+redisSecretInit:
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {cpu: 200m, memory: 128Mi}
+dex: {enabled: false}
+notifications: {enabled: false}
+applicationSet:
+  replicas: 0

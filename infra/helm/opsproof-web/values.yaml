@@ -7,3 +7,8 @@ releaseMarker: gitops-verified
 resources:
   requests: {cpu: 20m, memory: 32Mi}
   limits: {cpu: 200m, memory: 128Mi}
+
+# Keep the original M5 Gateway API route by default. EKS smoke disables it
+# because the temporary cluster does not install Gateway API controllers.
+gatewayRoute:
+  enabled: true

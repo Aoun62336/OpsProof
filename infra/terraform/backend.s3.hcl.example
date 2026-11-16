@@ -1,6 +1,0 @@
-# Separate pre-existing, versioned, encrypted and access-controlled S3 bucket.
-# Partial backend settings only; no access keys. Verify bucket retention and cleanup plan.
-bucket       = "<pre-existing-secure-bucket>"
-key          = "opsproof/temporary-eks/terraform.tfstate"
-region       = "<approved-region>"
-use_lockfile = true

@@ -1,0 +1,72 @@
+name: Approved Static Evidence Pages
+on:
+  workflow_dispatch:
+    inputs:
+      publish_approved:
+        description: 'I independently reviewed real M6 evidence and approve PUBLIC release'
+        required: true
+        type: boolean
+        default: false
+      curated_sha256:
+        description: 'SHA256 of reviewed docs/public/cases.json at this exact main commit'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: opsproof-cloud-pages-approved
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish_approved == true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Checkout only reviewed main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Exact curated evidence integrity and source gate
+        env:
+          APPROVED_HASH: ${{ inputs.curated_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$APPROVED_HASH" =~ ^[a-f0-9]{64}$ ]] || { echo 'Invalid approval hash'; exit 1; }
+          test -f docs/public/cases.json
+          actual="$(sha256sum docs/public/cases.json | awk '{print $1}')"
+          test "$actual" = "$APPROVED_HASH" || { echo 'Curated evidence differs from approval'; exit 1; }
+          # Do not let the review link to another commit or publish raw M6 artifacts.
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Render sanitized read-only site
+        run: |
+          set -euo pipefail
+          mkdir -p .runtime/cloud/pages
+          python3 -m scripts.cloud.build_public_replay \
+            --curated-input docs/public/cases.json \
+            --output .runtime/cloud/pages/index.html \
+            --review I_REVIEWED_PUBLIC_EVIDENCE
+          python3 -m scripts.cloud.verify_public_replay --html .runtime/cloud/pages/index.html
+          printf 'User-agent: *\nDisallow: /\n' > .runtime/cloud/pages/robots.txt
+          # No custom domain or operator endpoint, no live credentials.
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Upload only audited public directory
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: .runtime/cloud/pages
+      - name: Deploy protected GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+      - name: Record public deployment
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          printf 'Published read-only evidence from %s to %s\n' "$GITHUB_SHA" "$PAGE_URL" >> "$GITHUB_STEP_SUMMARY"

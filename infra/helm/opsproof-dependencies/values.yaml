@@ -1,10 +1,15 @@
 postgres:
+  networkPolicy:
+    enabled: false # opt-in EKS only
+  enabled: true # M5 default retained; opt-out only for M7 control RDS
   image: postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
   storage: 2Gi
   storageClassName: local-path
   requests: {cpu: 100m, memory: 160Mi}
   limits: {cpu: 750m, memory: 512Mi}
 redis:
+  security:
+    enabled: false  # retain original M5 default; M7 enables AUTH + verified TLS
   image: redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
   storage: 1Gi
   storageClassName: local-path

@@ -2,6 +2,18 @@
 {{- if not (has .Values.component (list "demo" "control")) -}}
 {{- fail "component must be demo or control" -}}
 {{- end -}}
+{{- if and .Values.controlRdsTls.enabled (ne .Values.component "control") -}}
+{{- fail "RDS connection is only valid for control" -}}
+{{- end -}}
+{{- if and .Values.controlRdsTls.enabled (or .Values.m6.armEnabled .Values.m6.trialWorkerEnabled) -}}
+{{- fail "Cloud RDS cannot enable local trial execution" -}}
+{{- end -}}
+{{- if and (eq .Values.environment "temporary-eks") (or .Values.recoveryEnabled .Values.kubernetesRecoveryEnabled .Values.m6.armEnabled .Values.m6.trialWorkerEnabled) -}}
+{{- fail "Temporary EKS cannot enable local recovery or trial execution" -}}
+{{- end -}}
+{{- if and (eq .Values.environment "temporary-eks") (or (empty .Values.image.digest) (not .Values.redisTls.enabled) (and (eq .Values.component "control") (not .Values.controlRdsTls.enabled))) -}}
+{{- fail "Temporary EKS requires immutable images, Redis TLS and control RDS TLS" -}}
+{{- end -}}
 {{- $_ := required "image.repository must be set" .Values.image.repository -}}
 {{- if and .Values.m6DependencyProbeEnabled (ne .Values.component "demo") -}}
 {{- fail "M6 dependency probe is only valid for demo" -}}
@@ -58,6 +70,9 @@
 {{- $role := .role -}}
 {{- if eq $root.Values.component "demo" }}
 - secretRef: {name: opsproof-demo-runtime}
+{{- if $root.Values.redisTls.enabled }}
+- secretRef: {name: opsproof-demo-redis-connection}
+{{- end }}
 {{- if eq $role "api" }}
 - secretRef: {name: opsproof-demo-inspection}
 - secretRef: {name: opsproof-demo-recovery}
@@ -67,6 +82,9 @@
 {{- if $root.Values.m6.enabled }}
 - secretRef: {name: {{ $root.Values.m6.runtimeSecretName }}}
 {{- end }}
+{{- if $root.Values.redisTls.enabled }}
+- secretRef: {name: opsproof-control-redis-connection}
+{{- end }}
 {{- if eq $role "api" }}
 - secretRef: {name: opsproof-control-operator}
 - secretRef: {name: opsproof-control-alert}
@@ -75,6 +93,10 @@
 {{- else if eq $role "action" }}
 - secretRef: {name: opsproof-control-inspection}
 - secretRef: {name: opsproof-control-recovery}
+{{- end }}
+{{- if $root.Values.controlRdsTls.enabled }}
+# Last envFrom source wins: fail closed when RDS connection secret is absent.
+- secretRef: {name: opsproof-control-rds-app-connection}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -90,6 +112,10 @@
 - name: OPSPROOF_CONTROL_M6_REUSE_ENABLED
   value: {{ and (has $role (list "api" "evidence")) $root.Values.m6.reuseEnabled | ternary "true" "false" | quote }}
 {{- end }}
+- name: OPSPROOF_CONTROL_ENVIRONMENT
+  value: {{ $root.Values.environment | quote }}
+- name: OPSPROOF_CONTROL_KUBERNETES_OBSERVATION_ENABLED
+  value: {{ and (has $role (list "api" "evidence")) $root.Values.kubernetesObservationEnabled | ternary "true" "false" | quote }}
 - name: OPSPROOF_CONTROL_KUBERNETES_RECOVERY_ENABLED
   value: {{ and (has $role (list "api" "action" "evidence")) $root.Values.kubernetesRecoveryEnabled | ternary "true" "false" | quote }}
 - name: OPSPROOF_CONTROL_RECOVERY_ENABLED
@@ -161,7 +187,13 @@ containers:
       capabilities: {drop: [ALL]}
     volumeMounts:
       - {name: tmp, mountPath: /tmp}
-      {{- if and (eq $root.Values.component "control") $root.Values.kubernetesRecoveryEnabled (has $role (list "action" "evidence")) }}
+      {{- if $root.Values.redisTls.enabled }}
+      - {name: redis-ca, mountPath: /etc/opsproof/redis-ca, readOnly: true}
+      {{- end }}
+      {{- if and (eq $root.Values.component "control") $root.Values.controlRdsTls.enabled }}
+      - {name: rds-ca, mountPath: /etc/opsproof/rds-ca, readOnly: true}
+      {{- end }}
+      {{- if and (eq $root.Values.component "control") (or (and $root.Values.kubernetesRecoveryEnabled (has $role (list "action" "evidence"))) (and $root.Values.kubernetesObservationEnabled (eq $role "evidence"))) }}
       - {name: kubernetes-identity, mountPath: /var/run/secrets/opsproof-kubernetes, readOnly: true}
       {{- end }}
     {{- if eq $role "api" }}
@@ -179,7 +211,7 @@ containers:
       timeoutSeconds: 3
     {{- end }}
 volumes:
-  {{- if and (eq $root.Values.component "control") $root.Values.kubernetesRecoveryEnabled (has $role (list "action" "evidence")) }}
+  {{- if and (eq $root.Values.component "control") (or (and $root.Values.kubernetesRecoveryEnabled (has $role (list "action" "evidence"))) (and $root.Values.kubernetesObservationEnabled (eq $role "evidence"))) }}
   - name: kubernetes-identity
     projected:
       defaultMode: 0444
@@ -188,6 +220,18 @@ volumes:
         - configMap:
             name: kube-root-ca.crt
             items: [{key: ca.crt, path: ca.crt}]
+  {{- end }}
+  {{- if and (eq $root.Values.component "control") $root.Values.controlRdsTls.enabled }}
+  - name: rds-ca
+    configMap:
+      name: {{ $root.Values.controlRdsTls.caConfigMapName | quote }}
+      items: [{key: global-bundle.pem, path: global-bundle.pem}]
+  {{- end }}
+  {{- if $root.Values.redisTls.enabled }}
+  - name: redis-ca
+    secret:
+      secretName: opsproof-redis-tls
+      items: [{key: ca.crt, path: ca.crt}]
   {{- end }}
   - name: tmp
     emptyDir: {sizeLimit: 32Mi}

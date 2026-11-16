@@ -9,6 +9,7 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
 from .auth import authorize
+from .capabilities import environment_description, observations_enabled
 from .config import settings
 from .db import pool
 from .kubernetes_policy import ACTION, CONFIRMATION, PolicyDenied, validate
@@ -43,16 +44,22 @@ def enabled():
 
 @router.get("/workloads")
 def workloads():
-    if not settings().kubernetes_recovery_enabled:
-        return {"enabled": False, "observations": []}
+    config = settings()
+    state = {
+        **environment_description(config),
+        "recovery_enabled": config.kubernetes_recovery_enabled,
+    }
+    if not observations_enabled(config):
+        return {**state, "enabled": False, "observations": []}
     with pool().connection() as conn:
         rows = conn.execute("SELECT * FROM kubernetes_observations").fetchall()
-    return {"enabled": True, "observations": rows, "generated_at": datetime.now(UTC)}
+    return {**state, "enabled": True, "observations": rows, "generated_at": datetime.now(UTC)}
 
 
 @router.get("/recoveries")
 def list_recoveries():
-    enabled()
+    if not observations_enabled(settings()):
+        raise HTTPException(403, "Kubernetes observation is disabled")
     with pool().connection() as conn:
         return conn.execute(
             "SELECT * FROM kubernetes_recoveries ORDER BY created_at DESC LIMIT 50"
@@ -61,7 +68,8 @@ def list_recoveries():
 
 @router.get("/recoveries/{recovery_id}/events")
 def events(recovery_id: UUID):
-    enabled()
+    if not observations_enabled(settings()):
+        raise HTTPException(403, "Kubernetes observation is disabled")
     with pool().connection() as conn:
         return conn.execute(
             "SELECT * FROM kubernetes_recovery_events WHERE recovery_id=%s ORDER BY id",

@@ -4,7 +4,7 @@ The control plane, demonstration workload and web console remain independently d
 
 - `scripts/platform/` owns local cluster bootstrap, Helm, GitOps, gateway and platform verification.
 - `scripts/reliability/` owns bounded trials, independent verification, evidence, capacity analysis, source/image checks and illustrative cost modeling.
-- `scripts/cloud/` contains the existing offline cost gate, scoped read-only inventory and static replay helpers. It is preparation, not accepted cloud deployment.
+- `scripts/cloud/` owns pre-cloud infrastructure/release preparation, credential bootstrap, native validation, read-only inventory and sanitized replay. AWS acceptance remains separate.
 - Application tests stay with their applications. Tool tests stay beside their owning package and use behavior-based filenames.
 - `docs/operations/` contains maintained procedures. `docs/history/` contains dated acceptance and integration records. Historical commands refer to their recorded revisions.
 
@@ -185,9 +185,9 @@ The older partial platform source validator was consolidated into `python -m scr
 | `scripts/m7/__init__.py` | `scripts/cloud/__init__.py` |
 | `scripts/m7/aws_readonly_inventory.py` | `scripts/cloud/aws_readonly_inventory.py` |
 | `scripts/m7/build_public_replay.py` | `scripts/cloud/build_public_replay.py` |
-| `scripts/m7/cost_gate.py` | `scripts/cloud/cost_gate.py` |
+| `scripts/m7/cost_gate.py` | `scripts/cloud/cost_envelope.py` (subsequently consolidated) |
 | `scripts/m7/tests/__init__.py` | `scripts/cloud/tests/__init__.py` |
-| `scripts/m7/tests/test_cost_gate.py` | `scripts/cloud/tests/test_cost_gate.py` |
+| `scripts/m7/tests/test_cost_gate.py` | `scripts/cloud/tests/test_domainless.py` (cost regressions consolidated) |
 | `scripts/m7/tests/test_inventory.py` | `scripts/cloud/tests/test_inventory.py` |
 | `scripts/m7/tests/test_public_replay.py` | `scripts/cloud/tests/test_public_replay.py` |
 | `scripts/verify_m4_security.py` | `scripts/verify_authentication.py` |

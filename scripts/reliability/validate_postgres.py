@@ -14,6 +14,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlencode
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -115,15 +116,63 @@ def browser_check(env, output, dsn):
                 backend.wait(timeout=5)
 
 
+def prepare_cloud_tls(output):
+    """One-day localhost-only test certificate; private key never enters reports."""
+    directory = output / "tls-private"
+    directory.mkdir(mode=0o700)
+    for stem, common_name in (("server", "localhost"), ("wrong", "wrong-test-ca")):
+        subprocess.run(
+            [
+                "openssl",
+                "req",
+                "-new",
+                "-x509",
+                "-newkey",
+                "rsa:2048",
+                "-nodes",
+                "-sha256",
+                "-days",
+                "1",
+                "-subj",
+                "/CN=" + common_name,
+                "-addext",
+                "subjectAltName=DNS:localhost,IP:127.0.0.1",
+                "-keyout",
+                str(directory / (stem + ".key")),
+                "-out",
+                str(directory / (stem + ".crt")),
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            timeout=30,
+        )
+    (directory / "pg_hba.conf").write_text(
+        "local all all trust\nhostssl all all 0.0.0.0/0 scram-sha-256\n"
+        "hostnossl all all 0.0.0.0/0 reject\n",
+        encoding="utf-8",
+    )
+    return directory
+
+
 def main() -> int:
     name = "opsproof-m6-pg-test-" + uuid4().hex[:10]
-    output = ROOT / ".runtime/m6/acceptance/postgres" / name
+    cloud = "--cloud" in sys.argv
+    base = ".runtime/verification/cloud/postgres" if cloud else ".runtime/m6/acceptance/postgres"
+    output = ROOT / base / name
     output.mkdir(parents=True, exist_ok=True)
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 15432))
     env = dict(os.environ)
     env["POSTGRES_PASSWORD"] = secrets.token_hex(24)
     dsn = f"postgresql://opsproof:{env['POSTGRES_PASSWORD']}@127.0.0.1:15432/opsproof_m6_test"
+    tls_directory = prepare_cloud_tls(output) if cloud else None
+    if cloud:
+        dsn += "?" + urlencode(
+            {"sslmode": "verify-full", "sslrootcert": str(tls_directory / "server.crt")}
+        )
+        env["OPSPROOF_CLOUD_TEST_DATABASE_URL"] = dsn
+        env["OPSPROOF_CLOUD_TEST_TLS_DIRECTORY"] = str(tls_directory)
     env["OPSPROOF_CONTROL_DATABASE_URL"] = dsn
     env["OPSPROOF_M6_TEST_DATABASE_URL"] = dsn
     env["PYTHONPATH"] = str(ROOT)
@@ -135,6 +184,27 @@ def main() -> int:
         "cleanup_verified": False,
     }
     owned_id = None
+    container_tail = [
+        "postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5"
+    ]
+    if cloud:
+        container_tail = [
+            "--mount",
+            f"type=bind,source={tls_directory},target=/tls-source,readonly",
+            "--tmpfs",
+            "/run/opsproof-tls:rw,noexec,nosuid,size=1048576",
+            "--entrypoint",
+            "sh",
+            *container_tail,
+            "-ec",
+            "cp /tls-source/server.key /tls-source/server.crt "
+            "/tls-source/pg_hba.conf /run/opsproof-tls/; "
+            "chown -R 70:70 /run/opsproof-tls; chmod 600 /run/opsproof-tls/server.key; "
+            "exec docker-entrypoint.sh postgres -c ssl=on "
+            "-c ssl_cert_file=/run/opsproof-tls/server.crt "
+            "-c ssl_key_file=/run/opsproof-tls/server.key "
+            "-c hba_file=/run/opsproof-tls/pg_hba.conf",
+        ]
     try:
         owned_id = subprocess.check_output(
             [
@@ -160,7 +230,7 @@ def main() -> int:
                 "POSTGRES_PASSWORD",
                 "-p",
                 "127.0.0.1:15432:5432",
-                "postgres:18-alpine",
+                *container_tail,
             ],
             env=env,
             text=True,
@@ -265,6 +335,26 @@ def main() -> int:
                         record["m5_rows_preserved"] = record["legacy_rows_sha256"] == digest
                         if not record["m5_rows_preserved"]:
                             raise RuntimeError("M5 sentinel data changed during migration")
+        if cloud:
+            with (output / "cloud-integration.log").open("w", encoding="utf-8") as log:
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pytest",
+                        "apps/control-plane/tests/test_db_bootstrap_postgres.py",
+                        "-q",
+                        "-ra",
+                    ],
+                    env=env,
+                    cwd=ROOT,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    timeout=180,
+                )
+            record["cloud_integration_exit_code"] = result.returncode
+            if result.returncode:
+                raise RuntimeError("Cloud role/TLS verification failed; inspect the private log")
         if "--browser" in sys.argv:
             record["browser_exit_code"] = browser_check(env, output, dsn)
             if record["browser_exit_code"]:
@@ -309,6 +399,11 @@ def main() -> int:
                 timeout=15,
             ).strip()
             record["cleanup_verified"] = not remaining
+        if tls_directory is not None:
+            for key in tls_directory.glob("*.key"):
+                if not key.resolve().is_relative_to(output.resolve()):
+                    raise RuntimeError("Test key cleanup escaped its owned directory")
+                key.unlink()
         record["ended_at"] = datetime.now(UTC).isoformat()
         (output / "result.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(record, indent=2))

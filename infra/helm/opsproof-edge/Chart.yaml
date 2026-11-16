@@ -1,0 +1,5 @@
+apiVersion: v2
+name: opsproof-edge
+version: 0.1.0
+appVersion: "1.0"
+description: Read-only, unauthenticated and isolated M7 ingress proof. Never proxies operator or control API.

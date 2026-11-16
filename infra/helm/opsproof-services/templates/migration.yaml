@@ -25,10 +25,18 @@ spec:
         - name: alembic
           image: {{ include "opsproof.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if and (eq .Values.component "control") .Values.controlRdsTls.enabled }}
+          command: ["python", "-m", "opsproof_control.db_bootstrap"]
+          args: ["--mode", "migrate"]
+          {{- else }}
           command: ["alembic"]
           args: ["upgrade", "head"]
+          {{- end }}
           envFrom:
             - secretRef: {name: {{ if eq .Values.component "demo" }}opsproof-demo-runtime{{ else }}opsproof-control-runtime{{ end }}}
+            {{- if and (eq .Values.component "control") .Values.controlRdsTls.enabled }}
+            - secretRef: {name: opsproof-control-rds-migration-connection}
+            {{- end }}
           resources:
             requests: {cpu: 50m, memory: 64Mi}
             limits: {cpu: 400m, memory: 256Mi}
@@ -38,6 +46,15 @@ spec:
             capabilities: {drop: [ALL]}
           volumeMounts:
             - {name: tmp, mountPath: /tmp}
+            {{- if and (eq .Values.component "control") .Values.controlRdsTls.enabled }}
+            - {name: rds-ca, mountPath: /etc/opsproof/rds-ca, readOnly: true}
+            {{- end }}
       volumes:
+        {{- if and (eq .Values.component "control") .Values.controlRdsTls.enabled }}
+        - name: rds-ca
+          configMap:
+            name: {{ .Values.controlRdsTls.caConfigMapName | quote }}
+            items: [{key: global-bundle.pem, path: global-bundle.pem}]
+        {{- end }}
         - name: tmp
           emptyDir: {sizeLimit: 32Mi}

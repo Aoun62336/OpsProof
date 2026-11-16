@@ -8,6 +8,7 @@ import httpx2 as httpx
 from psycopg.types.json import Jsonb
 
 from . import kubernetes_client
+from .capabilities import observations_enabled
 from .config import settings
 from .db import pool
 from .kubernetes_operations import event
@@ -21,9 +22,9 @@ def telemetry():
     result = {}
     with httpx.Client(base_url=config.prometheus_url, timeout=3, trust_env=False) as client:
         for name, query in {
-            "sample_time": 'timestamp(up{job="opsproof-demo-api"})',
-            "up": 'up{job="opsproof-demo-api"}',
-            "queued": 'opsproof_demo_jobs{job="opsproof-demo-api",state="queued"}',
+            "sample_time": 'min(timestamp(up{job="opsproof-demo-api"}))',
+            "up": 'min(up{job="opsproof-demo-api"})',
+            "queued": 'max(opsproof_demo_jobs{job="opsproof-demo-api",state="queued"})',
         }.items():
             response = client.get("/api/v1/query", params={"query": query})
             response.raise_for_status()
@@ -140,16 +141,18 @@ def execute_next():
 
 
 def observe_and_verify():
-    if not settings().kubernetes_recovery_enabled:
+    config = settings()
+    if not observations_enabled(config):
         return
-    with pool().connection() as conn:
-        expired = conn.execute(
-            "UPDATE kubernetes_recoveries SET status='indeterminate',completed_at=now(), "
-            "error='Independent verification deadline exceeded' WHERE status='verifying' "
-            "AND started_at < now()-interval '180 seconds' RETURNING id"
-        ).fetchall()
-        for item in expired:
-            event(conn, item["id"], "indeterminate")
+    if config.kubernetes_recovery_enabled:
+        with pool().connection() as conn:
+            expired = conn.execute(
+                "UPDATE kubernetes_recoveries SET status='indeterminate',completed_at=now(), "
+                "error='Independent verification deadline exceeded' WHERE status='verifying' "
+                "AND started_at < now()-interval '180 seconds' RETURNING id"
+            ).fetchall()
+            for item in expired:
+                event(conn, item["id"], "indeterminate")
     try:
         target = kubernetes_client.request()
         current_telemetry = telemetry()
@@ -191,9 +194,11 @@ def observe_and_verify():
                 "observed_at=excluded.observed_at,resource=excluded.resource,telemetry=excluded.telemetry",
                 (Jsonb(safe_target), Jsonb(current_telemetry)),
             )
-            rows = conn.execute(
-                "SELECT * FROM kubernetes_recoveries WHERE status='verifying'"
-            ).fetchall()
+            rows = []
+            if config.kubernetes_recovery_enabled:
+                rows = conn.execute(
+                    "SELECT * FROM kubernetes_recoveries WHERE status='verifying'"
+                ).fetchall()
         for row in rows:
             now = datetime.now(UTC)
             if (now - row["started_at"]).total_seconds() > 180:

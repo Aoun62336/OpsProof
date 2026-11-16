@@ -9,6 +9,7 @@ import hashlib
 import html
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 
 CASES = frozenset(
@@ -28,6 +29,8 @@ FIELDS = frozenset(
         "title",
         "environment",
         "source_commit",
+        "source_tree_sha256",
+        "source_dirty",
         "status",
         "observed_utc",
         "summary",
@@ -65,12 +68,19 @@ def validate_case(obj: dict) -> dict:
         raise ValueError("Unsupported result status")
     if not re.fullmatch(r"[a-f0-9]{40}", obj["source_commit"]):
         raise ValueError("Require real source commit SHA1, no placeholder")
+    if type(obj["source_dirty"]) is not bool:
+        raise ValueError("Explicit clean/dirty source state required")
+    if not isinstance(obj["source_tree_sha256"], str) or not re.fullmatch(
+        r"[a-f0-9]{64}", obj["source_tree_sha256"]
+    ):
+        raise ValueError("Actual tested source tree SHA256 required")
     if not re.fullmatch(r"[a-f0-9]{64}", obj["source_evidence_sha256"]):
         raise ValueError("Require actual evidence SHA256, not a title")
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,79}", obj["id"]):
         raise ValueError("Invalid public case identifier")
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z", obj["observed_utc"]):
         raise ValueError("Require UTC timestamp")
+    datetime.fromisoformat(obj["observed_utc"])
     for key, size in (("title", 90), ("summary", 900), ("limitations", 900)):
         text(obj[key], size)
     if not isinstance(obj["findings"], list) or not 1 <= len(obj["findings"]) <= 12:
@@ -80,9 +90,14 @@ def validate_case(obj: dict) -> dict:
     return obj
 
 
-def build(cases: list[dict]) -> str:
+def build(cases: list[dict], *, require_all: bool = False) -> str:
     if not isinstance(cases, list) or len(cases) > 24:
         raise ValueError("Expected a bounded set of curated evidence cases")
+    if require_all and (
+        len(cases) != len(CASES)
+        or {x.get("scenario") for x in cases if isinstance(x, dict)} != CASES
+    ):
+        raise ValueError("Publication requires exactly one record for each of the six scenarios")
     ids = set()
     sections = []
     for case in cases:
@@ -95,14 +110,17 @@ def build(cases: list[dict]) -> str:
             return html.escape(str(value), quote=True)
 
         findings = "".join(f"<li>{e(line)}</li>" for line in case["findings"])
-        sections.append(f"""<article class="case" id="{e(case["id"])}">
+        sections.append(f"""<article class="case"
+ data-scenario="{e(case["scenario"])}" id="{e(case["id"])}">
   <div class="case-top">
   <span class="kicker">{e(case["scenario"].replace("_", " "))}</span>
   <span class="status">{e(case["status"])}</span></div>
   <h2>{e(case["title"])}</h2><p class="summary">{e(case["summary"])}</p>
   <dl><div><dt>Environment</dt><dd>{e(case["environment"])}</dd></div>
   <div><dt>Recorded UTC</dt><dd>{e(case["observed_utc"])}</dd></div>
-  <div><dt>Source revision</dt><dd><code>{e(case["source_commit"])[:12]}</code></dd></div>
+  <div><dt>Source revision</dt><dd><code>{e(case["source_commit"])}</code></dd></div>
+  <div><dt>Tested source tree</dt><dd><code>{e(case["source_tree_sha256"])}</code>
+  ({"uncommitted changes included" if case["source_dirty"] else "clean checkout"})</dd></div>
   <div><dt>Evidence SHA-256</dt><dd><code>{e(case["source_evidence_sha256"])}</code></dd></div></dl>
   <details><summary>Observations and limitations</summary><h3>Observations</h3><ul>{findings}</ul>
   <h3>Limitations</h3><p>{e(case["limitations"])}</p></details>
@@ -130,7 +148,7 @@ def main() -> int:
     data = json.loads(args.curated_input.read_text(encoding="utf-8"))
     if not isinstance(data, list):
         parser.error("Curated input must be a list")
-    rendered = build(data)
+    rendered = build(data, require_all=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(rendered, encoding="utf-8")
     digest = hashlib.sha256(rendered.encode()).hexdigest()

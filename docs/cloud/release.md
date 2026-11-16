@@ -1,38 +1,73 @@
-> Status: existing cloud preparation. M7 implementation, publishing and Terraform apply require separate owner approval. These procedures are not evidence of cloud acceptance.
+# Approved release and public evidence
 
-# OpsProof M7 | Reviewable GitHub release, OIDC and artifact security
+`.github/workflows/release.yml` is manual, restricted to reviewed `main`, and
+requires `publish_approved=true` plus the protected `opsproof-release` environment.
+Configure environment reviewers before first use. No publication has run during
+local implementation. No AWS identity is needed by the publishing workflow.
 
-## Existing controls preserved
+## Four-image identity
 
-The original M2–M5 workflows remain. New workflows add offline M6 contracts, filesystem/secrets checks, and **manual** GHCR publication. No existing CI workflow is removed. Each must be checked in real hosted CI on the actual commit before it can support a release claim.
+The same source commit builds demo, control, web and isolated edge images. Each
+image is scanned before push, receives a CycloneDX SBOM and requested provenance
+and SBOM attestations. The policy blocks fixable HIGH/CRITICAL findings; unfixed
+findings still require review and must not be described as zero vulnerabilities.
+The workflow retains per-image receipts/SBOMs and assembles one manifest with the
+source SHA, repository, workflow run ID and exactly four immutable GHCR digests.
+Mixing runs, commits, repositories or duplicated roles fails assembly.
 
-## GitHub setup
+```sh
+python -m scripts.cloud.verify_release_manifest --input .runtime/cloud/release-manifest.json
+```
 
-1. Confirm which repository and branch are authoritative. Check default branch and protected branch rules.
-2. Configure GitHub Actions **environment `opsproof-release`** with required human reviewers and restrictions to `main`, to prevent accidental manual publication.
-3. Configure package visibility and permissions for the actual GitHub repository. Private images require additional Kubernetes image pull credentials; this sample has no automatic private registry secret injection.
-4. Review repository Actions permissions: prefer minimal `GITHUB_TOKEN` permissions, restrict reusable/untrusted actions, pin action commits whenever possible.
-5. The release workflow is `workflow_dispatch` with a `publish_approved` boolean, requires `main`, and builds each image from the selected source commit; Trivy scans occur before `docker push`.
-6. Publication uses a commit SHA tag and verifies the registry push digest. An `actions/attest@v4` step requests provenance and SBOM attestations. Verify exact action SHA and the hosted behavior before final release; source syntax is not proof of successful attestations.
-7. Link the actual released `sha256` image digest in the GitOps values, verify the live image digest and record run ID, scanner DB version, SBOM and attestation verification.
+This is only offline consistency validation. After approved publication, verify
+that all four actual digests are pullable, and verify both signatures against
+the exact repository, source commit, main ref and release workflow:
 
-### OIDC for AWS: optional and read-only initially
+```sh
+gh attestation verify oci://ACTUAL_IMAGE_BY_DIGEST --repo ACTUAL_OWNER/ACTUAL_REPO --signer-workflow ACTUAL_OWNER/ACTUAL_REPO/.github/workflows/release.yml --source-digest ACTUAL_SOURCE_SHA --source-ref refs/heads/main --deny-self-hosted-runners
+gh attestation verify oci://ACTUAL_IMAGE_BY_DIGEST --repo ACTUAL_OWNER/ACTUAL_REPO --signer-workflow ACTUAL_OWNER/ACTUAL_REPO/.github/workflows/release.yml --source-digest ACTUAL_SOURCE_SHA --source-ref refs/heads/main --deny-self-hosted-runners --predicate-type https://cyclonedx.org/bom
+```
 
-The current Terraform includes an **optional GitHub read-only inspection role**, not a deploy role. Use an existing separately verified `token.actions.githubusercontent.com` IAM OIDC provider ARN. The trust policy requires both `aud=sts.amazonaws.com` and an **exact** `sub`. No wildcard repositories or branches are permitted.
+Use public, verified packages for the temporary cluster unless private registry
+access has been separately designed and approved. No private registry token
+injection is provided. Record hosted CI results, scanner database version,
+SBOMs, actual attestation verification and the exact approved release manifest.
+Do not relabel a locally built image or a requested attestation as verified
+registry provenance. All workflow action references are immutable upstream SHAs;
+review their official releases when updating.
 
-**Important July 15, 2026 format change:** New GitHub repositories default to an immutable subject containing owner ID and repository ID, such as `repo:OWNER@OWNER-ID/REPO@REPO-ID:ref:refs/heads/main`. Older repos may still emit name-only subjects. Verify actual emitted subject on your repo before approving Terraform role creation. Do not guess IDs or copy examples into production.
+## Reconciliation ownership
 
-No OIDC AWS role is required for ordinary GHCR publication; that uses GitHub's own package token. Avoid granting EKS/EC2 write to the image-publishing job.
+`scripts.cloud.render_gitops` binds all six workload Applications to the release's
+full source SHA and image digests. Initial synchronization is manual and ordered;
+Application sync-wave annotations alone do not order independent Application
+syncs. After bootstrap validation, regenerate with `--enable-reconciliation` to
+allow self-heal, with automatic pruning off. Thereafter update Applications/Git,
+not parallel `helm upgrade` commands. Namespace RBAC excludes Secret access,
+cluster resources and RBAC writes; owner bootstrap handles those resources.
 
-### Supply-chain checklist
+Cloud APIs initially use Deployments/HPA and workers KEDA. The proven local
+Rollout/Gateway profile is preserved. The cloud profile does not pretend to
+exercise that local traffic-router plugin; enabling it in EKS would require a
+separately reviewed router/plugin composition. Argo Rollouts controller health
+and actual progressive delivery are different acceptance claims.
 
-- All existing backend/frontend/observability and M5 source checks pass on the exact commit.
-- Trivy source/image scans meet the documented HIGH/CRITICAL policy; findings are reviewed.
-- Gitleaks searches source/history and any leaked credentials are rotated.
-- Every published image has immutable digest and appropriate SBOM/provenance evidence.
-- `gh attestation verify oci://... -R OWNER/REPO` succeeds for the published digest.
-- Dependabot alerts and lockfiles reviewed; released code contains no `.env`, tokens, Terraform state or live kubeconfig.
-- `git diff --check` and final branch/source provenance recorded.
-- No Git push, tag, package publishing, AWS apply or public deployment without user's explicit approval.
+## Static publication
 
-**Sources:** https://docs.github.com/en/actions/reference/security/oidc ; https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws ; https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations
+`.github/workflows/evidence-pages.yml` is a separate manual public release.
+It requires the exact SHA256 of reviewed `docs/public/cases.json` at `main` and
+a protected `github-pages` environment. Its renderer/auditor require exactly one
+uniquely identified record for each of the six scenarios, escape text, block
+obvious secrets/private endpoints/scripts/forms, and identify real source-tree
+hashes plus clean/dirty state. Hash validation does not prove truthful prose.
+Bind each curated record to actual private accepted evidence and independently
+review privacy, claims and limitations before publication. Publish neither raw
+logs nor provider credentials, account data or live operator URLs.
+
+The static edge serves only GET `/` and `/healthz`; it cannot proxy the operator
+API. The operator console stays private on loopback port-forwarding. Both static
+surfaces retain the original forest/porcelain palette. Publishing evidence and
+running public AWS ingress are separate activities and approvals.
+
+References: [GitHub artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations),
+[official Pages actions](https://github.com/actions/upload-pages-artifact).

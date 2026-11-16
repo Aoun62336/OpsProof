@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
 
 import { AppShell } from "../components/AppShell";
-import { getSession, logout } from "../lib/api";
+import { getCapabilities, getSession, logout } from "../lib/api";
 import { LoginPage } from "../pages/LoginPage";
 import { OverviewPage } from "../pages/OverviewPage";
 import { IncidentsPage } from "../pages/IncidentsPage";
@@ -22,6 +22,14 @@ export default function App() {
     queryFn: getSession,
     retry: false,
     staleTime: 60_000,
+  });
+
+  const capabilities = useQuery({
+    queryKey: ["capabilities"],
+    queryFn: getCapabilities,
+    enabled: !!session.data,
+    retry: false,
+    staleTime: 30_000,
   });
 
   if (session.isPending) {
@@ -76,7 +84,9 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <AppShell onSignOut={signOut}>
+      <AppShell onSignOut={signOut}
+        environment={capabilities.data?.environment}
+        environmentLabel={capabilities.data?.environment_label}>
         <Routes>
           <Route path="/workloads" element={<KubernetesPage view="Workloads" />} />
           <Route path="/deployments" element={<KubernetesPage view="Deployments" />} />
