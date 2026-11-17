@@ -14,6 +14,7 @@ from urllib.request import urlopen
 from uuid import uuid4
 
 from scripts.platform.preflight import GIB, ROOT, memory_available
+from scripts.reliability.build_images_local import APPS
 from scripts.reliability.local_environment import utc, write_json
 
 VERSION = "0.76.2"
@@ -94,7 +95,7 @@ def main():
     }
     scanner_env["DOCKER_CONFIG"] = str(directory / "empty-docker-config")
     (directory / "empty-docker-config").mkdir()
-    for component in ("demo", "control", "web"):
+    for component in (name for name in APPS if name in images):
         image = images[component]
         archive = directory / (component + ".tar")
         subprocess.run(

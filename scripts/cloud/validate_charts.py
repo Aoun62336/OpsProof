@@ -139,6 +139,16 @@ def main() -> None:
                 not any(row["kind"] in {"ClusterRole", "ClusterRoleBinding"} for row in rows),
                 "Argo must stay namespace-scoped",
             )
+        if controller["name"] == "external-secrets":
+            for row in rows:
+                if row["kind"] != "ClusterRole":
+                    continue
+                require(
+                    not any(
+                        "secrets" in rule.get("resources", []) for rule in row.get("rules", [])
+                    ),
+                    "ESO must not have cluster-wide application Secret access",
+                )
         for row in rows:
             if (
                 row["kind"] not in {"Deployment", "StatefulSet"}

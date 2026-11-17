@@ -15,3 +15,14 @@ enable_paid_resources = false
 # alb_controller_policy_file = "ABSOLUTE_PATH_TO_REVIEWED_OFFICIAL_POLICY_JSON"
 
 # bootstrap_cni_node_policy = true # only for initial creation; set false after verifying separate aws-node Pod Identity
+
+# postgres_engine_version = "ACTUAL_ORDERABLE_18_MINOR"
+# addon_versions = {
+#   eks-pod-identity-agent = "ACTUAL_EXACT_EKS_BUILD"
+#   vpc-cni = "ACTUAL_EXACT_EKS_BUILD"
+#   kube-proxy = "ACTUAL_EXACT_EKS_BUILD"
+#   coredns = "ACTUAL_EXACT_EKS_BUILD"
+#   aws-ebs-csi-driver = "ACTUAL_EXACT_EKS_BUILD"
+#   metrics-server = "ACTUAL_EXACT_EKS_BUILD"
+# }
+# bootstrap_master_secret_access = false # enable only for the approved bootstrap job

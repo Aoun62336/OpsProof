@@ -190,7 +190,7 @@ def verify() -> None:
     print("FIVE_CONTROLLER_CHARTS_MATCH_LOCAL_LOCK; UPSTREAM REVIEW IS SEPARATE")
 
 
-def assert_cluster(kubeconfig: Path, account: str, profile: str) -> None:
+def assert_cluster(kubeconfig: Path, account: str, profile: str) -> str:
     if not re.fullmatch(r"[0-9]{12}", account):
         raise ValueError("Exact expected AWS account required")
     owned = (ROOT / ".runtime/cloud").resolve()
@@ -247,10 +247,15 @@ def assert_cluster(kubeconfig: Path, account: str, profile: str) -> None:
     if exec_auth.get("command") != "aws" or "get-token" not in exec_auth.get("args", []):
         raise ValueError("Expected AWS EKS token authentication in the dedicated kubeconfig")
 
+    vpc_id = cluster.get("resourcesVpcConfig", {}).get("vpcId", "")
+    if not re.fullmatch(r"vpc-(?:[0-9a-f]{8}|[0-9a-f]{17})", vpc_id):
+        raise ValueError("Expected the verified cluster VPC identity")
+    return vpc_id
+
 
 def install(kubeconfig: Path, account: str, profile: str) -> None:
     verify()
-    assert_cluster(kubeconfig, account, profile)
+    vpc_id = assert_cluster(kubeconfig, account, profile)
     overrides = {
         "aws-load-balancer-controller": [
             "--set",
@@ -261,6 +266,8 @@ def install(kubeconfig: Path, account: str, profile: str) -> None:
             "serviceAccount.name=aws-load-balancer-controller",
             "--set",
             "region=ap-south-1",
+            "--set-string",
+            "vpcId=" + vpc_id,
         ],
         "external-secrets": [
             "--set",

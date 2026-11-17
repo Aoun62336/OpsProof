@@ -23,6 +23,7 @@ if str(ROOT) not in sys.path:
 
 
 def browser_check(env, output, dsn):
+    cloud_profile = "--cloud-browser" in sys.argv
     import psycopg
     from opsproof_control.trial_catalog import Scenario
     from opsproof_control.trial_store import create_trial, request_abort
@@ -44,6 +45,40 @@ def browser_check(env, output, dsn):
         username = "m6_app_" + uuid4().hex[:16]
         password = secrets.token_hex(24)
         grant_control_application(conn, username, password)
+    if cloud_profile:
+        from psycopg.types.json import Jsonb
+
+        resource = {
+            "metadata": {
+                "name": "demo-worker",
+                "namespace": "opsproof-demo",
+                "uid": "isolated-ui-fixture",
+                "resourceVersion": "1",
+            },
+            "spec": {
+                "replicas": 1,
+                "template": {
+                    "spec": {
+                        "containers": [
+                            {
+                                "image": "ghcr.io/offline/fixture/opsproof-demo@sha256:" + "a" * 64,
+                                "resources": {
+                                    "requests": {"cpu": "25m", "memory": "72Mi"},
+                                    "limits": {"cpu": "350m", "memory": "256Mi"},
+                                },
+                            }
+                        ]
+                    }
+                },
+            },
+            "status": {"readyReplicas": 1},
+        }
+        with psycopg.connect(dsn) as conn:
+            conn.execute(
+                "INSERT INTO kubernetes_observations (name,observed_at,resource,telemetry) "
+                "VALUES ('demo-worker',now(),%s,%s)",
+                (Jsonb(resource), Jsonb({"ready": True, "queued": 0, "sample_time": time.time()})),
+            )
     browser_env = {
         **env,
         "OPSPROOF_CONTROL_API_KEY": secrets.token_hex(24),
@@ -56,6 +91,20 @@ def browser_check(env, output, dsn):
         "CI": "true",
         "OPSPROOF_E2E_M6_SCREENSHOT": str(output / "trials-mobile.png"),
     }
+    if cloud_profile:
+        browser_env.update(
+            {
+                "OPSPROOF_CONTROL_ENVIRONMENT": "temporary-eks",
+                "OPSPROOF_CONTROL_KUBERNETES_OBSERVATION_ENABLED": "true",
+                "OPSPROOF_CONTROL_KUBERNETES_RECOVERY_ENABLED": "false",
+                "OPSPROOF_CONTROL_RECOVERY_ENABLED": "false",
+                "OPSPROOF_CONTROL_M6_ENABLED": "false",
+                "OPSPROOF_CONTROL_AI_ENABLED": "false",
+                "OPSPROOF_CONTROL_ALLOWED_BROWSER_ORIGINS": "http://localhost:8081,http://127.0.0.1:8081",
+                "OPSPROOF_E2E_CLOUD_PROFILE": "true",
+                "OPSPROOF_E2E_CLOUD_OUTPUT": str(output / "cloud-browser"),
+            }
+        )
     browser_env["OPSPROOF_E2E_OPERATOR_KEY"] = browser_env["OPSPROOF_CONTROL_API_KEY"]
     browser_env.pop("OPSPROOF_E2E_BASE_URL", None)
     with (output / "browser-api.log").open("w", encoding="utf-8") as api_log:
@@ -95,7 +144,7 @@ def browser_check(env, output, dsn):
                         "node",
                         "node_modules/@playwright/test/cli.js",
                         "test",
-                        "e2e/trials.spec.ts",
+                        "e2e/cloud-profile.spec.ts" if cloud_profile else "e2e/trials.spec.ts",
                         "--reporter=json",
                         "--output=" + str(output / "browser-artifacts"),
                     ],
@@ -222,6 +271,13 @@ def main() -> int:
                 "1",
                 "--shm-size",
                 "64m",
+                "--read-only",
+                "--tmpfs",
+                "/tmp:rw,nosuid,nodev,uid=70,gid=70,size=33554432",
+                "--tmpfs",
+                "/var/run/postgresql:rw,nosuid,nodev,uid=70,gid=70,size=16777216",
+                "--tmpfs",
+                "/var/lib/postgresql:rw,nosuid,nodev,uid=70,gid=70,size=268435456",
                 "-e",
                 "POSTGRES_USER=opsproof",
                 "-e",
@@ -355,7 +411,7 @@ def main() -> int:
             record["cloud_integration_exit_code"] = result.returncode
             if result.returncode:
                 raise RuntimeError("Cloud role/TLS verification failed; inspect the private log")
-        if "--browser" in sys.argv:
+        if "--browser" in sys.argv or "--cloud-browser" in sys.argv:
             record["browser_exit_code"] = browser_check(env, output, dsn)
             if record["browser_exit_code"]:
                 raise RuntimeError("Actual SQL/API browser verification failed")
@@ -385,19 +441,24 @@ def main() -> int:
                 capture_output=True,
                 timeout=30,
             )
-            remaining = subprocess.check_output(
-                [
-                    "docker",
-                    "ps",
-                    "-a",
-                    "--filter",
-                    "id=" + owned_id,
-                    "--format",
-                    "{{.ID}}",
-                ],
-                text=True,
-                timeout=15,
-            ).strip()
+            removal_deadline = time.monotonic() + 10
+            while True:
+                remaining = subprocess.check_output(
+                    [
+                        "docker",
+                        "ps",
+                        "-a",
+                        "--filter",
+                        "id=" + owned_id,
+                        "--format",
+                        "{{.ID}}",
+                    ],
+                    text=True,
+                    timeout=15,
+                ).strip()
+                if not remaining or time.monotonic() >= removal_deadline:
+                    break
+                time.sleep(0.2)
             record["cleanup_verified"] = not remaining
         if tls_directory is not None:
             for key in tls_directory.glob("*.key"):

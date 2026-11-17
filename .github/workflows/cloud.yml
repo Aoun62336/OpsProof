@@ -59,3 +59,24 @@ jobs:
         run: python3 -m scripts.cloud.validate_charts
       - name: Immutable workflow dependencies
         run: python3 -m scripts.cloud.check_workflow_pins .github/workflows/*.yml
+  database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e
+        with:
+          version: '0.13.7'
+      - run: uv python install 3.14
+      - name: Actual disposable TLS database, migrations and restricted grants
+        run: uv run --project apps/control-plane --locked python -m scripts.reliability.validate_postgres --cloud
+      - name: Retain sanitized database outcome only
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: cloud-database-outcome
+          path: .runtime/verification/cloud/postgres/*/result.json
+          if-no-files-found: warn
+          retention-days: 14

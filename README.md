@@ -16,15 +16,17 @@ second-workload observations, durable trial records and cleanup. See the
 Those are historical results for their recorded source and image identities.
 
 The current repository standardization and checks are described in the
-[repository review](docs/engineering/repository-review.md). The approved M7 pre-cloud implementation is in progress on a separate branch;
+[repository review](docs/engineering/repository-review.md). The approved M7 pre-cloud implementation and local integration work are complete
+on a separate branch;
 see [cloud readiness](docs/cloud/readiness.md). AWS acceptance still requires the
 owner-run deployment and teardown. No AWS resources have been provisioned here.
 
-AI comparison is optional and disabled. The earlier Groq and Gemini fixture
-comparison failed qualification for both candidates. Metric units, freshness,
-mechanical evidence-path validation and a four-case offline held-out set are
-implemented. Fresh external candidate comparison is deferred and requires
-separate authorization. Model output never authorizes recovery.
+AI remains disabled. The completed, independently reviewed comparison used the
+original eight regression cases and four held-out capacity cases. Neither Groq
+nor Gemini qualified. See the [evaluation decision](docs/engineering/advisory-evaluation.md)
+for scores, grounding failures and the historical label limitations. Mechanical
+evidence-path validation and explicit metric units/freshness are implemented.
+Model output never authorizes recovery.
 
 ## Architecture
 

@@ -1,0 +1,24 @@
+{
+  "version": "1.0.385",
+  "platform": "linux/amd64",
+  "base_image": "public.ecr.aws/amazonlinux/amazonlinux:2023-minimal@sha256:158a9044f9dc0777f098b76c8b54346f6ed4560b9a6a416dec7a5ba3bc483af4",
+  "package": {
+    "file": "aws-emulator.rpm",
+    "source": "https://downloads.aws.com/aws-emulator/packages/aws-emulator/LTS/aws-emulator-1.0.385-1-x86_64.rpm",
+    "bytes": 182429277,
+    "sha256": "2b2b5031e559d74c7a4154b11056be3a57716a177cd796cf058eebd91a6870d7"
+  },
+  "signature": {
+    "file": "aws-emulator.rpm.sig",
+    "source": "https://downloads.aws.com/aws-emulator/packages/aws-emulator/LTS/aws-emulator-1.0.385-1-x86_64.rpm.sig",
+    "bytes": 638,
+    "sha256": "ba6f4ab5f06c135913d81d2e58a9ecc2e541b1761925401b02f2d47a44581fca"
+  },
+  "publisher_fingerprint": "98BCF336A3BE53B734E967C52E5BF49BD940F624",
+  "sdk": {
+    "boto3": "1.44.3",
+    "botocore": "1.44.3"
+  },
+  "source": "https://github.com/aws/aws-emulator/releases/tag/v1.0.385",
+  "limitations": "Local API contract rehearsal only. IAM, resource policies, real EKS/RDS/networking and billing acceptance require AWS."
+}

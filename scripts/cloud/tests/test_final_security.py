@@ -112,6 +112,25 @@ class RedisSecurityTests(unittest.TestCase):
                     check=True,
                 ).stdout
                 self.assertIn(f"{role}-deps-redis.opsproof-{role}.svc.cluster.local", cert)
+                ca = Path(tmp) / "ca.crt"
+                ca.write_text(data["ca.crt"], encoding="utf-8")
+                subprocess.run(
+                    [
+                        "openssl",
+                        "verify",
+                        "-x509_strict",
+                        "-verify_hostname",
+                        f"{role}-deps-redis.opsproof-{role}.svc.cluster.local",
+                        "-CAfile",
+                        str(ca),
+                        str(p),
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+
             env_key = "OPSPROOF_REDIS_URL" if role == "demo" else "OPSPROOF_CONTROL_REDIS_URL"
             value = base64.b64decode(docs[2]["data"][env_key]).decode()
             self.assertTrue(value.startswith("rediss://:"))
@@ -173,6 +192,29 @@ class ReleaseWorkflowTests(unittest.TestCase):
                     out.addfile(info, io.BytesIO(payload))
                 with patch.object(installer, "CHARTS", Path(td)):
                     self.assertRegex(installer.chart_sha(row), r"^[a-f0-9]{64}$")
+
+    def test_installer_passes_verified_vpc_without_node_metadata_discovery(self):
+        from unittest.mock import patch
+
+        import scripts.cloud.install_controllers as installer
+
+        row = {
+            "name": "aws-load-balancer-controller",
+            "release": "aws-load-balancer-controller",
+            "namespace": "kube-system",
+            "version": "3.6.2",
+        }
+        with (
+            patch.object(installer, "verify"),
+            patch.object(installer, "assert_cluster", return_value="vpc-12345678"),
+            patch.object(installer, "loaded", return_value=[row]),
+            patch.object(installer, "filename", return_value=Path("fixture.tgz")),
+            patch.object(installer, "run", return_value="") as run,
+        ):
+            installer.install(ROOT / ".runtime/cloud/private/kubeconfig", "123456789012", "fixture")
+        helm = run.call_args_list[0].args
+        self.assertIn("vpcId=vpc-12345678", helm)
+        self.assertIn("--set-string", helm)
 
     def test_pages_protected_content_gate(self):
         path = ROOT / ".github/workflows/evidence-pages.yml"

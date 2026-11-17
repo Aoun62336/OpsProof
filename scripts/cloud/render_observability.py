@@ -12,7 +12,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     images = json.loads((ROOT / "observability/images.lock.json").read_text(encoding="utf-8"))
-    result = render(images, storage_class="opsproof-ebs-gp3")
+    result = render(images, storage_class="opsproof-ebs-gp3", cloud_profile=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print("PRIVATE_TELEMETRY_RENDERED; metrics, log and trace acceptance still required")

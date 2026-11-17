@@ -33,6 +33,12 @@ the dedicated kubeconfig. All controller resource limits come from
 `infra/k8s/cloud/controllers/`. Verify the actual ServiceAccounts match Terraform
 Pod Identity associations. Argo CD has only four application namespace Roles,
 no workload Secret reads or RBAC writes, and no cluster-resource reconciliation.
+External Secrets watches only `opsproof-control`, uses scoped RBAC, and has no
+cluster-wide application Secret access or push-secret capability. Its certificate
+controller has only a named webhook Secret permission in its own namespace;
+cluster-scoped permissions cover CRD/webhook discovery and specific updates.
+The ALB installer passes the verified EKS VPC ID explicitly, avoiding node
+metadata discovery as a startup dependency.
 The cluster registration Secret contains namespace metadata and in-cluster
 ServiceAccount authentication, not an exported bearer token.
 
@@ -89,8 +95,9 @@ python -m scripts.cloud.render_gitops --release .runtime/cloud/release-manifest.
 ```
 
 Review/apply the telemetry manifest; all six services use their existing shared
-configuration, immutable images and bounded encrypted gp3 PVCs. No UI gets a
-public Service. The renderer is shared with local deployment to prevent separate
+configuration, immutable images and bounded encrypted gp3 PVCs. Cloud Prometheus
+uses headless DNS discovery to scrape every API replica and omits the local-only
+canary target. No UI gets a public Service. The renderer is shared with local deployment to prevent separate
 monitoring implementations. Verify its requests plus application/controller and
 six-addon requests against both nodes' actual allocatable CPU, memory and Pod
 limits. Reserve rolling-update and migration headroom; limits are not usage.

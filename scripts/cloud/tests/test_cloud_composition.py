@@ -121,10 +121,24 @@ def test_controller_permissions_have_no_secret_reads_or_rbac_writes():
 
 def test_existing_telemetry_renders_with_cloud_storage_and_pinned_images():
     images = json.loads((ROOT / "observability/images.lock.json").read_text(encoding="utf-8"))
-    rows = telemetry(images, storage_class="opsproof-ebs-gp3")["items"]
+    rows = telemetry(images, storage_class="opsproof-ebs-gp3", cloud_profile=True)["items"]
     assert len([row for row in rows if row["kind"] == "Deployment"]) == 6
     assert all(
         row["spec"]["storageClassName"] == "opsproof-ebs-gp3"
         for row in rows
         if row["kind"] == "PersistentVolumeClaim"
     )
+
+
+def test_cloud_scrapes_each_api_replica_and_omits_unconfigured_canary():
+    images = json.loads((ROOT / "observability/images.lock.json").read_text(encoding="utf-8"))
+    rows = telemetry(images, storage_class="opsproof-ebs-gp3", cloud_profile=True)["items"]
+    config = next(
+        row["data"]["prometheus.yml"]
+        for row in rows
+        if row["kind"] == "ConfigMap" and row["metadata"]["name"] == "prometheus-config"
+    )
+    assert config.count("dns_sd_configs:") == 2
+    assert "demo-api-metrics.opsproof-demo.svc.cluster.local" in config
+    assert "control-api-metrics.opsproof-control.svc.cluster.local" in config
+    assert "opsproof-demo-canary" not in config

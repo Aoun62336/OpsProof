@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 NS = "opsproof-observability"
 
 
-def inputs():
+def inputs(*, cloud_profile=False):
     configurations = {
         "prometheus": {
             "prometheus.yml": (ROOT / "observability/prometheus.yml")
@@ -51,11 +51,28 @@ def inputs():
             ).read_text(encoding="utf-8"),
         },
     }
-    configurations["prometheus"]["prometheus.yml"] += (
-        "\n  - job_name: opsproof-demo-canary\n    metrics_path: /metrics\n  "
-        "  static_configs:\n      - targets: "
-        "['demo-api-canary.opsproof-demo.svc.cluster.local:8080']\n"
-    )
+    if cloud_profile:
+        for role in ("demo", "control"):
+            old = (
+                "    static_configs:\n      - targets:\n"
+                f"          - {role}-api.opsproof-{role}.svc.cluster.local:8080"
+            )
+            new = (
+                "    dns_sd_configs:\n      - names: "
+                f"[{role}-api-metrics.opsproof-{role}.svc.cluster.local]\n"
+                "        type: A\n        port: 8080"
+            )
+            if old not in configurations["prometheus"]["prometheus.yml"]:
+                raise ValueError("Existing scrape configuration differs from the reviewed contract")
+            configurations["prometheus"]["prometheus.yml"] = configurations["prometheus"][
+                "prometheus.yml"
+            ].replace(old, new)
+    else:
+        configurations["prometheus"]["prometheus.yml"] += (
+            "\n  - job_name: opsproof-demo-canary\n    metrics_path: /metrics\n  "
+            "  static_configs:\n      - targets: "
+            "['demo-api-canary.opsproof-demo.svc.cluster.local:8080']\n"
+        )
     configurations["alertmanager"]["alertmanager.yml"] = configurations["alertmanager"][
         "alertmanager.yml"
     ].replace("/etc/alertmanager/webhook-token", "/run/opsproof-alert/webhook-token")
@@ -147,8 +164,10 @@ def inputs():
     return configurations, services
 
 
-def render(images: dict[str, str], *, storage_class: str = "local-path") -> dict:
-    configurations, services = inputs()
+def render(
+    images: dict[str, str], *, storage_class: str = "local-path", cloud_profile=False
+) -> dict:
+    configurations, services = inputs(cloud_profile=cloud_profile)
     if set(images) != {item[0] for item in services}:
         raise ValueError("Exactly the six telemetry image identities required")
     if any(

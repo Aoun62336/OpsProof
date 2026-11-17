@@ -7,6 +7,7 @@ recoveryEnabled: false
 kubernetesRecoveryEnabled: false
 aiEnabled: false
 telemetry:
+  metricsHeadlessEnabled: true
   enabled: true
   endpoint: http://otel-collector.opsproof-observability.svc.cluster.local:4318
 

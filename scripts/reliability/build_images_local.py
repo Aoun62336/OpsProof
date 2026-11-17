@@ -14,7 +14,7 @@ from uuid import uuid4
 from scripts.platform.preflight import GIB, ROOT, memory_available
 from scripts.reliability.local_environment import source_identity, utc, write_json
 
-APPS = {"demo": "demo-workload", "control": "control-plane", "web": "web"}
+APPS = {"demo": "demo-workload", "control": "control-plane", "web": "web", "edge": "edge-proof"}
 
 
 def context_hash(directory):

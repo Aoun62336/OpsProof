@@ -1,15 +1,14 @@
-# M7 public evidence source
+# Curated historical evidence
 
-Do not commit synthetic fixtures, raw production logs, Kubernetes Secrets or
-operator API URLs. A reviewed, sanitized `m6-cases.json` must contain exactly six
-real, independently verified M6 cases under the schema in
-`scripts/cloud/build_public_replay.py`. The actual M6 file is intentionally **not
-fabricated** because the final accepted M6 evidence has not been provided here.
+`cases.json` contains one sanitized historical local trial for each of the six
+scenario classes. It is prepared for review, not approved for public release.
+It records actual independent receipt digests, tested source-tree hashes and
+uncommitted-source status. It makes no current-cloud or AI qualification claim.
+Private source bindings remain in ignored runtime storage; raw trial artifacts,
+keys, account information and live operator URLs are excluded.
 
-The Pages workflow is blocked until a human reviews the case file, commits it to
-`main`, calculates its SHA-256, configures GitHub Pages to use **GitHub Actions**,
-and approves the protected `github-pages` environment deployment.
-
-The pipeline automatically creates the static HTML from the reviewed JSON and
-refuses any content rejected by the static sanitizer; these automated checks do
-not replace a privacy review.
+Before publication, rerun `scripts.cloud.verify_curated_evidence` with the
+private bindings, render the site, run `verify_public_replay`, inspect it visually
+and have the owner review privacy and claims. The Pages workflow requires the
+exact reviewed JSON hash at the approved main commit and a protected deployment.
+Automated lineage and sanitizer checks do not replace that review.

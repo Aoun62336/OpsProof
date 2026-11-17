@@ -56,6 +56,7 @@ def validate(objects):
                 sec["allowPrivilegeEscalation"] is False and "ALL" in sec["capabilities"]["drop"],
                 f"Container privileges: {name}",
             )
+            require(sec.get("readOnlyRootFilesystem") is True, f"Writable root filesystem: {name}")
             require(
                 container["resources"].get("requests") and container["resources"].get("limits"),
                 f"Unbounded resources: {name}",

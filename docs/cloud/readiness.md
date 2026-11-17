@@ -1,81 +1,76 @@
-# Cloud readiness execution
+# Cloud readiness
 
-Owner approved implementation and local verification on 16 November 2026, based
-on clean baseline `5dddbf6`. Real Terraform apply remains owner-operated. Publication
-and model requests need their concrete release/evaluation approval. The supplied
-archive is reference design material, not an authority to execute its commands.
+The approved pre-cloud implementation and local integration work are complete.
+AWS deployment acceptance is still pending. On 17 November 2026 the owner chose
+to perform account setup, regional/cost preflight and deployment in a later
+owner-run session. No real AWS resources were created, no Terraform apply ran,
+and no images or website were published. The original local cluster stayed off.
 
-## Scope
+## What is implemented
 
-The approved deployment uses Mumbai, two private workers in separate AZs, one
-NAT, private Multi-AZ control PostgreSQL, authenticated TLS Redis, Pod Identity,
-an isolated read-only edge and a private operator console. Preserve the original
-palette, independent trial proof and the local executor boundary.
+- Three guarded Terraform roots: state bootstrap, two-AZ private platform and
+  isolated read-only public edge; exact provider locks and native mock tests.
+- Resumable database credential/role bootstrap, granular grants, TLS verification,
+  authenticated TLS Redis and separate application/migration identities.
+- Read-only EKS observation, disabled recovery/model execution, and the existing
+  operational UI/palette preserved with backend-owned capabilities.
+- Scoped controller/GitOps permissions, five integrity-locked controller charts,
+  namespace network boundaries, secrets, storage and shared telemetry rendering.
+- Per-replica cloud metrics discovery, bounded API/worker scaling and explicit
+  capacity/request review. No cloud progressive-delivery claim is made.
+- Four-image release/SBOM/provenance workflows, pinned Actions, six curated
+  historical public cases with verified private lineage, and exact-ID teardown
+  auditing across 22 resource categories.
+- Explicit evidence units/freshness/thresholds, mechanical citation validation and
+  a completed 24-request independently reviewed AI comparison. Neither provider
+  qualified; runtime AI remains off. No further calls are required for deployment.
 
-## Execution order
+## Local verification
 
-1. Selectively integrate the 61-file package using responsibility-based paths.
-2. Repair Terraform syntax/account checks and preserve Helm/local safety controls.
-3. Make database role bootstrap/grants and cloud secret provisioning resumable.
-4. Separate observation from mutation capabilities and adapt the existing UI.
-5. Complete cloud network, secret, observability and GitOps composition.
-6. Validate native infrastructure, SQL permissions, application and release checks.
-7. Rehearse necessary integration locally, using isolated owned resources.
-8. Test supported emulator contracts and record unsupported AWS behavior honestly.
-9. Prepare and authorize a bounded AI evaluation before enabling any model.
-10. Freeze the release and owner-run deployment, evidence and cleanup procedures.
+The source gate covers Python/demo/web tests, lint/format, production web build,
+25 preserved local Helm profiles, six cloud application/five controller profiles,
+workflow pins, k6 syntax, whitespace and source secret scanning. Native Terraform
+validation and 11 mock tests passed across all three roots. All ten workflows
+were checked by actionlint. These are local checks, not hosted CI results.
 
-## Current state
+Actual disposable integrations also passed: 32 SQL/TLS/permission tests; the
+production UI against the real restricted API at five viewport widths with 20
+screenshots and accessibility checks; Redis trusted TLS/auth and negative probes;
+four nonroot/read-only image smoke tests; and a signed AWS Emulator S3/Secrets
+Manager contract rehearsal. Test resources and generated private session files
+were removed. Image scans retain unfixed Python-base findings for review.
 
-The first implementation checkpoint is verified; pre-cloud work is still in
-progress. AWS writes, Terraform apply, publishing and model requests have not
-been executed in this phase. The original local Kubernetes cluster is stopped.
+See the [verification review](../engineering/cloud-readiness-review.md) for actual
+commands, retained receipts, failures repaired and remaining limitations. The
+[AI decision](../engineering/advisory-evaluation.md) preserves failed qualification
+and historical label/threshold tensions without changing labels after evaluation.
 
-Implemented and checked:
+## Remaining owner gates
 
-- Three responsibility-based Terraform roots, account guards, exact provider/
-  addon inputs, private two-AZ topology, TLS-required RDS and mock-provider tests.
-- Shared granular database grants, retryable owned role/Secret reconciliation,
-  and read-only cloud observation without local mutation permissions.
-- Original UI palette and operational cards preserved; cloud labels and runbook
-  controls come from backend capabilities.
-- Complete cloud value overlays, namespaces, network/secret generators, scoped
-  GitOps composition and a shared existing telemetry renderer.
-- Five exact controller archives/dependencies and matching upstream ALB policy,
-  bounded controller requests, four-image release receipts, pinned Actions and
-  public replay coverage/source-identity checks.
-- Exact-ID cleanup auditing expanded to 22 resource categories; ambiguous API
-  errors, partial captures and pending deletions cannot prove cleanup.
+1. Review/merge the final branch, run hosted CI and approve/publish the exact
+   four-image release; verify actual registry digests and attestations.
+2. Configure the named short-lived AWS profile, verify Mumbai service versions,
+   offerings/quotas, actual node capacity and fresh account-specific costs.
+3. Review and owner-apply saved bootstrap/platform/edge plans in order. Bootstrap
+   and verify runtime permissions, storage, networking and all intended paths.
+4. Capture real cloud screenshots/machine evidence, then complete ordered
+   teardown, exact-ID/discovery checks and later settled billing review.
 
-Executed verification at this checkpoint: 378 Python tests plus 21 subtests,
-33 demo tests, 46 web tests, production web build, lint/format/source secret
-checks, 25 local Helm profiles, six cloud application and five controller
-profiles, all ten workflows parsed by actionlint, all three Terraform roots
-validated and 11 native mock tests passed. The disposable TLS PostgreSQL run
-separately passed the 27 existing SQL tests and five cloud role/TLS tests.
+Local tests cannot establish EKS/CNI/Pod Identity/RDS/ALB behavior, an enforced
+spending ceiling or absence of future charges. No live M7 Kubernetes deployment
+was run. These pending owner gates are not presented as completed M7 acceptance.
 
-Private command/result receipts are under `.runtime/verification/source/` and
-`.runtime/verification/cloud/`, including `terraform/result.json` and
-`postgres/opsproof-m6-pg-test-905a08f331/result.json`. These are local execution
-receipts, not proof of hosted CI, registry publication or AWS acceptance.
+Start your session with [owner deployment steps](owner-deployment-session.md).
+Detailed procedures: [identity/cost](identity-and-cost.md),
+[Terraform](terraform-operations.md), [runtime](runtime-deployment.md),
+[release](release.md), [acceptance/teardown](verification-and-teardown.md),
+and [emulator rehearsal](emulator-rehearsal.md).
 
-Still required before a release decision: Redis/container and necessary local
-integration rehearsal, emulator-supported contract tests with honest limits,
-new bounded AI comparison/independent factual review, final image/configuration
-security review, exact release freeze and fresh owner account/cost preflight.
-Actual hosted release signatures and EKS/RDS/network/edge/billing/teardown
-acceptance follow the separately approved owner-run deployment.
+## Source provenance
 
-Maintained procedures:
-[identity and cost](identity-and-cost.md),
-[Terraform](terraform-operations.md),
-[runtime deployment](runtime-deployment.md),
-[release/public evidence](release.md),
-[acceptance and teardown](verification-and-teardown.md).
-
-The source archive SHA256 is
+Implementation started from clean `5dddbf6`; the first reviewed checkpoint is
+`b97302a`. Source archive SHA256:
 `3a50195ffa6a0c5f2b09f9110fa8222d88d21977611c1a1d2e0e8e2fa75d3bd5`.
-The exact path mapping and selective integration receipt are retained privately at
-`.runtime/verification/cloud/input.json`. The earlier review documents stay in the
-separate review workspace. They describe the previous paths; maintained cloud
-procedures will be reconciled here.
+Private selective integration mapping: `.runtime/verification/cloud/input.json`.
+The archive was reference material; its instructions did not authorize cloud
+writes. Older review workspace paths are historical, not deployment commands.

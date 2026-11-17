@@ -20,7 +20,11 @@ from urllib.parse import quote
 
 def cmd(*args: str) -> None:
     subprocess.run(
-        ["openssl", *args], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+        ["openssl", *args],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        timeout=30,
     )
 
 
@@ -61,6 +65,12 @@ def build_for(role: str) -> list[dict]:
             "2",
             "-subj",
             f"/CN=OpsProof-Cloud-{role}-Ephemeral-CA",
+            "-addext",
+            "basicConstraints=critical,CA:TRUE,pathlen:0",
+            "-addext",
+            "keyUsage=critical,keyCertSign,cRLSign",
+            "-addext",
+            "subjectKeyIdentifier=hash",
             "-keyout",
             str(d / "ca.key"),
             "-out",
@@ -81,7 +91,13 @@ def build_for(role: str) -> list[dict]:
             str(d / "tls.csr"),
         )
         (d / "extensions.txt").write_text(
-            f"subjectAltName=DNS:{host}\nextendedKeyUsage=serverAuth\n", encoding="utf-8"
+            (
+                f"subjectAltName=DNS:{host}\nextendedKeyUsage=serverAuth\n"
+                "basicConstraints=critical,CA:FALSE\n"
+                "keyUsage=critical,digitalSignature,keyEncipherment\n"
+                "subjectKeyIdentifier=hash\nauthorityKeyIdentifier=keyid,issuer\n"
+            ),
+            encoding="utf-8",
         )
         cmd(
             "x509",
