@@ -178,6 +178,10 @@ def main():
                 *[str(path) for path in sorted((ROOT / ".github/workflows").glob("*.yml"))],
             ],
         ),
+        (
+            "workflow-contracts",
+            [*control, "python", "-m", "scripts.cloud.check_workflow_contracts"],
+        ),
         ("k6-syntax", ["node", "--check", "benchmarks/k6/jobs.js"]),
         ("whitespace", ["git", "diff", "--check"]),
     ]

@@ -39,7 +39,7 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts/platform/tests -v
           uv run --project apps/control-plane --locked pytest scripts/reliability/tests -q
-          uv run --project apps/control-plane --locked python -m unittest discover -s scripts/cloud/tests -v
+          uv run --project apps/control-plane --locked python -m pytest scripts/cloud/tests -q
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
@@ -52,6 +52,8 @@ jobs:
           npm run lint
           npm run test
           npm run build
+      - name: Workflow source references and test discovery
+        run: uv run --project apps/control-plane --locked python -m scripts.cloud.check_workflow_contracts
       - name: k6 JavaScript syntax
         run: node --check benchmarks/k6/jobs.js
       - name: Secrets scan before image publication
