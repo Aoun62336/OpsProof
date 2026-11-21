@@ -64,7 +64,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
-    output = ROOT / ".runtime/m6/acceptance/environment" / ("api-pins-" + uuid4().hex)
+    output = ROOT / ".runtime/reliability/acceptance/environment" / ("api-pins-" + uuid4().hex)
     output.mkdir(parents=True, exist_ok=False)
     env = LocalEnvironment(output)
     service = env.get("service", "kubernetes", "default")

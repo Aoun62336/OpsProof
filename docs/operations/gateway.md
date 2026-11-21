@@ -1,20 +1,20 @@
-# Milestone 5 | Gateway API, web application, and restricted local access
+# Local gateway and private operator access
 
 ## Local execution safety update (November 7, 2026)
 
-Use `python scripts/platform/preflight.py`, then `python scripts/platform/bootstrap.py`.
-Bootstrap writes only `.runtime/m5/kubeconfig.yaml`; it never switches the default context.
+Use `python -m scripts.platform.preflight`, then `python -m scripts.platform.bootstrap`.
+Bootstrap writes only `.runtime/platform/kubeconfig.yaml`; it never switches the default context.
 The inspected default context was an AWS EKS context, so **before any manual commands below**,
 set the isolated config in each Git Bash terminal:
 
 ```bash
-export KUBECONFIG="$PWD/.runtime/m5/kubeconfig.yaml"
+export KUBECONFIG="$PWD/.runtime/platform/kubeconfig.yaml"
 test -f "$KUBECONFIG" || exit 1
 test "$(kubectl config current-context)" = k3d-opsproof || exit 1
 ```
 
-For the foundation, prefer `python scripts/platform/deploy_foundation.py`, followed by
-`python scripts/platform/smoke.py`. Both use explicit local configuration; the latter owns
+For the foundation, prefer `python -m scripts.platform.deploy_foundation`, followed by
+`python -m scripts.platform.smoke`. Both use explicit local configuration; the latter owns
 the dedicated port forwards. Do not run the old manual cluster-create commands again
 after bootstrap. All runtime acceptance remains pending until the evidence exists.
 
@@ -39,14 +39,14 @@ kubectl config current-context
 helm repo add traefik https://traefik.github.io/charts
 helm repo update traefik
 helm show chart traefik/traefik --version 42.3.0
-mkdir -p .runtime/m5
+mkdir -p .runtime/platform
 curl --fail --location --silent --show-error \
   https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml \
-  --output .runtime/m5/gateway-api-v1.6.1.yaml
-kubectl apply --server-side -f .runtime/m5/gateway-api-v1.6.1.yaml
+  --output .runtime/platform/gateway-api-v1.6.1.yaml
+kubectl apply --server-side -f .runtime/platform/gateway-api-v1.6.1.yaml
 kubectl get crd gateways.gateway.networking.k8s.io httproutes.gateway.networking.k8s.io
-helm pull traefik/traefik --version 42.3.0 --untar --untardir .runtime/m5/charts
-helm lint .runtime/m5/charts/traefik -f infra/k8s/traefik/values-local.yaml
+helm pull traefik/traefik --version 42.3.0 --untar --untardir .runtime/platform/charts
+helm lint .runtime/platform/charts/traefik -f infra/k8s/traefik/values-local.yaml
 helm upgrade --install traefik traefik/traefik \
   --version 42.3.0 \
   -n opsproof-gateway \

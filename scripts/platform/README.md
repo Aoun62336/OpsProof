@@ -1,3 +1,11 @@
-# Local platform
+# Local Kubernetes platform
 
-See the [repository structure guide](../../docs/engineering/repository-structure.md) and [current operations guides](../../README.md#local-operation). Tests in `tests/` cover the behavior owned by this package. Run tool commands from the repository root. Local platform scripts support direct file execution; reliability and cloud modules use `python -m scripts.<package>.<module>`.
+Bootstrap, controllers, GitOps, gateway and local platform verification.
+
+Run from the repository root using the locked control-plane tooling environment:
+
+```sh
+uv run --project apps/control-plane --locked python -m scripts.platform.MODULE
+```
+
+Tests live in `tests/`. See [repository structure](../../docs/engineering/repository-structure.md) and the [operations guides](../../README.md#local-operation). Use an explicit local/cloud context; never infer cloud authorization from a passing source test.

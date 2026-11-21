@@ -3,8 +3,8 @@
 import json
 import subprocess
 
-from local_cluster import kubectl_prefix
-from preflight import ROOT
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
 
 
 def main():
@@ -77,7 +77,7 @@ def main():
         ):
             raise RuntimeError("Credential mounting boundary failed")
         checks.append({"role": role, "projected_token": mounted, "automount": False})
-    (ROOT / ".runtime/m5/acceptance/kubernetes-rbac.json").write_text(
+    (ROOT / ".runtime/platform/acceptance/kubernetes-rbac.json").write_text(
         json.dumps({"passed": True, "checks": checks}, indent=2)
     )
     print("PASS:", len(checks), "live RBAC and credential boundary checks")

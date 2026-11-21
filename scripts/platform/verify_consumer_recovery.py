@@ -6,9 +6,9 @@ import time
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
-from forward import services
-from local_cluster import kubectl_prefix
-from preflight import ROOT
+from scripts.platform.forward import services
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
 
 
 def main():
@@ -158,7 +158,7 @@ def main():
         finally:
             if stopped:
                 signal_worker("CONT")
-            (ROOT / ".runtime/m5/acceptance/consumer-recovery.json").write_text(
+            (ROOT / ".runtime/platform/acceptance/consumer-recovery.json").write_text(
                 json.dumps(record, indent=2) + "\n"
             )
     print("PASS: pending consumer reclaimed, exact job completed, duplicate delivery fenced")

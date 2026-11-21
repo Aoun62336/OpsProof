@@ -7,9 +7,9 @@ from http.cookiejar import CookieJar
 from urllib.error import HTTPError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
-from local_cluster import kubectl_prefix
-from preflight import ROOT
-from render_local_secrets import read_env
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
+from scripts.platform.render_local_secrets import read_env
 
 BASE = "http://127.0.0.1:8081"
 
@@ -98,7 +98,7 @@ def main():
         "checks": checks,
         "passed": True,
     }
-    (ROOT / ".runtime/m5/acceptance/gateway-http.json").write_text(
+    (ROOT / ".runtime/platform/acceptance/gateway-http.json").write_text(
         json.dumps(record, indent=2) + "\n"
     )
     print(f"PASS: {len(checks)} real gateway checks")

@@ -1,6 +1,5 @@
 """Locked app regressions and source-only security checks; never injects faults."""
 
-import hashlib
 import json
 import os
 import shutil
@@ -8,25 +7,15 @@ import subprocess
 import sys
 import tempfile
 import time
-import zipfile
 from uuid import uuid4
 
 from scripts.platform.preflight import ROOT
 from scripts.reliability.local_environment import source_identity, utc, write_json
+from scripts.security_tools import binary
 
 
 def secret_scan(output):
-    tools = ROOT / ".runtime/m5/security-tools"
-    archive = tools / "gitleaks_8.30.1_windows_x64.zip"
-    executable = tools / "gitleaks.exe"
-    if os.name != "nt":
-        raise RuntimeError("Use the pinned CI secret scanner on non-Windows hosts")
-    expected = "d29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e"
-    if hashlib.sha256(archive.read_bytes()).hexdigest() != expected:
-        raise RuntimeError("Pinned scanner archive checksum mismatch")
-    with zipfile.ZipFile(archive) as package:
-        if package.read("gitleaks.exe") != executable.read_bytes():
-            raise RuntimeError("Installed scanner differs from its verified archive")
+    executable = binary("gitleaks")
     names = (
         subprocess.check_output(
             [
@@ -42,11 +31,13 @@ def secret_scan(output):
         .decode()
         .split("\0")
     )
-    with tempfile.TemporaryDirectory(prefix="source-scan-", dir=ROOT / ".runtime/m6") as temporary:
+    with tempfile.TemporaryDirectory(
+        prefix="source-scan-", dir=ROOT / ".runtime/reliability"
+    ) as temporary:
         from pathlib import Path
 
         directory = Path(temporary).resolve()
-        assert directory.is_relative_to((ROOT / ".runtime/m6").resolve())
+        assert directory.is_relative_to((ROOT / ".runtime/reliability").resolve())
         for name in set(names) - {""}:
             source = (ROOT / name).resolve()
             if not source.is_file():
@@ -167,6 +158,10 @@ def main():
         (
             "cloud-helm",
             [*control, "--with", "PyYAML==6.0.3", "python", "-m", "scripts.cloud.validate_charts"],
+        ),
+        (
+            "cloud-schemas",
+            [*control, "--with", "PyYAML==6.0.3", "python", "-m", "scripts.cloud.validate_schemas"],
         ),
         (
             "workflow-pins",

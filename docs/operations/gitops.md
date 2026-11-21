@@ -1,20 +1,20 @@
-# Milestone 5 | GitOps reconciliation protocol
+# GitOps reconciliation protocol
 
 ## Local execution safety update (November 7, 2026)
 
-Use `python scripts/platform/preflight.py`, then `python scripts/platform/bootstrap.py`.
-Bootstrap writes only `.runtime/m5/kubeconfig.yaml`; it never switches the default context.
+Use `python -m scripts.platform.preflight`, then `python -m scripts.platform.bootstrap`.
+Bootstrap writes only `.runtime/platform/kubeconfig.yaml`; it never switches the default context.
 The inspected default context was an AWS EKS context, so **before any manual commands below**,
 set the isolated config in each Git Bash terminal:
 
 ```bash
-export KUBECONFIG="$PWD/.runtime/m5/kubeconfig.yaml"
+export KUBECONFIG="$PWD/.runtime/platform/kubeconfig.yaml"
 test -f "$KUBECONFIG" || exit 1
 test "$(kubectl config current-context)" = k3d-opsproof || exit 1
 ```
 
-For the foundation, prefer `python scripts/platform/deploy_foundation.py`, followed by
-`python scripts/platform/smoke.py`. Both use explicit local configuration; the latter owns
+For the foundation, prefer `python -m scripts.platform.deploy_foundation`, followed by
+`python -m scripts.platform.smoke`. Both use explicit local configuration; the latter owns
 the dedicated port forwards. Do not run the old manual cluster-create commands again
 after bootstrap. All runtime acceptance remains pending until the evidence exists.
 
@@ -37,7 +37,7 @@ helm repo update argo
 helm show chart argo/argo-cd --version 10.14.0
 export M5_REVISION="$(git rev-parse HEAD)"
 export M5_TAG="m5-$(git rev-parse --short=12 HEAD)"
-python scripts/platform/render_gitops.py --revision "$M5_REVISION" --tag "$M5_TAG" > .runtime/m5/argocd-applications.json
+python -m scripts.platform.render_gitops --revision "$M5_REVISION" --tag "$M5_TAG" > .runtime/platform/argocd-applications.json
 ```
 
 **Do not `kubectl apply` that manifest until the authorized Git revision and images are reachable, Secrets are installed, controller and namespaces are ready, and the application's resource ownership has been reconciled with earlier manual Helm releases.** Helm and Argo CD should not simultaneously claim ownership of the same release resources. Establish an explicit cutover and preserve PVCs.

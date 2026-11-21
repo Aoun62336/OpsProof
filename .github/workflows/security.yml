@@ -27,5 +27,5 @@ jobs:
           scanners: vuln,misconfig
           severity: CRITICAL,HIGH
           exit-code: '1'
-          ignore-unfixed: true
+          ignore-unfixed: false
           cache: 'false'

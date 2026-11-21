@@ -6,8 +6,8 @@ Does not delete clusters, stop Compose, or change the user's default kubeconfig.
 import json
 import subprocess
 
-from preflight import ROOT
-from preflight import main as preflight
+from scripts.platform.preflight import ROOT
+from scripts.platform.preflight import main as preflight
 
 
 def main():
@@ -31,7 +31,7 @@ def main():
         text=True,
         check=True,
     )
-    target = ROOT / ".runtime/m5/kubeconfig.yaml"
+    target = ROOT / ".runtime/platform/kubeconfig.yaml"
     target.write_text(result.stdout, encoding="utf-8")
     subprocess.run(
         [
@@ -48,7 +48,7 @@ def main():
         ],
         check=True,
     )
-    print("Local cluster Ready; use .runtime/m5/kubeconfig.yaml explicitly")
+    print("Local cluster Ready; use .runtime/platform/kubeconfig.yaml explicitly")
 
 
 if __name__ == "__main__":

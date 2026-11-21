@@ -62,8 +62,8 @@ resource "aws_iam_role" "alb_controller" {
   name               = "${local.name}-alb-controller"
   assume_role_policy = local.pod_identity_trust
 }
-# The exact upstream IAM policy must be reviewed and downloaded separately.
-# It is purposefully not fabricated or committed here.
+# The exact upstream policy is committed with its version/hash provenance under
+# infra/k8s/cloud. Review its wildcard scope before owner-approved deployment.
 resource "aws_iam_policy" "alb_controller" {
   count  = var.enable_paid_resources ? 1 : 0
   name   = "${local.name}-alb-controller"

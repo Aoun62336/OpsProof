@@ -18,8 +18,6 @@ from urllib.parse import urlencode
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 
 def browser_check(env, output, dsn):
@@ -207,7 +205,11 @@ def prepare_cloud_tls(output):
 def main() -> int:
     name = "opsproof-m6-pg-test-" + uuid4().hex[:10]
     cloud = "--cloud" in sys.argv
-    base = ".runtime/verification/cloud/postgres" if cloud else ".runtime/m6/acceptance/postgres"
+    base = (
+        ".runtime/verification/cloud/postgres"
+        if cloud
+        else ".runtime/reliability/acceptance/postgres"
+    )
     output = ROOT / base / name
     output.mkdir(parents=True, exist_ok=True)
     with socket.socket() as sock:

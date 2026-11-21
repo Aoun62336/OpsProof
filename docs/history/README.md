@@ -3,7 +3,8 @@
 These dated records describe the source revisions and environments recorded in
 them. Their commands and internal runtime paths are historical references. Use
 the [current README](../../README.md) and maintained operations guides for current
-entry points. Raw private evidence remains in ignored `.runtime` storage.
+entry points. Raw private evidence is retained in ignored local output and the private external
+archive described in [repository structure](../engineering/repository-structure.md).
 
 - [engineering-log](engineering-log.md)
 - [m4-acceptance-closure-2026-11-07](m4-acceptance-closure-2026-11-07.md)
@@ -24,3 +25,7 @@ entry points. Raw private evidence remains in ignored `.runtime` storage.
 - [m6-trial-ledger-implementation-2026-11-10](m6-trial-ledger-implementation-2026-11-10.md)
 - [m6-workspace-ui-and-offline-evidence-2026-11-15](m6-workspace-ui-and-offline-evidence-2026-11-15.md)
 - [source-integration](source-integration.md)
+
+- [Repository review, 16 November](repository-review-2026-11-16.md)
+- [Cloud readiness review, 17 November](cloud-readiness-review-2026-11-17.md)
+- [Reliability implementation record](reliability-implementation-record.md)

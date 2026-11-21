@@ -1,4 +1,4 @@
-# OpsProof Milestone 4
+# Investigation and controlled recovery
 ## AI Investigation and Controlled Recovery
 
 Status: Local recovery, telemetry delivery and full-page automated accessibility verified on 2026-11-06; human UI acceptance and remote CI pending
@@ -250,7 +250,7 @@ contracts, API methods and investigation CSS were retained.
 | Demo `worker_control.py`, `worker.py`, `api.py`, `config.py` | Bounded Redis hold, worker checks, separate authenticated inspection and fixed resume actuator |
 | `compose.demo.recovery.yaml`, `compose.control.recovery.yaml` | Least-privilege credential distribution and default-disabled flags |
 | Web `InvestigationPage.tsx`, `App.tsx`, `IncidentsPage.tsx`, `lib/api.ts`, `lib/types.ts`, styles | Existing Forest & Porcelain workspace, navigation, evidence/diagnosis/approval/audit views |
-| New Python tests, `scripts/prepare_recovery.py`, `verify_authentication.py`, `verify_recovery.py`, control CI workflow | Preparation, unit/security regression, live authentication checks and recorded recovery evidence validation |
+| New Python tests, `scripts/compose/prepare_recovery.py`, `verify_authentication.py`, `verify_recovery.py`, control CI workflow | Preparation, unit/security regression, live authentication checks and recorded recovery evidence validation |
 | This runbook, `M4_TRIAL_RESULTS.md`, `docs/history/engineering-log.md` | Operational procedure, reconstruction choices and actual outcomes |
 
 Unspecified values were kept small: evidence age 60 seconds, underlying scrape
@@ -323,8 +323,8 @@ Set-Location C:\Users\AOUN\Desktop\OpsProof
 $env:UV_CACHE_DIR="$PWD/.cache/uv"
 $demo=@('-f','compose.yaml','-f','compose.target-integration.yaml','-f','compose.demo.telemetry.yaml','-f','compose.demo.recovery.yaml')
 $control=@('-f','compose.control.yaml','-f','compose.control.telemetry.yaml','-f','compose.control.recovery.yaml')
-python scripts/prepare_observability.py
-python scripts/prepare_recovery.py
+python -m scripts.compose.prepare_observability
+python -m scripts.compose.prepare_recovery
 docker network inspect opsproof-integration
 # Only if the network is absent:
 docker network create opsproof-integration
@@ -375,9 +375,9 @@ docker compose @control up -d --build --wait
 docker compose @control ps
 docker compose @control run --rm control-migrate alembic current
 curl.exe -fsS http://127.0.0.1:8090/health/ready
-python scripts/verify_control.py
-python scripts/verify_demo.py smoke
-python scripts/verify_authentication.py
+python -m scripts.compose.verify_control
+python -m scripts.compose.verify_demo smoke
+python -m scripts.compose.verify_authentication
 ```
 
 Expect healthy services, migration `0004`, completed regression jobs and five HTTP
@@ -400,7 +400,7 @@ Run these checks from the repository root before accepting a version change:
 ```powershell
 docker compose -f compose.observability.yaml run --rm --no-deps otel-collector validate --config=/etc/otelcol/config.yaml
 docker compose -f compose.observability.yaml run --rm --no-deps tempo '-config.file=/etc/tempo/config.yaml' '-config.verify=true'
-python scripts/verify_observability.py
+python -m scripts.compose.verify_observability
 ```
 
 The first two commands must exit zero: they validate the actual configuration
@@ -462,7 +462,7 @@ confirmation must return 422. Invalid session CSRF must return 403.
 ```powershell
 docker compose @demo exec -T worker python -m opsproof_demo.worker_control status
 curl.exe -fsS http://127.0.0.1:8088/api/v1/stats
-python scripts/verify_recovery.py --recovery-id REPLACE_WITH_ACTUAL_UUID
+python -m scripts.compose.verify_recovery --recovery-id REPLACE_WITH_ACTUAL_UUID
 docker compose @control logs --tail 100 action-worker evidence-worker
 ```
 
@@ -513,8 +513,8 @@ uncertainty; do not invent percentage MTTR improvements.
 $env:OPSPROOF_CONTROL_RECOVERY_ENABLED='false'
 $env:OPSPROOF_CONTROL_AI_ENABLED='false'
 docker compose @control up -d --no-deps --force-recreate control-api action-worker evidence-worker
-python scripts/verify_control.py
-python scripts/verify_authentication.py
+python -m scripts.compose.verify_control
+python -m scripts.compose.verify_authentication
 git status --short
 git diff --check
 git diff --stat

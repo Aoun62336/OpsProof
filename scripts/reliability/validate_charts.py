@@ -13,7 +13,7 @@ CHART = "infra/helm/opsproof-services"
 
 
 def main():
-    output = ROOT / ".runtime/m6/acceptance/helm"
+    output = ROOT / ".runtime/reliability/acceptance/helm"
     output.mkdir(parents=True, exist_ok=True)
     results = []
     profiles = [

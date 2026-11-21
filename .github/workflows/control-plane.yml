@@ -122,12 +122,12 @@ jobs:
       - name: Verify complete experiment flow
         run: |
           uv run --no-project --python 3.14 \
-            python scripts/verify_control.py
+            python -m scripts.compose.verify_control
 
       - name: Verify authentication boundaries
         run: |
           uv run --no-project --python 3.14 \
-            python scripts/verify_authentication.py
+            python -m scripts.compose.verify_authentication
 
       - name: Show logs if validation failed
         if: failure()

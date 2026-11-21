@@ -132,6 +132,7 @@ def main() -> None:
             controller["namespace"],
             "--values",
             str(values),
+            "--include-crds",
         ).stdout
         rows = [row for row in yaml.safe_load_all(rendered) if row]
         if controller["name"] == "argo-cd":

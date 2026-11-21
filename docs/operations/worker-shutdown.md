@@ -78,7 +78,7 @@ The shared external networks can remain without attached containers.
 With the full local stacks already running and no active work or worker hold:
 
 ```bash
-python -B scripts/verify_shutdown.py
+python -B scripts/compose/verify_shutdown.py
 ```
 
 This creates an eight-job experiment, stops the demo worker during a job, stops the

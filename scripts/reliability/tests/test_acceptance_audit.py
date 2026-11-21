@@ -14,7 +14,7 @@ class AuditTests(TestCase):
             for scenario in sorted(REQUIRED):
                 artifacts = []
                 for n in (1, 2):
-                    relative = f".runtime/m6/{scenario}/{n}.json"
+                    relative = f".runtime/reliability/{scenario}/{n}.json"
                     f = root / relative
                     f.parent.mkdir(parents=True, exist_ok=True)
                     f.write_text(f'{{"sample": "{scenario}-{n}"}}')

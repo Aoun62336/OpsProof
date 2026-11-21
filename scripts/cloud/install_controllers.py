@@ -17,9 +17,11 @@ import subprocess
 import tarfile
 from pathlib import Path, PurePosixPath
 
+from scripts.paths import cache
+
 ROOT = Path(__file__).resolve().parents[2]
 VERSION_SOURCE = ROOT / "infra/k8s/cloud/controller-versions.json"
-CHARTS = ROOT / ".runtime/cloud/charts"
+CHARTS = cache("helm", "controllers")
 LOCK = ROOT / "infra/k8s/cloud/controller-charts.lock.json"
 
 

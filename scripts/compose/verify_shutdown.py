@@ -1,6 +1,6 @@
 """Validate ordinary SIGTERM stop/restart on the running local sandbox.
 
-Run from the project root: python scripts/verify_shutdown.py
+Run from the project root: python -m scripts.compose.verify_shutdown
 Creates one eight-job experiment and briefly stops/restarts the five workers.
 Does not delete data, change credentials, or enable recovery/AI.
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.request import urlopen
 from uuid import uuid4
 
-from verify_control import request
+from scripts.compose.verify_control import request
 
 DEMO = [
     "docker",

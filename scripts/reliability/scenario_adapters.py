@@ -423,7 +423,7 @@ class FaultyRelease(Adapter):
         rollout = self.env.get("rollout", "demo-api")
         if rollout.get("status", {}).get("phase") != "Healthy":
             raise RuntimeError("Healthy stable Rollout required")
-        images = json.loads((ROOT / ".runtime/m5/acceptance/release-images.json").read_text())
+        images = json.loads((ROOT / ".runtime/platform/acceptance/release-images.json").read_text())
         faulty = next(item for item in images if item["release"] == "faulty")
         stable_image = rollout["spec"]["template"]["spec"]["containers"][0]["image"]
         if faulty["image"] == stable_image or not re.fullmatch(
@@ -531,7 +531,9 @@ class DownstreamLatency(FaultyRelease):
             raise RuntimeError("Downstream fixture must be disabled at baseline")
         # Require the opted-in fixture and trace-capable worker to be present in
         # the served source revision; an obsolete M5 image is insufficient.
-        provenance = json.loads((ROOT / ".runtime/m6/acceptance/image-provenance.json").read_text())
+        provenance = json.loads(
+            (ROOT / ".runtime/reliability/acceptance/image-provenance.json").read_text()
+        )
         if provenance["demo"]["tag"] != self.state["worker_image"]:
             raise RuntimeError("Live worker is not the newly built M6 image")
         self.state["original_application"] = app

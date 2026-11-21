@@ -6,11 +6,11 @@ import subprocess
 import time
 from uuid import uuid4
 
-from local_cluster import kubectl_prefix
-from preflight import ROOT
-from render_local_secrets import read_env
-from smoke import forwarded_apis
-from verify_k3d import http
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
+from scripts.platform.render_local_secrets import read_env
+from scripts.platform.smoke import forwarded_apis
+from scripts.platform.verify_k3d import http
 
 
 def main():
@@ -374,7 +374,7 @@ def main():
                         "opsproof-demo",
                         "--replicas=1",
                     )
-            (ROOT / f".runtime/m5/acceptance/{mode}-recovery-trial.json").write_text(
+            (ROOT / f".runtime/platform/acceptance/{mode}-recovery-trial.json").write_text(
                 json.dumps(record, indent=2) + "\n"
             )
 

@@ -91,7 +91,7 @@ def resource_preflight(profile="trial"):
         if disk < 15 * GIB:
             reasons.append("Workspace disk free below 15 GiB")
         try:
-            kube = local_prefix(ROOT / ".runtime/m5/kubeconfig.yaml")
+            kube = local_prefix(ROOT / ".runtime/platform/kubeconfig.yaml")
             checks["nodes"] = command([*kube, "get", "nodes", "-o", "json"])
             if checks["nodes"]["exit_code"]:
                 raise ValueError("Local Kubernetes capacity unavailable")
@@ -184,14 +184,14 @@ def fresh_database_probe(*, timeout=3):
 
 class LocalEnvironment:
     def __init__(self, output: Path, *, maximum_seconds=600, read_only=False, kubeconfig=None):
-        if not output.resolve().is_relative_to((ROOT / ".runtime/m6").resolve()):
+        if not output.resolve().is_relative_to((ROOT / ".runtime/reliability").resolve()):
             raise ValueError("Evidence must remain in the ignored M6 tree")
         if not 1 <= maximum_seconds <= 600:
             raise ValueError("Execution deadline outside 1..600 seconds")
         self.output = output
         configured = kubeconfig or os.environ.get("OPSPROOF_M6_KUBECONFIG")
         self.kube = local_prefix(
-            Path(configured) if configured else ROOT / ".runtime/m5/kubeconfig.yaml"
+            Path(configured) if configured else ROOT / ".runtime/platform/kubeconfig.yaml"
         )
         self.read_only = read_only
         self.deadline = time.monotonic() + maximum_seconds

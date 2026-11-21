@@ -28,7 +28,7 @@ def main():
     )
     parser.add_argument("--capacity-mode", choices=("fixed", "hpa", "keda"))
     args = parser.parse_args()
-    directory = ROOT / ".runtime/m6/acceptance/permissions" / ("checks-" + uuid4().hex)
+    directory = ROOT / ".runtime/reliability/acceptance/permissions" / ("checks-" + uuid4().hex)
     directory.mkdir(parents=True)
     resources = resource_preflight()
     write_json(directory / "resources.json", resources)

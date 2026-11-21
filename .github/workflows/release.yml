@@ -105,9 +105,27 @@ jobs:
         run: |
           set -euo pipefail
           image="ghcr.io/${GITHUB_REPOSITORY,,}/opsproof-${NAME}:${GITHUB_SHA}"
-          docker build --pull --file "$DOCKERFILE" --tag "$image" "$CONTEXT"
+          docker build --pull --no-cache --file "$DOCKERFILE" --tag "$image" "$CONTEXT"
           echo "IMAGE=$image" >> "$GITHUB_ENV"
           echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}/opsproof-${NAME}" >> "$GITHUB_ENV"
+      - name: Complete vulnerability report, including unfixed findings
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          scan-type: image
+          image-ref: ${{ env.IMAGE }}
+          scanners: vuln
+          format: json
+          output: image-vulnerabilities.json
+          ignore-unfixed: false
+          exit-code: '0'
+          cache: 'false'
+      - name: Retain complete vulnerability report
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: image-vulnerabilities-${{ matrix.name }}
+          path: image-vulnerabilities.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Trivy image policy (must pass before publication)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -115,7 +133,7 @@ jobs:
           image-ref: ${{ env.IMAGE }}
           scanners: vuln
           severity: CRITICAL,HIGH
-          ignore-unfixed: true
+          ignore-unfixed: false
           exit-code: '1'
           cache: 'false'
       - name: CycloneDX software bill of materials

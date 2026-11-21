@@ -4,9 +4,10 @@ import json
 import subprocess
 
 import yaml
-from gitops_permissions import permissions as scoped_permissions
-from local_cluster import helm_prefix, kubectl_prefix
-from preflight import ROOT
+
+from scripts.platform.gitops_permissions import permissions as scoped_permissions
+from scripts.platform.local_cluster import helm_prefix, kubectl_prefix
+from scripts.platform.preflight import ROOT
 
 NAMESPACES = ("opsproof-demo", "opsproof-control", "opsproof-ui")
 
@@ -18,7 +19,7 @@ def permissions():
 def main():
     kube = kubectl_prefix()
     helm = helm_prefix()
-    directory = ROOT / ".runtime/m5"
+    directory = ROOT / ".runtime/platform"
     flags = [
         "--repository-config",
         str(directory / "helm/repositories.yaml"),

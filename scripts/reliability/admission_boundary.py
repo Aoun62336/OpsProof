@@ -172,7 +172,9 @@ def build(
         raise ValueError("Duplicate original Helm parameter identities")
     desired = {}
     if scenario == "faulty_release":
-        records = json.loads((ROOT / ".runtime/m5/acceptance/release-images.json").read_text())
+        records = json.loads(
+            (ROOT / ".runtime/platform/acceptance/release-images.json").read_text()
+        )
         desired = {"rollout.image": next(r["image"] for r in records if r["release"] == "faulty")}
     elif scenario == "downstream_latency":
         desired = {

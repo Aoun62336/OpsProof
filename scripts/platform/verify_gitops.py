@@ -5,8 +5,8 @@ import subprocess
 import time
 from datetime import UTC, datetime
 
-from local_cluster import kubectl_prefix
-from preflight import ROOT
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
 
 
 def main():
@@ -18,7 +18,7 @@ def main():
         )
 
     def patch(kind, name, ns, body):
-        path = ROOT / ".runtime/m5/gitops-trial-patch.json"
+        path = ROOT / ".runtime/platform/gitops-trial-patch.json"
         path.write_text(json.dumps(body), encoding="utf-8")
         subprocess.run(
             [
@@ -139,7 +139,7 @@ def main():
         "final_status": final["status"],
         "scope": "local-only Git; no GitHub publication",
     }
-    (ROOT / ".runtime/m5/acceptance/gitops-trial.json").write_text(
+    (ROOT / ".runtime/platform/acceptance/gitops-trial.json").write_text(
         json.dumps(record, indent=2) + "\n"
     )
     print("PASS: real Git change, observed drift correction and source-error recovery")

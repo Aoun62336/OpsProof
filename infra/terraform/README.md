@@ -19,5 +19,5 @@ Its full history remains in baseline `5dddbf6`. Existing local Kubernetes, Helm,
 ledger and runtime evidence paths remain intact. No live Terraform state was
 migrated or changed during this source integration.
 
-See [cloud readiness](../../../docs/cloud/readiness.md) and
-[Terraform operations](../../../docs/cloud/terraform-operations.md).
+See [cloud readiness](../../docs/cloud/readiness.md) and
+[Terraform operations](../../docs/cloud/terraform-operations.md).

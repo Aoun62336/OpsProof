@@ -4,9 +4,9 @@ import argparse
 import json
 import subprocess
 
-from gitops_config import configure
-from local_cluster import kubectl_prefix
-from preflight import ROOT
+from scripts.platform.gitops_config import configure
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
 
 
 def main():

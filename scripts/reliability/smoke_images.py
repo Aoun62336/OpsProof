@@ -27,8 +27,10 @@ print(json.dumps(results))
 
 
 def main():
-    images = json.loads((ROOT / ".runtime/m6/acceptance/image-provenance.json").read_text())
-    output = ROOT / ".runtime/m6/acceptance/images" / ("smoke-" + uuid4().hex)
+    images = json.loads(
+        (ROOT / ".runtime/reliability/acceptance/image-provenance.json").read_text()
+    )
+    output = ROOT / ".runtime/reliability/acceptance/images" / ("smoke-" + uuid4().hex)
     output.mkdir(parents=True, exist_ok=False)
     records = {}
     for component in (name for name in APPS if name in images):

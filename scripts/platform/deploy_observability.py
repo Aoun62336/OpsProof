@@ -6,11 +6,10 @@ Uses existing local image digests, retained PVCs, and out-of-band credentials.
 import json
 import subprocess
 
-from local_cluster import kubectl_prefix
-from preflight import ROOT
-from render_local_secrets import read_env
-
-from observability import inputs, render
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.observability import inputs, render
+from scripts.platform.preflight import ROOT
+from scripts.platform.render_local_secrets import read_env
 
 NS = "opsproof-observability"
 
@@ -71,7 +70,7 @@ def main():
             ],
             check=True,
         )
-    (ROOT / ".runtime/m5/acceptance/telemetry-images.json").write_text(
+    (ROOT / ".runtime/platform/acceptance/telemetry-images.json").write_text(
         json.dumps(images, indent=2) + "\n"
     )
     print("Telemetry deployed; real metrics/log/trace verification still required")

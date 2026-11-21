@@ -12,7 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
-from render_local_secrets import read_env
+from scripts.platform.render_local_secrets import read_env
 
 
 def http(base: str, method: str, path: str, key: str = "", idem: str = "", payload=None):
@@ -34,7 +34,7 @@ def http(base: str, method: str, path: str, key: str = "", idem: str = "", paylo
 
 
 def verify(env_path: Path):
-    out = Path(".runtime/m5/k3d-smoke.json")
+    out = Path(".runtime/platform/k3d-smoke.json")
     out.unlink(missing_ok=True)
     env = read_env(env_path)
     key = env.get("OPSPROOF_CONTROL_API_KEY", "")

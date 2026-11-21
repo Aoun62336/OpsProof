@@ -106,7 +106,9 @@ def main():
     parser.add_argument("--run-directory", type=Path, required=True)
     args = parser.parse_args()
     directory = args.run_directory.resolve(strict=True)
-    if args.run_directory.is_symlink() or not directory.is_relative_to(ROOT / ".runtime/m6/trials"):
+    if args.run_directory.is_symlink() or not directory.is_relative_to(
+        ROOT / ".runtime/reliability/trials"
+    ):
         parser.error("Canonical local M6 trial directory required")
     request = json.loads((directory / "observer-request.json").read_text(encoding="utf-8"))
     output = directory / "observer"

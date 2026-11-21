@@ -1,4 +1,4 @@
-# M5 local operating runbook
+# Local operating runbook
 
 Open the application at http://127.0.0.1:8081. Run commands from the repository root in PowerShell. Read the latest acceptance report before repeating expensive trials.
 
@@ -7,16 +7,16 @@ Open the application at http://127.0.0.1:8081. Run commands from the repository 
 Never use the default Kubernetes context: it may point to AWS. Every manual command must specify both local flags:
 
 ```powershell
-kubectl --kubeconfig .runtime/m5/kubeconfig.yaml --context k3d-opsproof get applications -n argocd
-kubectl --kubeconfig .runtime/m5/kubeconfig.yaml --context k3d-opsproof get pods -A
-kubectl --kubeconfig .runtime/m5/kubeconfig.yaml --context k3d-opsproof get rollout demo-api -n opsproof-demo
+kubectl --kubeconfig .runtime/platform/kubeconfig.yaml --context k3d-opsproof get applications -n argocd
+kubectl --kubeconfig .runtime/platform/kubeconfig.yaml --context k3d-opsproof get pods -A
+kubectl --kubeconfig .runtime/platform/kubeconfig.yaml --context k3d-opsproof get rollout demo-api -n opsproof-demo
 ```
 
 Python cluster scripts use `local_cluster.py`, which requires the isolated config and validates the loopback API on port 6550. Start an existing stopped cluster with `k3d cluster start opsproof`; do not recreate it. For a genuinely new installation use `preflight.py` and `bootstrap.py`, then follow the foundation documents. Bootstrap requires 5 GiB free memory and 15 GiB disk; do not bypass the gate.
 
 ## Local GitOps updates
 
-Commit reviewed changes locally, run `python scripts/platform/serve_local_git.py`, then update the five Applications' `spec.source.targetRevision` to that commit while preserving Helm parameters and ignore rules. The local Git server is read-only and publishes no GitHub/registry content. Verify the commit is reachable before refreshing Argo. All five Applications must be Synced/Healthy at the intended SHA.
+Commit reviewed changes locally, run `python -m scripts.platform.serve_local_git`, then update the five Applications' `spec.source.targetRevision` to that commit while preserving Helm parameters and ignore rules. The local Git server is read-only and publishes no GitHub/registry content. Verify the commit is reachable before refreshing Argo. All five Applications must be Synced/Healthy at the intended SHA.
 
 Argo owns application resources. Do not independently run `helm upgrade` on them. Preserve narrowly scoped exceptions for Rollouts-managed route weights and recovery-managed worker replicas; do not ignore entire resources. Secrets are supplied out-of-band from ignored `.env` and must never enter Git.
 
@@ -25,11 +25,11 @@ Keep tested image tags/digests when application source is unchanged. For changed
 ## Targeted checks
 
 ```powershell
-python scripts/platform/smoke.py
-python scripts/platform/verify_recovery_security.py
-python scripts/platform/verify_release_incident.py
+python -m scripts.platform.smoke
+python -m scripts.platform.verify_recovery_security
+python -m scripts.platform.verify_release_incident
 python -m scripts.reliability.validate_source
-python scripts/platform/security_checks.py
+python -m scripts.platform.security_checks
 ```
 
 Use existing evidence when code and deployment have not changed. `verify_rollouts.py --faulty-only` intentionally injects a bad release; run it only when a new failure trial is needed, with healthy baseline and enough free RAM. It restores the healthy image in its cleanup path; independently confirm Rollout Healthy and route stable/canary weights 100/0 afterward. Port-forward helpers bind loopback and clean up their owned processes.
@@ -50,4 +50,4 @@ Close unused workloads or reclaim disposable filesystem cache if free memory is 
 
 ## Evidence
 
-Results are in `.runtime/m5/acceptance/`; the final archive contains selected sanitized evidence and a SHA-256 manifest. Do not archive `.env`, kubeconfigs, Secret resources, cookies, tokens or raw node annotations. Remote publication and hosted CI require a separate user instruction.
+Results are in `.runtime/platform/acceptance/`; the final archive contains selected sanitized evidence and a SHA-256 manifest. Do not archive `.env`, kubeconfigs, Secret resources, cookies, tokens or raw node annotations. Remote publication and hosted CI require a separate user instruction.

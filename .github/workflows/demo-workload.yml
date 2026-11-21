@@ -80,10 +80,10 @@ jobs:
         run: docker compose up -d --build --wait
 
       - name: Smoke test
-        run: uv run --no-project --python 3.14 python scripts/verify_demo.py smoke
+        run: uv run --no-project --python 3.14 python -m scripts.compose.verify_demo smoke
 
       - name: Worker outage and recovery
-        run: bash scripts/verify_first_fault.sh
+        run: bash scripts/compose/verify_first_fault.sh
 
       - name: Show logs on failure
         if: failure()

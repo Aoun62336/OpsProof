@@ -15,14 +15,14 @@ docker compose stop worker
 
 echo "Submitting jobs while the worker is unavailable..."
 uv run --no-project --python 3.14 \
-  python scripts/verify_demo.py outage-submit
+  python -m scripts.compose.verify_demo outage-submit
 
 echo "Restarting the worker..."
 docker compose start worker
 
 echo "Verifying that queued jobs complete..."
 uv run --no-project --python 3.14 \
-  python scripts/verify_demo.py outage-verify
+  python -m scripts.compose.verify_demo outage-verify
 
 trap - EXIT
 

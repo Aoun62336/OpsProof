@@ -1,4 +1,4 @@
-# Local M6 execution profile
+# Controlled local reliability trials
 
 This profile is declared before any M6 fault or benchmark is dispatched. It
 preserves the M5 application, data, security policies, controllers and telemetry.

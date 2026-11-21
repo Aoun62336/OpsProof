@@ -4,11 +4,12 @@ import json
 import subprocess
 
 import yaml
-from preflight import ROOT
+
+from scripts.platform.preflight import ROOT
 
 
 def main():
-    directory = ROOT / ".runtime/m5/helm"
+    directory = ROOT / ".runtime/platform/helm"
     (directory / "cache").mkdir(parents=True, exist_ok=True)
     flags = [
         "--repository-config",
@@ -56,7 +57,7 @@ def main():
         raise ValueError("Incorrect gateway listener")
     if any(item["allowedRoutes"]["namespaces"]["from"] != "Selector" for item in listener):
         raise ValueError("Cross-namespace routes must be selected")
-    output = ROOT / ".runtime/m5/acceptance"
+    output = ROOT / ".runtime/platform/acceptance"
     output.mkdir(parents=True, exist_ok=True)
     (output / "traefik-render.yaml").write_text(result.stdout, encoding="utf-8")
     record = {

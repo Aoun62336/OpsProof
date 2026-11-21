@@ -12,7 +12,7 @@ from scripts.cloud.verify_curated_evidence import verify
 def fixtures(root):
     cases, bindings = [], {}
     for scenario in sorted(CASES):
-        directory = root / ".runtime/m6/trials" / scenario
+        directory = root / ".runtime/reliability/trials" / scenario
         directory.mkdir(parents=True)
         source = {"head": "a" * 40, "tree_sha256": "b" * 64, "dirty": True}
         result = {"status": "SUCCEEDED", "scenario": scenario}

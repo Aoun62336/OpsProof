@@ -13,6 +13,7 @@ import zipfile
 from urllib.request import urlopen
 from uuid import uuid4
 
+from scripts.paths import cache, tools
 from scripts.platform.preflight import GIB, ROOT, memory_available
 from scripts.reliability.build_images_local import APPS
 from scripts.reliability.local_environment import utc, write_json
@@ -24,7 +25,7 @@ ARCHIVE_SHA256 = "691f737a7e5566a673c3a74dab9160552ec32101e953b659e5c77443d16ddd
 
 
 def prepare_tool():
-    directory = ROOT / ".runtime/m6/security-tools" / VERSION
+    directory = tools("trivy", VERSION)
     directory.mkdir(parents=True, exist_ok=True)
     checksums = directory / "checksums.txt"
     if not checksums.exists():
@@ -67,7 +68,7 @@ def prepare_tool():
 def main():
     if memory_available() < 2 * GIB:
         raise RuntimeError("Image scan requires 2 GiB free RAM")
-    directory = ROOT / ".runtime/m6/acceptance/images" / ("scan-" + uuid4().hex)
+    directory = ROOT / ".runtime/reliability/acceptance/images" / ("scan-" + uuid4().hex)
     directory.mkdir(parents=True, exist_ok=False)
     executable, identity = prepare_tool()
     report = {
@@ -76,7 +77,9 @@ def main():
         "images": {},
         "findings_review_required": True,
     }
-    images = json.loads((ROOT / ".runtime/m6/acceptance/image-provenance.json").read_text())
+    images = json.loads(
+        (ROOT / ".runtime/reliability/acceptance/image-provenance.json").read_text()
+    )
     scanner_env = {
         name: value
         for name, value in os.environ.items()
@@ -113,7 +116,7 @@ def main():
                     "--scanners",
                     "vuln",
                     "--cache-dir",
-                    str(ROOT / ".runtime/m6/security-tools/cache"),
+                    str(cache("trivy")),
                     "--skip-check-update",
                     "--format",
                     "json",

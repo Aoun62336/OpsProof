@@ -67,12 +67,12 @@ def categories(row):
 
 def main():
     previous = sorted(
-        (ROOT / ".runtime/m6/acceptance/pricing").glob("prices-*/selected-prices.json"),
+        (ROOT / ".runtime/reliability/acceptance/pricing").glob("prices-*/selected-prices.json"),
         key=lambda path: path.stat().st_mtime,
     )
     cached = json.loads(previous[-1].read_text()) if previous else {}
     cache_directory = previous[-1].parent if previous else None
-    output = ROOT / ".runtime/m6/acceptance/pricing" / ("prices-" + uuid4().hex)
+    output = ROOT / ".runtime/reliability/acceptance/pricing" / ("prices-" + uuid4().hex)
     output.mkdir(parents=True, exist_ok=False)
     report = {
         "region": REGION,

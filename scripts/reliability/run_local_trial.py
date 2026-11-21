@@ -42,7 +42,7 @@ def execute(scenario, acknowledgment, capacity_mode=None):
     if scenario not in ADAPTERS:
         raise ValueError("Scenario outside fixed six-scenario catalog")
     run_id = "m6-" + uuid4().hex
-    directory = ROOT / ".runtime/m6/trials" / run_id
+    directory = ROOT / ".runtime/reliability/trials" / run_id
     directory.mkdir(parents=True, exist_ok=False)
     result = {
         "run_id": run_id,

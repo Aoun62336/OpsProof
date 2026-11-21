@@ -8,8 +8,8 @@ import time
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from local_cluster import kubectl_prefix
-from preflight import ROOT, memory_available
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT, memory_available
 
 
 def main():
@@ -17,7 +17,7 @@ def main():
     parser.add_argument("--mode", required=True, choices=("fixed", "hpa", "keda"))
     args = parser.parse_args()
     kube = kubectl_prefix()
-    output = ROOT / ".runtime/m5/acceptance"
+    output = ROOT / ".runtime/platform/acceptance"
 
     def run(command, **kwargs):
         return subprocess.check_output([*kube, *command], text=True, timeout=30, **kwargs)

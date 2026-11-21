@@ -1,4 +1,4 @@
-# M6 verification runbook
+# Reliability verification runbook
 
 Updated 15 November 2026. The [acceptance report](../history/m6-acceptance-report-2026-11-14.md) and [matrix](../history/m6-acceptance-matrix-2026-11-14.md) identify the executed results and remaining reviews.
 
@@ -35,7 +35,7 @@ The final M6 application/migration bytes match the retained passing PostgreSQL r
 python -m scripts.reliability.start_local
 ```
 
-Startup uses the existing k3d cluster and explicit `.runtime/m5/kubeconfig.yaml` context `k3d-opsproof`. It checks the existing 5 GiB host RAM, 5 GiB Docker capacity and 15 GiB disk floors and preserves PVC identities. It refreshes the reviewed private API endpoint peers when required.
+Startup uses the existing k3d cluster and explicit `.runtime/platform/kubeconfig.yaml` context `k3d-opsproof`. It checks the existing 5 GiB host RAM, 5 GiB Docker capacity and 15 GiB disk floors and preserves PVC identities. It refreshes the reviewed private API endpoint peers when required.
 
 Active trials require 2 GiB free host RAM and 15 GiB free disk, with the existing 1 GiB emergency stop. Live Kubernetes node identity, Ready status and at least 5 GiB node capacity establish the running cluster's capacity. The verified node exposes six CPUs and approximately 9.7 GiB memory. Active trials can use that API measurement when the desktop sandbox cannot open Docker's Windows pipe.
 
@@ -60,7 +60,7 @@ The fixed catalog also includes `faulty_release`, `database_connectivity`, `work
 Success requires an independent matching hypothesis and cleanup receipt. Missing hypothesis evidence can produce a failed trial after restoration. Unknown dispatch or restoration retains an indeterminate record. Cleanup reconciliation appends evidence and releases the reservation when restoration is independently established.
 
 ```bash
-uv run --project apps/control-plane --locked python -m scripts.reliability.reconcile_local_trial --run-directory .runtime/m6/trials/RETAINED_RUN_ID --acknowledge M6_RECONCILE_ONLY
+uv run --project apps/control-plane --locked python -m scripts.reliability.reconcile_local_trial --run-directory .runtime/reliability/trials/RETAINED_RUN_ID --acknowledge M6_RECONCILE_ONLY
 ```
 
 Use the actual retained run directory. Reconciliation uses the original checkpoint and performs cleanup only. Inspect the original result, reconciliation result, independent receipt and access-cleanup record together.
@@ -88,9 +88,9 @@ The retained operator checks deploy the existing reuse Helm contract, collect ac
 Deterministic synthetic diagnosis uses the versioned dataset. The completed provider comparison uses six reviewed real incidents and two derived abstention variants. Independent agents authored/reviewed the labels and assessed every returned prediction. Both external models failed qualification and remain disabled. AWS provisioning belongs to M7 under the original scope.
 
 ```bash
-uv run --project apps/control-plane --locked python -m scripts.reliability.qualify --provider deterministic --output .runtime/m6/acceptance/NEW_DETERMINISTIC_RESULT.json
+uv run --project apps/control-plane --locked python -m scripts.reliability.qualify --provider deterministic --output .runtime/reliability/acceptance/NEW_DETERMINISTIC_RESULT.json
 ```
 
-The provider records are retained under `.runtime/m6/acceptance/provider-qualification/free-cad3b3a65882404894e07ced84e177ac/`. Preserve the original Gemini HTTP 404, its seven unrun cases, the prospective compatibility amendment and the current comparator's HTTP 503. Seventeen inference attempts and one necessary metadata GET were issued. There were zero automatic retries. These are completed evidence records. A rerun requires a separately bounded operator evaluation and free-tier billing confirmation.
+The provider records are retained under `.runtime/reliability/acceptance/provider-qualification/free-cad3b3a65882404894e07ced84e177ac/`. Preserve the original Gemini HTTP 404, its seven unrun cases, the prospective compatibility amendment and the current comparator's HTTP 503. Seventeen inference attempts and one necessary metadata GET were issued. There were zero automatic retries. These are completed evidence records. A rerun requires a separately bounded operator evaluation and free-tier billing confirmation.
 
 The verification index links all selected results, failed attempts, source/image identities, independent reviews, final platform state and archive hashes. Verify the SHA-256 manifests before review or sharing. Environment files, kubeconfigs, temporary credentials, browser traces and caches have private classification. The reviews are separate AI-agent assessments. External human certification remains a separate form of assurance.

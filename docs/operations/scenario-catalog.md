@@ -1,4 +1,4 @@
-# OpsProof M6 | Versioned six-scenario experiment protocol
+# Versioned reliability scenario protocol
 
 These definitions preserve the canonical frozen v1.0 scope. `scripts/reliability/contracts.py` is the machine-readable companion. **All controlled faults require accepted M5 local Kubernetes, an explicit authorized test window, CPU/RAM headroom, an abort plan and verified cleanup.** No production targets and no public cloud injection.
 

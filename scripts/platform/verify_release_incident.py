@@ -7,15 +7,15 @@ from datetime import datetime
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
-from forward import services
-from preflight import ROOT
-from render_local_secrets import read_env
-from verify_k3d import http
+from scripts.platform.forward import services
+from scripts.platform.preflight import ROOT
+from scripts.platform.render_local_secrets import read_env
+from scripts.platform.verify_k3d import http
 
 
 def main():
     key = read_env(ROOT / ".env")["OPSPROOF_CONTROL_API_KEY"]
-    output = ROOT / ".runtime/m5/acceptance"
+    output = ROOT / ".runtime/platform/acceptance"
     deadline = time.monotonic() + 360
     with services([("opsproof-observability", "tempo", 13200, 3200)]):
         while time.monotonic() < deadline:

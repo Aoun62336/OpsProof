@@ -1,6 +1,7 @@
 # Cloud readiness
 
-The approved pre-cloud implementation and local integration work are complete.
+Repository finalization and clean-environment verification are in progress.
+The source implementation and earlier local checks are recorded separately.
 AWS deployment acceptance is still pending. On 17 November 2026 the owner chose
 to perform account setup, regional/cost preflight and deployment in a later
 owner-run session. No real AWS resources were created, no Terraform apply ran,
@@ -38,22 +39,25 @@ production UI against the real restricted API at five viewport widths with 20
 screenshots and accessibility checks; Redis trusted TLS/auth and negative probes;
 four nonroot/read-only image smoke tests; and a signed AWS Emulator S3/Secrets
 Manager contract rehearsal. Test resources and generated private session files
-were removed. Image scans retain unfixed Python-base findings for review.
+were removed. Image scans retain unfixed Python-base findings. The strengthened release gate
+blocks HIGH/CRITICAL findings; see [container security](../engineering/container-security.md).
 
-See the [verification review](../engineering/cloud-readiness-review.md) for actual
+See the [verification review](../history/cloud-readiness-review-2026-11-17.md) for actual
 commands, retained receipts, failures repaired and remaining limitations. The
 [AI decision](../engineering/advisory-evaluation.md) preserves failed qualification
 and historical label/threshold tensions without changing labels after evaluation.
 
 ## Remaining owner gates
 
-1. Review/merge the final branch, run hosted CI and approve/publish the exact
+1. Resolve or explicitly review the exact remaining image findings under the
+   documented security policy. AI remains disabled and unqualified.
+2. Review/merge the final branch, run hosted CI and approve/publish the exact
    four-image release; verify actual registry digests and attestations.
-2. Configure the named short-lived AWS profile, verify Mumbai service versions,
+3. Configure the named short-lived AWS profile, verify Mumbai service versions,
    offerings/quotas, actual node capacity and fresh account-specific costs.
-3. Review and owner-apply saved bootstrap/platform/edge plans in order. Bootstrap
+4. Review and owner-apply saved bootstrap/platform/edge plans in order. Bootstrap
    and verify runtime permissions, storage, networking and all intended paths.
-4. Capture real cloud screenshots/machine evidence, then complete ordered
+5. Capture real cloud screenshots/machine evidence, then complete ordered
    teardown, exact-ID/discovery checks and later settled billing review.
 
 Local tests cannot establish EKS/CNI/Pod Identity/RDS/ALB behavior, an enforced

@@ -57,6 +57,8 @@ jobs:
         run: python3 -m scripts.cloud.install_controllers lock --execute
       - name: Cloud application and controller render contracts
         run: python3 -m scripts.cloud.validate_charts
+      - name: Built-in and exact controller CRD schema contracts
+        run: python3 -m scripts.cloud.validate_schemas
       - name: Immutable workflow dependencies
         run: python3 -m scripts.cloud.check_workflow_pins .github/workflows/*.yml
   database:

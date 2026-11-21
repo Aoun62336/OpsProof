@@ -1,20 +1,20 @@
-# Milestone 5 | k3d and Helm foundation (staged, not yet accepted)
+# Local Kubernetes and Helm foundation
 
 ## Local execution safety update (November 7, 2026)
 
-Use `python scripts/platform/preflight.py`, then `python scripts/platform/bootstrap.py`.
-Bootstrap writes only `.runtime/m5/kubeconfig.yaml`; it never switches the default context.
+Use `python -m scripts.platform.preflight`, then `python -m scripts.platform.bootstrap`.
+Bootstrap writes only `.runtime/platform/kubeconfig.yaml`; it never switches the default context.
 The inspected default context was an AWS EKS context, so **before any manual commands below**,
 set the isolated config in each Git Bash terminal:
 
 ```bash
-export KUBECONFIG="$PWD/.runtime/m5/kubeconfig.yaml"
+export KUBECONFIG="$PWD/.runtime/platform/kubeconfig.yaml"
 test -f "$KUBECONFIG" || exit 1
 test "$(kubectl config current-context)" = k3d-opsproof || exit 1
 ```
 
-For the foundation, prefer `python scripts/platform/deploy_foundation.py`, followed by
-`python scripts/platform/smoke.py`. Both use explicit local configuration; the latter owns
+For the foundation, prefer `python -m scripts.platform.deploy_foundation`, followed by
+`python -m scripts.platform.smoke`. Both use explicit local configuration; the latter owns
 the dedicated port forwards. Do not run the old manual cluster-create commands again
 after bootstrap. All runtime acceptance remains pending until the evidence exists.
 
@@ -83,7 +83,7 @@ Git dirty-state must be recorded if local changes are uncommitted; a Git-derived
 Store `.env` outside Git; the script uses it locally and writes no file. Do not use `kubectl -o yaml` to dump Secrets to logs. The namespaced `apply` operation requires operator privileges locally but no Pod receives those privileges.
 
 ```bash
-python scripts/platform/render_local_secrets.py --env .env | kubectl apply -f -
+python -m scripts.platform.render_local_secrets --env .env | kubectl apply -f -
 helm lint infra/helm/opsproof-dependencies
 helm upgrade --install demo-deps infra/helm/opsproof-dependencies -n opsproof-demo --wait --timeout 5m
 helm upgrade --install control-deps infra/helm/opsproof-dependencies -n opsproof-control --wait --timeout 5m
@@ -124,23 +124,19 @@ Then (from a third terminal):
 ```bash
 curl -fsS http://127.0.0.1:18088/health/ready
 curl -fsS http://127.0.0.1:18090/health/ready
-python scripts/platform/verify_k3d.py --env .env
+python -m scripts.platform.verify_k3d --env .env
 kubectl logs -n opsproof-demo deploy/demo-worker --tail=50
 kubectl logs -n opsproof-control deploy/control-evidence --tail=50
 ```
 
-The M5 smoke intentionally uses dedicated ports 18088/18090, avoiding accidentally hitting Compose on 8088/8090. The resulting `.runtime/m5/k3d-smoke.json` records actual run IDs, without secrets. This does not by itself qualify as the complete M4 recovery drill.
+The M5 smoke intentionally uses dedicated ports 18088/18090, avoiding accidentally hitting Compose on 8088/8090. The resulting `.runtime/platform/k3d-smoke.json` records actual run IDs, without secrets. This does not by itself qualify as the complete M4 recovery drill.
 
-## Important known gates before later stages
+## Verification boundary
 
-- Postgres/Redis image UID, writable mount ownership and restricted Pod Security Admission must be proved on the actual k3s node. Unverified storage behavior is a blocker, not something to bypass by running a privileged Pod.
-- NetworkPolicies are not installed until the necessary cross-namespace communication and CNI enforcement are audited. They remain an M5 security acceptance requirement, not a waived control.
-- The Stage 3 Nginx frontend and Gateway manifest are prepared; they must be verified separately before they replace a host Vite development session.
-- Prometheus, Alertmanager, Collector, Loki, Tempo and Grafana must be connected and verified before declaring M4 recovery or M5 canary analysis fully functional inside Kubernetes.
-- Once full telemetry is live, test action-worker access to both the target and Prometheus; fail closed on unavailable scrape evidence.
-- No new recovery credential is mounted in any ordinary Pod.
-- No Kubernetes API permissions for action-worker until its separate narrowly scoped recovery design and operator approval tests are complete.
-- Nothing has been pushed or provisioned in AWS.
+Use current verification commands and explicit local kubeconfig/context. Historical
+acceptance reports describe their recorded revisions. A fresh deployment must pass
+storage, network, telemetry, rollout and permission checks before being accepted.
+The original cluster's existence is not proof of a fresh checkout's reproducibility.
 
 ## Cleanup (requires checking current state)
 

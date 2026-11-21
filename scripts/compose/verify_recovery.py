@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from verify_control import request
+from scripts.compose.verify_control import request
 
 OUTPUT = Path(".runtime/milestone4-verification.json")
 

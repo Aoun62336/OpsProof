@@ -10,10 +10,10 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
-from forward import services
-from gitops_config import configure
-from local_cluster import kubectl_prefix
-from preflight import ROOT, memory_available
+from scripts.platform.forward import services
+from scripts.platform.gitops_config import configure
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT, memory_available
 
 
 def main():
@@ -21,7 +21,7 @@ def main():
     parser.add_argument("--faulty-only", action="store_true")
     args = parser.parse_args()
     kube = kubectl_prefix()
-    output = ROOT / ".runtime/m5/acceptance"
+    output = ROOT / ".runtime/platform/acceptance"
     images = {
         row["release"]: row for row in json.loads((output / "release-images.json").read_text())
     }

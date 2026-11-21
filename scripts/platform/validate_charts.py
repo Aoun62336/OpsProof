@@ -157,7 +157,7 @@ def main():
                 "passed": True,
             }
         )
-    output = ROOT / ".runtime/m5/acceptance/chart-contracts.json"
+    output = ROOT / ".runtime/platform/acceptance/chart-contracts.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(summaries, indent=2) + "\n", encoding="utf-8")
     print(

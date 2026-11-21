@@ -6,8 +6,10 @@ import subprocess
 from urllib.request import urlopen
 
 import yaml
-from local_cluster import kubectl_prefix
-from preflight import ROOT
+
+from scripts.paths import tools
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
 
 NS = "opsproof-demo"
 VERSION = "v1.10.2"
@@ -30,7 +32,7 @@ ASSETS = {
 
 def main():
     kube = kubectl_prefix()
-    directory = ROOT / ".runtime/m5/rollouts"
+    directory = tools("rollouts")
     directory.mkdir(parents=True, exist_ok=True)
     for filename, (url, digest) in ASSETS.items():
         path = directory / filename
@@ -190,7 +192,7 @@ def main():
         ],
         check=True,
     )
-    (ROOT / ".runtime/m5/acceptance/rollouts-install.json").write_text(
+    (ROOT / ".runtime/platform/acceptance/rollouts-install.json").write_text(
         json.dumps(
             {
                 "controller_version": VERSION,

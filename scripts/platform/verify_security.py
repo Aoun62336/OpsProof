@@ -5,8 +5,8 @@ import subprocess
 import time
 from datetime import UTC, datetime
 
-from local_cluster import kubectl_prefix
-from preflight import ROOT
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
 
 
 def main():
@@ -129,7 +129,7 @@ def main():
             "after_policy": after,
         }
     )
-    out = ROOT / ".runtime/m5/acceptance/k8s-foundation-security.json"
+    out = ROOT / ".runtime/platform/acceptance/k8s-foundation-security.json"
     out.write_text(
         json.dumps(
             {
