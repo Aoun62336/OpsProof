@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
 from uuid import uuid4
 
 from scripts.platform.preflight import ROOT
@@ -69,15 +70,15 @@ def secret_scan(output):
         return run.returncode
 
 
-def main():
+def validate(pytest_root):
     output = ROOT / ".runtime/verification/source" / ("checks-" + uuid4().hex)
     output.mkdir(parents=True, exist_ok=False)
     identity = source_identity()
     write_json(output / "source-before.json", identity)
     env = {**os.environ, "PYTHONPATH": str(ROOT)}
     env["PYTEST_ADDOPTS"] = (
-        f'--basetemp="{(output / "pytest-temp").as_posix()}" '
-        f'-o cache_dir="{(output / "pytest-cache").as_posix()}"'
+        f'--basetemp="{(pytest_root / "tests").as_posix()}" '
+        f'-o cache_dir="{(pytest_root / "cache").as_posix()}"'
     )
     control = ["uv", "run", "--project", "apps/control-plane", "--locked"]
     demo = ["uv", "run", "--project", "apps/demo-workload", "--locked"]
@@ -219,6 +220,13 @@ def main():
     write_json(output / "result.json", report)
     print(json.dumps(report, indent=2))
     return 0 if report["passed"] else 1
+
+
+def main():
+    # Nested checkout + report + test-case + trial paths exceed MAX_PATH on
+    # Windows. Keep disposable pytest state in the short OS temporary root.
+    with tempfile.TemporaryDirectory(prefix="opsproof-tests-") as temporary:
+        return validate(Path(temporary))
 
 
 if __name__ == "__main__":
