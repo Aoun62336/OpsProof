@@ -198,8 +198,8 @@ def main():
         lambda: has_log(proxy + "opsproof-loki", "opsproof-demo-worker", job_id, headers),
         "same real worker log retrieved through authenticated Grafana datasource",
     )
-    output = ROOT / ".runtime" / "observability-verification.json"
-    output.parent.mkdir(exist_ok=True)
+    output = ROOT / ".runtime/verification/compose/observability.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
         json.dumps(
             {

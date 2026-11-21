@@ -86,7 +86,7 @@ evidence worker while verification is pending, stops the other background roles,
 and restarts them. It checks exit code 0, retention of pending evidence, exact job
 IDs, one attempt per job, successful resumed verification, and idle shutdown of all
 five background processes. It restores workers and saves evidence in
-`.runtime/shutdown-verification.json`. It does not perform the final full shutdown;
+`.runtime/verification/compose/shutdown.json`. It does not perform the final full shutdown;
 use the sequence above afterward.
 
 Local validation results and remaining nonlocal scope are recorded in

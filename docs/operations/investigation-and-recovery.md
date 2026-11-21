@@ -467,7 +467,7 @@ docker compose @control logs --tail 100 action-worker evidence-worker
 ```
 
 Expect hold inactive, linked jobs completed, experiment succeeded, incident
-resolved, and the evidence checker to write `.runtime/milestone4-verification.json`.
+resolved, and the evidence checker to write `.runtime/verification/compose/recovery.json`.
 Acknowledgment alone is insufficient. A verifier failure means examine each proof
 and audit event; never rewrite terminal outcomes. If emergency intervention is
 needed, `docker compose @demo exec -T redis redis-cli DEL opsproof:demo:worker:hold:v1`

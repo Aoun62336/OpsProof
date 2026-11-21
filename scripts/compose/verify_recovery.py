@@ -8,7 +8,7 @@ from uuid import UUID
 
 from scripts.compose.verify_control import request
 
-OUTPUT = Path(".runtime/milestone4-verification.json")
+OUTPUT = Path(".runtime/verification/compose/recovery.json")
 
 
 def main() -> None:
@@ -51,7 +51,7 @@ def main() -> None:
         "GET", f"/api/v1/incidents/{recovery['incident_fingerprint']}/events"
     )
     assert code == 200 and any(e["status"] == "resolved" for e in incident_events)
-    OUTPUT.parent.mkdir(exist_ok=True)
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(
         json.dumps(
             {

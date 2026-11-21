@@ -36,7 +36,7 @@ CONTROL = [
     "-f",
     "compose.control.recovery.yaml",
 ]
-OUTPUT = Path(".runtime/shutdown-verification.json")
+OUTPUT = Path(".runtime/verification/compose/shutdown.json")
 
 
 def command(args):
@@ -212,7 +212,7 @@ def verify():
     finally:
         command(DEMO + ["start", "dispatcher", "worker"])
         command(CONTROL + ["start", "control-dispatcher", "action-worker", "evidence-worker"])
-    OUTPUT.parent.mkdir(exist_ok=True)
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"PASS: exact jobs completed once; evidence resumed after restart. Evidence: {OUTPUT}")
 

@@ -8,7 +8,7 @@ from urllib.request import Request, urlopen
 from uuid import uuid4
 
 BASE_URL = "http://127.0.0.1:8090"
-OUTPUT = Path(".runtime/control-first-run.json")
+OUTPUT = Path(".runtime/verification/compose/control.json")
 
 
 def api_key() -> str:

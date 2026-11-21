@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 from uuid import uuid4
 
 BASE_URL = "http://127.0.0.1:8088"
-RUN_FILE = Path(".runtime/outage_run.json")
+RUN_FILE = Path(".runtime/verification/compose/outage-run.json")
 TIMEOUT_S = 60
 
 
@@ -121,7 +121,7 @@ def outage_submit() -> None:
     ]
     assert all(state == "queued" for state in states), states
 
-    RUN_FILE.parent.mkdir(exist_ok=True)
+    RUN_FILE.parent.mkdir(parents=True, exist_ok=True)
     report = {
         "scenario": "worker-stopped",
         "ids": ids,
