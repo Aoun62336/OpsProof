@@ -1,6 +1,8 @@
 # Cloud readiness
 
-Repository finalization and clean-environment verification are in progress.
+Repository cleanup and local verification have passed; see the
+[verified baseline](../engineering/verification.md). The Python-image security
+gate still blocks release.
 The source implementation and earlier local checks are recorded separately.
 AWS deployment acceptance is still pending. On 17 November 2026 the owner chose
 to perform account setup, regional/cost preflight and deployment in a later
@@ -24,7 +26,8 @@ and no images or website were published. The original local cluster stayed off.
   auditing across 22 resource categories.
 - Explicit evidence units/freshness/thresholds, mechanical citation validation and
   a completed 24-request independently reviewed AI comparison. Neither provider
-  qualified; runtime AI remains off. No further calls are required for deployment.
+  qualified; runtime AI remains off. No further calls are required for the current
+  AI-disabled deployment scope; enabling AI remains an open qualification item.
 
 ## Local verification
 

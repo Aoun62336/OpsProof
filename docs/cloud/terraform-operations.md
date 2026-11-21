@@ -8,17 +8,23 @@ HashiCorp-signed Windows/Linux checksums. Tests use `mock_provider`, not AWS.
 
 ## Offline gates
 
-From the repository root, run the following for each root:
+From the repository root, validate all three roots without initializing a backend:
 
 ```sh
-terraform -chdir=infra/terraform/platform fmt -check -recursive
-terraform -chdir=infra/terraform/platform init -backend=false -input=false -lockfile=readonly
-terraform -chdir=infra/terraform/platform validate
-terraform -chdir=infra/terraform/platform test
+uv run --project apps/control-plane --locked python -m scripts.cloud.validate_infrastructure
 ```
 
-Replace `platform` with `state-bootstrap` and `public-edge` for their checks.
-These commands are validation; a mock plan is not a deployable cloud plan.
+This runs native fmt, readonly init, validate and the committed mock tests for
+all three roots. Per-checkout/root data and the shared provider cache stay in the
+external OpsProof local directory. A mock plan is not a deployable cloud plan.
+The earlier raw init commands recreated three provider copies in the checkout.
+
+For owner deployment, use separate per-root `TF_DATA_DIR` directories under
+`<OpsProof local directory>/terraform/deployment/` and the shared external
+`TF_PLUGIN_CACHE_DIR` under `cache/terraform`. Select the matching root before
+each init/plan/apply/destroy. Never share one data directory between roots or reuse
+mock-validation backend metadata for the real backend. State and saved plans
+remain in their explicitly reviewed private locations; tool data is not state.
 
 ## Private inputs
 

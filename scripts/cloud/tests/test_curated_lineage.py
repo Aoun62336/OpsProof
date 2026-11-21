@@ -5,6 +5,8 @@ import json
 
 import pytest
 
+from scripts import paths
+from scripts.cloud import verify_curated_evidence as lineage
 from scripts.cloud.build_public_replay import CASES
 from scripts.cloud.verify_curated_evidence import verify
 
@@ -88,3 +90,18 @@ def test_binding_cannot_escape_private_trial_directory(tmp_path):
     bindings[cases[0]["id"]] = "../../outside"
     with pytest.raises(ValueError):
         verify(cases, bindings, root=tmp_path)
+
+
+def test_archived_lineage_remains_valid_when_new_trials_exist(tmp_path, monkeypatch):
+    root = tmp_path / "source"
+    archive = tmp_path / "archive"
+    cases, bindings = fixtures(root)
+    (archive / "m6").mkdir(parents=True)
+    trials = root / ".runtime/reliability/trials"
+    trials.rename(archive / "m6/trials")
+    trials.mkdir()
+    monkeypatch.setattr(paths, "ROOT", root.resolve())
+    monkeypatch.setattr(paths, "archive_root", lambda: archive)
+    monkeypatch.setattr(lineage, "ROOT", root.resolve())
+    monkeypatch.setattr(lineage, "archive_root", lambda: archive)
+    assert len(verify(cases, bindings, root=root)["cases"]) == 6

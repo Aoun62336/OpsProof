@@ -114,6 +114,10 @@ Review the complete [Terraform procedure](terraform-operations.md).
 Bootstrap uses a private local state path:
 
 ```powershell
+$artifactRoot = uv run --project apps/control-plane --locked python -c 'from scripts.paths import local_root; print(local_root())'
+$env:TF_PLUGIN_CACHE_DIR = Join-Path $artifactRoot 'cache/terraform'
+$env:TF_DATA_DIR = Join-Path $artifactRoot 'terraform/deployment/state-bootstrap'
+New-Item -ItemType Directory -Force $env:TF_PLUGIN_CACHE_DIR,$env:TF_DATA_DIR | Out-Null
 $bootstrapVars = Join-Path $private 'state-bootstrap.tfvars'
 $bootstrapState = Join-Path $private 'state-bootstrap.tfstate'
 $bootstrapPlan = Join-Path $private 'state-bootstrap.plan'
@@ -132,6 +136,8 @@ $platformVars = Join-Path $private 'platform.tfvars'
 $platformBackend = Join-Path $private 'platform-backend.s3.hcl'
 $platformPlan = Join-Path $private 'platform.plan'
 $platformJson = Join-Path $private 'platform-plan.json'
+$env:TF_DATA_DIR = Join-Path $artifactRoot 'terraform/deployment/platform'
+New-Item -ItemType Directory -Force $env:TF_DATA_DIR | Out-Null
 terraform -chdir=infra/terraform/platform init -input=false -lockfile=readonly "-backend-config=$platformBackend"
 terraform -chdir=infra/terraform/platform plan -input=false "-var-file=$platformVars" "-out=$platformPlan"
 terraform -chdir=infra/terraform/platform show -no-color $platformPlan
@@ -174,7 +180,9 @@ kubectl --kubeconfig $kubeconfig --context opsproof-cloud-temporary -n opsproof-
 Use a separate terminal for Grafana/Argo loopback forwards. Never expose those
 UIs to the public edge. Keep recovery and runtime AI disabled. Only after the
 internal ALB is healthy, fill real platform outputs and listener ARN in the
-public-edge tfvars, initialize its separate backend, save/inspect its plan and
+public-edge tfvars. First select its separate tool directory with
+`$env:TF_DATA_DIR = Join-Path $artifactRoot 'terraform/deployment/public-edge'`
+and create that directory, then initialize its separate backend, save/inspect its plan and
 owner-apply that saved plan. Repeat account/cost confirmation first.
 
 ## 6. Capture proof, then remove resources

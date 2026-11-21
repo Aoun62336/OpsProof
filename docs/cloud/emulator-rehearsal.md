@@ -30,7 +30,8 @@ to 100 and accepts only `https://127.0.0.1:9297`.
 PowerShell, from the repository root, with Docker running:
 
 ```powershell
-$package = '.runtime/verification/cloud/emulator/package'
+$artifactRoot = uv run --project apps/control-plane --locked python -c 'from scripts.paths import local_root; print(local_root())'
+$package = Join-Path $artifactRoot 'tools/aws-emulator/1.0.385/package'
 New-Item -ItemType Directory -Force $package | Out-Null
 $lock = Get-Content infra/emulator/toolchain.json -Raw | ConvertFrom-Json
 Invoke-WebRequest $lock.package.source -OutFile "$package/aws-emulator.rpm"
@@ -60,9 +61,7 @@ Back at the repository root:
 ```powershell
 Copy-Item infra/emulator/Dockerfile "$package/Dockerfile"
 docker build --platform linux/amd64 -t opsproof-emulator:1.0.385 $package
-uv venv .runtime/cloud/sdk --python 3.14
-uv pip install --python .runtime/cloud/sdk/Scripts/python.exe 'boto3==1.44.3' 'botocore==1.44.3'
-& '.runtime/cloud/sdk/Scripts/python.exe' -m scripts.cloud.validate_emulator --execute
+uv run --project apps/control-plane --locked --with boto3==1.44.3 --with botocore==1.44.3 python -m scripts.cloud.validate_emulator --execute
 ```
 
 The dedicated build directory should contain only the public package, signature,
@@ -76,3 +75,9 @@ Retained proof: `.runtime/verification/cloud/emulator/package/signature-verifica
 and `.runtime/verification/cloud/emulator/run-8c682ff080704a839a992d32bc5472f4/result.json`.
 A failed earlier asynchronous deletion attempt is also retained; the passing run
 uses bounded deletion polling and preserves unknown outcomes as failures.
+
+The old package/signature receipts are preserved in the private external archive;
+`scripts.paths.read_artifact` resolves their original `.runtime` locators. The SDK
+is installed by the explicit pinned `uv run` command above; no checked-out SDK
+virtual environment is required. Do not rerun a completed rehearsal just to
+recreate caches.

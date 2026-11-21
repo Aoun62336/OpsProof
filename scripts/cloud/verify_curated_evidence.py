@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 from scripts.cloud.build_public_replay import build
-from scripts.paths import read_artifact
+from scripts.paths import archive_root, read_artifact
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -19,12 +19,15 @@ def verify(cases: list[dict], bindings: dict, *, root: Path = ROOT) -> dict:
     build(cases, require_all=True)
     if set(bindings) != {case["id"] for case in cases}:
         raise ValueError("One exact private trial binding per public case required")
-    evidence_root = read_artifact(".runtime/reliability/trials", root=root).resolve()
+    root = root.resolve()
+    bounds = [root / ".runtime" / area / "trials" for area in ("m6", "reliability")]
+    if root == ROOT:
+        bounds.append(archive_root().resolve() / "m6/trials")
     checked = []
     seen = set()
     for case in cases:
         directory = read_artifact(bindings[case["id"]], root=root).resolve()
-        if not directory.is_relative_to(evidence_root) or directory in seen:
+        if not any(directory.is_relative_to(bound) for bound in bounds) or directory in seen:
             raise ValueError(
                 "Private trial directory must be unique and inside owned trial evidence"
             )

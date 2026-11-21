@@ -119,7 +119,10 @@ def model(document):
             "fixed_worker": "Same single node/control-plane/IPv4 gross infrastructure rate",
             "keda_workers": "Same node rate; Pod replicas change without node autoscaling",
             "measured_performance_improvement": None,
-            "limitation": "Nine comparable M6 runs blocked; no workload savings claimed",
+            "limitation": (
+                "Local scaling trials do not establish reduced EC2 spending; "
+                "cloud measurement pending"
+            ),
         },
     }
 
@@ -129,6 +132,8 @@ def main():
         (ROOT / ".runtime/reliability/acceptance/pricing").glob("prices-*/selected-prices.json"),
         key=lambda path: path.stat().st_mtime,
     )
+    if not paths:
+        raise ValueError("Fetch fresh public price evidence before modeling costs")
     source = paths[-1]
     document = json.loads(source.read_text(encoding="utf-8"))
     report = model(document)
