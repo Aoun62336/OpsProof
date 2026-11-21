@@ -14,7 +14,10 @@ builds/tests do not override that security gate.
 ## Available fix
 
 The fresh nginx scans detected CVE-2026-86144 in libxml2 2.13.9-r2. Both nginx
-Dockerfiles now require at least 2.13.9-r3 and refresh Alpine packages. Exact
+Dockerfiles now require at least 2.13.9-r3 and refresh Alpine packages through
+[Alpine's officially listed HTTPS kernel.org mirror](https://mirrors.alpinelinux.org/).
+The regional CDN returned incomplete indexes during validation; package signature
+verification remains enabled. Exact
 rebuilt image IDs and rescan outcomes are retained in the current private
 verification reports; an earlier scan is not evidence for a changed image.
 

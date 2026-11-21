@@ -10,7 +10,9 @@ FROM nginxinc/nginx-unprivileged:1.31.7-alpine3.24@sha256:b5047b9b76845eac124358
 USER root
 # Apply available security patches within the same Alpine release. The final
 # image remains nonroot; the installed package inventory is retained by Trivy.
-RUN apk upgrade --no-cache \
+# Use an officially listed HTTPS mirror; Alpine package signatures remain required.
+RUN sed -i 's|https://dl-cdn.alpinelinux.org/alpine|https://mirrors.edge.kernel.org/alpine|g' /etc/apk/repositories \
+    && apk upgrade --no-cache \
     && apk add --no-cache 'libxml2>=2.13.9-r3'
 COPY --from=build --chown=101:101 /app/dist /usr/share/nginx/html
 COPY --chown=101:101 nginx.conf /etc/nginx/nginx.conf
