@@ -355,6 +355,7 @@ def main() -> int:
                     "apps/control-plane/tests/test_postgres_api.py",
                     "apps/control-plane/tests/test_verification_postgres.py",
                     "apps/control-plane/tests/test_database_permissions.py",
+                    "apps/control-plane/tests/test_telemetry_postgres.py",
                     "-q",
                     "-ra",
                 ],
@@ -378,11 +379,25 @@ def main() -> int:
 
                 with psycopg.connect(dsn) as conn:
                     if label == "baseline_migration":
+                        sentinel_id = uuid4()
                         conn.execute(
                             "INSERT INTO experiments(id,request_key,scenario,count,duration_ms) "
                             "VALUES (%s,'m6-legacy-preservation-sentinel','queue-burst',1,50)",
-                            (uuid4(),),
+                            (sentinel_id,),
                         )
+                        conn.execute(
+                            "INSERT INTO outbox(stream,run_id) VALUES ('legacy-sentinel',%s)",
+                            (sentinel_id,),
+                        )
+                    else:
+                        record["legacy_outbox_context_nullable"] = conn.execute(
+                            "SELECT trace_context IS NULL FROM outbox "
+                            "WHERE stream='legacy-sentinel'"
+                        ).fetchone() == (True,)
+                        if not record["legacy_outbox_context_nullable"]:
+                            raise RuntimeError(
+                                "Legacy outbox row changed during telemetry migration"
+                            )
                     rows = conn.execute(
                         "SELECT row_to_json(e) FROM experiments e ORDER BY id"
                     ).fetchall()

@@ -20,7 +20,9 @@ Signed vendor packages supply:
   newer than the upstream 3.54.0 security-fix floor.
 - The vendor's glibc runtime libraries, system trust store and timezone data.
 
-Application source, Python lockfiles and migrations are unchanged. The glibc
+The runtime-only remediation preserved application source, lockfiles and
+migrations. The subsequent observability change adds compatible outbox-context
+migrations and metrics; the Python lockfiles remain unchanged. The glibc
 runtime retains compatibility with the locked native wheels. Unused Debian
 packages are not carried into the replacement distribution. Package metadata
 remains intact for scanning. No forced dependency removal, unstable repository,
@@ -45,10 +47,10 @@ See the [upstream SQLite release](https://sqlite.org/releaselog/3_54_0.html).
 The exact locally scanned image identities are:
 
 ```text
-demo     sha256:adc4857095bf8b1f72fccdf417b6c24b66cc74dcca550cc1724e510d5a8a621b
-control  sha256:b10af69b63b7547869404e83fab9ced750e4ea447c8af3f1c4538e66ca9dbcce
-web      sha256:66834b10906ad2c2d594c615ae78eebb8a9b59ee2c7f1512ae573a64904ddda7
-edge     sha256:e2d324b978364760737a19a94d2c8ef930c6ac95bbe4b5e5dbf0bf2f572d6e9d
+demo     sha256:18fb10dee7ab76d66b7e4c37224033eb3d9ee76367b94dd607384ceee95f2b66
+control  sha256:35916610c6ec37e46c927a5ef0b6f45015df4947e61592ae6aeda68f1ee781f8
+web      sha256:f9a261c1b986c43df3a44c42355cfaff5345389458f1786189c49c23f4b0c51d
+edge     sha256:cc7f1af5a2143bcc3c1d493a031eb27c82afe52d4f0275535d8d9a5b2638a353
 ```
 
 Hash-verified image exports, full Trivy 0.76.2 reports, CycloneDX SBOMs and
@@ -80,3 +82,51 @@ unfixed findings, still fail publication: `ignore-unfixed` remains false and the
 is no blanket allowlist. Update pinned images/packages, rebuild, repeat artifact
 checks and scan the exact new identities at release time. A passing local scan
 does not authorize deployment or replace hosted release verification.
+
+## Telemetry artifact remediation
+
+The observability image lock contains five public digest-pinned runtime images.
+Prometheus 3.16.0, Alertmanager 0.35.0 and Tempo 3.1.1 use public QuenchWorks
+source-built images; their keyless signatures were checked against the
+`quenchworks/images` GitHub workflow identity and GitHub OIDC issuer. Loki 3.7.10
+and Collector 0.165.0 use upstream images. No registry login or paid account is
+needed to pull these inputs.
+
+Grafana 13.3.1 is built by `observability/grafana/Dockerfile`. It copies the pinned
+publisher's patched server, web assets and exactly the three configured datasource
+plugins onto the same supported Wolfi OS base as the applications. The source
+vendor OS was rejected because Trivy has no advisory feed for it. The final
+artifact has an actual Wolfi package inventory; copying a foreign package database
+or changing the reported distro to make a scan pass is prohibited. Only the three
+pinned rebuilt bundled plugins may load unsigned; arbitrary plugin downloads are
+disabled. Grafana features used by OpsProof are verified by real datasource queries.
+
+Complete scans require `--detection-priority comprehensive --list-all-pkgs` so
+OS-owned Go binaries are included. The exact official scratch Collector contains
+only its static binary, certificates and config; it has no OS package inventory.
+All other runtimes require a supported OS feed and real package inventory.
+
+Two raw HIGH findings in Grafana's bundled Tempo plugin arise from its Go
+pseudo-version sorting below Tempo 2.x. Its embedded revision
+`bcfe9f230c1de0f79cfd2110b38062e0f41c81e9` contains the upstream fixes for
+CVE-2026-21728 and CVE-2026-28377. The gate rechecks each fix's ancestry and binds
+OpenVEX `fixed` status to the exact artifact, source image, binary path, module,
+version and vulnerability. A changed component, failed proof or new finding
+receives no resolution. Raw reports, proof receipts and SBOMs are retained.
+This is verified fixed source, not an exposure waiver or blanket ignore.
+
+The final secured Grafana local image is
+`sha256:433564068b98c82c05e6336512f0d22337c45de78568c7b0ba55ef04375901fe`.
+All ten final application/telemetry artifacts passed the HIGH/CRITICAL policy;
+the four application scans have zero findings at every severity. The telemetry
+reports retain any lower-severity findings and the two source-proven fixed
+mappings. Private current evidence is under
+`<external-root>/private/verification/observability-20261121/`.
+
+The existing owner-approved release now produces five artifacts, including
+Grafana, with SBOMs and requested attestations. Cloud telemetry requires the
+published Grafana digest from that exact-run manifest. Local source tags are
+checked against the Docker context hash and actual image ID; they are not
+presented as published registry digests. Publication and cloud acceptance remain
+owner-run gates. The weekly observability workflow scans fresh advisory data;
+Docker input updates remain part of the monthly dependency-review process.

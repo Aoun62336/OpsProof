@@ -7,6 +7,8 @@ procedures consume these same configuration sources and workload definitions.
 import re
 from pathlib import Path
 
+from scripts.platform.telemetry_images import local_grafana_image, runtime_images
+
 ROOT = Path(__file__).resolve().parents[2]
 NS = "opsproof-observability"
 
@@ -51,35 +53,61 @@ def inputs(*, cloud_profile=False):
             ).read_text(encoding="utf-8"),
         },
     }
-    if cloud_profile:
-        for role in ("demo", "control"):
-            old = (
-                "    static_configs:\n      - targets:\n"
-                f"          - {role}-api.opsproof-{role}.svc.cluster.local:8080"
-            )
-            new = (
-                "    dns_sd_configs:\n      - names: "
-                f"[{role}-api-metrics.opsproof-{role}.svc.cluster.local]\n"
-                "        type: A\n        port: 8080"
-            )
-            if old not in configurations["prometheus"]["prometheus.yml"]:
-                raise ValueError("Existing scrape configuration differs from the reviewed contract")
-            configurations["prometheus"]["prometheus.yml"] = configurations["prometheus"][
-                "prometheus.yml"
-            ].replace(old, new)
-    else:
+    configurations["grafana"]["operations.json"] = configurations["grafana"][
+        "operations.json"
+    ].replace("local-compose", "temporary-eks" if cloud_profile else "local-k3d")
+    # Both Kubernetes profiles discover individual Pods, including unready ones.
+    # The Compose source remains a single explicitly configured API endpoint.
+    for role in ("demo", "control"):
+        old = (
+            "    static_configs:\n      - targets:\n"
+            f"          - {role}-api.opsproof-{role}.svc.cluster.local:8080"
+        )
+        new = (
+            "    dns_sd_configs:\n      - names: "
+            f"[{role}-api-metrics.opsproof-{role}.svc.cluster.local]\n"
+            "        type: A\n        port: 8080"
+        )
+        if old not in configurations["prometheus"]["prometheus.yml"]:
+            raise ValueError("Existing scrape configuration differs from the reviewed contract")
+        configurations["prometheus"]["prometheus.yml"] = configurations["prometheus"][
+            "prometheus.yml"
+        ].replace(old, new)
+    if not cloud_profile:
+        configurations["prometheus"]["canary-alerts.yml"] = (
+            ROOT / "observability/canary-alerts.yml"
+        ).read_text(encoding="utf-8")
+        configurations["prometheus"]["prometheus.yml"] = configurations["prometheus"][
+            "prometheus.yml"
+        ].replace(
+            "  - /etc/prometheus/alerts.yml",
+            "  - /etc/prometheus/alerts.yml\n  - /etc/prometheus/canary-alerts.yml",
+        )
         configurations["prometheus"]["prometheus.yml"] += (
             "\n  - job_name: opsproof-demo-canary\n    metrics_path: /metrics\n  "
             "  static_configs:\n      - targets: "
             "['demo-api-canary.opsproof-demo.svc.cluster.local:8080']\n"
         )
+    configurations["prometheus"]["resource-alerts.yml"] = (
+        ROOT / "observability/resource-alerts.yml"
+    ).read_text(encoding="utf-8")
+    configurations["prometheus"]["prometheus.yml"] = configurations["prometheus"][
+        "prometheus.yml"
+    ].replace(
+        "  - /etc/prometheus/alerts.yml",
+        "  - /etc/prometheus/alerts.yml\n  - /etc/prometheus/resource-alerts.yml",
+    )
+    configurations["prometheus"]["prometheus.yml"] += (
+        ROOT / "observability/kubelet-scrapes.yml"
+    ).read_text(encoding="utf-8")
     configurations["alertmanager"]["alertmanager.yml"] = configurations["alertmanager"][
         "alertmanager.yml"
     ].replace("/etc/alertmanager/webhook-token", "/run/opsproof-alert/webhook-token")
+    images = runtime_images()
     services = [
         (
             "prometheus",
-            "prom/prometheus:v3.15.1",
+            images["prometheus"],
             65534,
             [9090],
             "/etc/prometheus",
@@ -96,7 +124,7 @@ def inputs(*, cloud_profile=False):
         ),
         (
             "alertmanager",
-            "prom/alertmanager:v0.34.2",
+            images["alertmanager"],
             65534,
             [9093],
             "/etc/alertmanager",
@@ -111,22 +139,19 @@ def inputs(*, cloud_profile=False):
         ),
         (
             "otel-collector",
-            (
-                "otel/opentelemetry-collector-contrib@sha256:340c9ca6a3661708"
-                "4c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b"
-            ),
+            images["otel-collector"],
             10001,
-            [4318],
+            [13133, 4318, 8888],
             "/etc/otelcol",
-            None,
+            "/var/lib/otelcol",
             "64Mi",
             "256Mi",
             ["--config=/etc/otelcol/config.yaml"],
-            None,
+            "/",
         ),
         (
             "loki",
-            "grafana/loki:3.7.8",
+            images["loki"],
             10001,
             [3100],
             "/etc/loki",
@@ -138,7 +163,7 @@ def inputs(*, cloud_profile=False):
         ),
         (
             "tempo",
-            "grafana/tempo:3.1.1",
+            images["tempo"],
             10001,
             [3200, 4318],
             "/etc/tempo",
@@ -150,7 +175,7 @@ def inputs(*, cloud_profile=False):
         ),
         (
             "grafana",
-            "grafana/grafana:13.2.4",
+            images["grafana"],
             472,
             [3000],
             None,
@@ -172,12 +197,49 @@ def render(
         raise ValueError("Exactly the six telemetry image identities required")
     if any(
         not re.fullmatch(r"[a-zA-Z0-9_./:-]+@sha256:[0-9a-f]{64}", image)
-        for image in images.values()
+        for name, image in images.items()
+        if not (name == "grafana" and not cloud_profile and image == local_grafana_image())
     ):
         raise ValueError("Immutable telemetry image digests required")
     if storage_class not in {"local-path", "opsproof-ebs-gp3"}:
         raise ValueError("Unsupported storage profile")
-    objects = []
+    identity = "opsproof-monitoring"
+    objects = [
+        {
+            "apiVersion": "v1",
+            "kind": "ServiceAccount",
+            "metadata": {
+                "name": identity,
+                "namespace": NS,
+                "labels": {"app.kubernetes.io/part-of": "opsproof"},
+            },
+            "automountServiceAccountToken": False,
+        },
+        {
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "ClusterRole",
+            "metadata": {"name": identity, "labels": {"app.kubernetes.io/part-of": "opsproof"}},
+            "rules": [
+                {
+                    "apiGroups": [""],
+                    "resources": ["nodes"],
+                    "verbs": ["get", "list", "watch"],
+                },
+                {"apiGroups": [""], "resources": ["nodes/metrics"], "verbs": ["get"]},
+            ],
+        },
+        {
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "ClusterRoleBinding",
+            "metadata": {"name": identity, "labels": {"app.kubernetes.io/part-of": "opsproof"}},
+            "roleRef": {
+                "apiGroup": "rbac.authorization.k8s.io",
+                "kind": "ClusterRole",
+                "name": identity,
+            },
+            "subjects": [{"kind": "ServiceAccount", "name": identity, "namespace": NS}],
+        },
+    ]
     for (
         name,
         image,
@@ -244,6 +306,56 @@ def render(
             if health
             else {"tcpSocket": {"port": ports[0]}},
         }
+        if name in {"prometheus", "alertmanager"}:
+            # Vendor convenience wrappers add flags and enable reload endpoints.
+            # Execute the reviewed binary with exactly the args above instead.
+            container["command"] = ["/usr/bin/" + name]
+        healthy_path = {
+            "prometheus": "/-/healthy",
+            "alertmanager": "/-/healthy",
+            "otel-collector": "/",
+            "grafana": "/api/health",
+        }.get(name, "/metrics")
+        container["startupProbe"] = {
+            "httpGet": {"path": healthy_path, "port": ports[0]},
+            "periodSeconds": 5,
+            "failureThreshold": 30,
+        }
+        container["livenessProbe"] = {
+            "httpGet": {"path": healthy_path, "port": ports[0]},
+            "periodSeconds": 15,
+            "timeoutSeconds": 3,
+            "failureThreshold": 3,
+        }
+        if name == "prometheus":
+            volumes.append(
+                {
+                    "name": "monitoring-identity",
+                    "projected": {
+                        "sources": [
+                            {
+                                "serviceAccountToken": {
+                                    "path": "token",
+                                    "expirationSeconds": 3600,
+                                }
+                            },
+                            {
+                                "configMap": {
+                                    "name": "kube-root-ca.crt",
+                                    "items": [{"key": "ca.crt", "path": "ca.crt"}],
+                                }
+                            },
+                        ]
+                    },
+                }
+            )
+            mounts.append(
+                {
+                    "name": "monitoring-identity",
+                    "mountPath": "/run/opsproof-monitoring",
+                    "readOnly": True,
+                }
+            )
         if name == "alertmanager":
             volumes.append(
                 {
@@ -292,6 +404,10 @@ def render(
                         }
                     },
                 },
+                {"name": "GF_PATHS_DATA", "value": "/var/lib/grafana"},
+                {"name": "GF_PATHS_LOGS", "value": "/var/lib/grafana/log"},
+                {"name": "GF_PATHS_PLUGINS", "value": "/var/lib/grafana/plugins"},
+                {"name": "GF_PATHS_HOME", "value": "/usr/share/grafana"},
                 {"name": "GF_USERS_ALLOW_SIGN_UP", "value": "false"},
                 {"name": "GF_PLUGINS_PREINSTALL_AUTO_UPDATE", "value": "false"},
                 {"name": "GF_PLUGINS_PREINSTALL_DISABLED", "value": "true"},
@@ -309,7 +425,9 @@ def render(
                     "template": {
                         "metadata": {"labels": labels},
                         "spec": {
+                            "serviceAccountName": identity if name == "prometheus" else "default",
                             "automountServiceAccountToken": False,
+                            "terminationGracePeriodSeconds": 60,
                             "securityContext": {
                                 "runAsNonRoot": True,
                                 "runAsUser": uid,

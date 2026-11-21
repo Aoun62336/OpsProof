@@ -15,9 +15,9 @@ SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 REPO = re.compile(r"[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*\Z")
 IMAGE = re.compile(
-    r"ghcr\.io/[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/opsproof-(demo|control|web|edge)@sha256:[a-f0-9]{64}\Z"
+    r"ghcr\.io/[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*/opsproof-(demo|control|web|edge|grafana)@sha256:[a-f0-9]{64}\Z"
 )
-NAMES = ("demo", "control", "web", "edge")
+NAMES = ("demo", "control", "web", "edge", "grafana")
 
 
 def validate(record: object) -> dict:
@@ -36,7 +36,7 @@ def validate(record: object) -> dict:
         raise ValueError("Positive GitHub workflow run ID required")
     images = record["images"]
     if not isinstance(images, dict) or set(images) != set(NAMES):
-        raise ValueError("Exactly demo/control/web/edge image identities required")
+        raise ValueError("Exactly demo/control/web/edge/grafana image identities required")
     for role in NAMES:
         uri = images[role]
         if not isinstance(uri, str) or not IMAGE.fullmatch(uri):

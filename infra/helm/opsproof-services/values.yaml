@@ -5,7 +5,7 @@ image:
   digest: "" # optional reviewed sha256 digest for M7 releases
   pullPolicy: IfNotPresent
 telemetry:
-  metricsHeadlessEnabled: false
+  metricsHeadlessEnabled: true
   enabled: false
   endpoint: http://otel-collector.opsproof-observability.svc.cluster.local:4318
 environment: local

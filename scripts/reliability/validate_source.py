@@ -32,13 +32,13 @@ def secret_scan(output):
         .decode()
         .split("\0")
     )
-    with tempfile.TemporaryDirectory(
-        prefix="source-scan-", dir=ROOT / ".runtime/reliability"
-    ) as temporary:
+    # Keep disposable source copies outside repository file watchers/indexers.
+    # Windows can otherwise hold a just-scanned directory open during cleanup.
+    with tempfile.TemporaryDirectory(prefix="opsproof-source-scan-") as temporary:
         from pathlib import Path
 
         directory = Path(temporary).resolve()
-        assert directory.is_relative_to((ROOT / ".runtime/reliability").resolve())
+        assert directory.parent == Path(tempfile.gettempdir()).resolve()
         for name in set(names) - {""}:
             source = (ROOT / name).resolve()
             if not source.is_file():

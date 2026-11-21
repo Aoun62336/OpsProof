@@ -21,7 +21,7 @@ and no images or website were published. The original local cluster stayed off.
   namespace network boundaries, secrets, storage and shared telemetry rendering.
 - Per-replica cloud metrics discovery, bounded API/worker scaling and explicit
   capacity/request review. No cloud progressive-delivery claim is made.
-- Four-image release/SBOM/provenance workflows, pinned Actions, six curated
+- Five-image release/SBOM/provenance workflows, pinned Actions, six curated
   historical public cases with verified private lineage, and exact-ID teardown
   auditing across 22 resource categories.
 - Explicit evidence units/freshness/thresholds, mechanical citation validation and
@@ -32,12 +32,13 @@ and no images or website were published. The original local cluster stayed off.
 ## Local verification
 
 The source gate covers Python/demo/web tests, lint/format, production web build,
-25 preserved local Helm profiles, six cloud application/five controller profiles,
+25 preserved local Helm profiles, six cloud application/five controller profiles
+plus the shared telemetry profile,
 workflow pins, k6 syntax, whitespace and source secret scanning. Native Terraform
 validation and 11 mock tests passed across all three roots. All ten workflows
 were checked by actionlint. These are local checks, not hosted CI results.
 
-Actual disposable integrations also passed: 32 SQL/TLS/permission tests; the
+Actual disposable integrations also passed: 34 SQL/TLS/permission tests; the
 production UI against the real restricted API at five viewport widths with 20
 screenshots and accessibility checks; Redis trusted TLS/auth and negative probes;
 four nonroot/read-only image smoke tests; and a signed AWS Emulator S3/Secrets
@@ -45,6 +46,15 @@ Manager contract rehearsal. Test resources and generated private session files
 were removed. The patched Python images also passed actual artifact/TLS/role checks.
 All four final image scans are clean. The strengthened release gate
 blocks HIGH/CRITICAL findings; see [container security](../engineering/container-security.md).
+
+The subsequent observability hardening also passed real Collector persistent
+restart, Loki/Tempo delivery, authenticated Grafana queries and Alertmanager
+receiver-outage/firing/resolution tests. A disposable Kubernetes cluster verified
+per-Pod discovery including unready Pods, a real missing-target firing alert,
+direct kubelet/cAdvisor TLS and read-only monitoring permissions. Its cleanup
+preserved the original stopped cluster and default kubeconfig. The local-path
+driver did not expose PVC capacity statistics; those stay unknown and the
+missing-evidence rule applies. EBS/CSI capacity metrics remain a live cloud gate.
 
 See the [verification review](../history/cloud-readiness-review-2026-11-17.md) for actual
 commands, retained receipts, failures repaired and remaining limitations. The
@@ -54,7 +64,7 @@ and historical label/threshold tensions without changing labels after evaluation
 ## Remaining owner gates
 
 1. Review/merge the final branch, run hosted CI and approve/publish the exact
-   four-image release; verify actual registry digests and attestations.
+   five-image release; verify actual registry digests and attestations.
 2. Configure the named short-lived AWS profile, verify Mumbai service versions,
    offerings/quotas, actual node capacity and fresh account-specific costs.
 3. Review and owner-apply saved bootstrap/platform/edge plans in order. Bootstrap

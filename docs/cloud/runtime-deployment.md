@@ -90,7 +90,7 @@ Do not run ordinary applications with the master user.
 ## Telemetry, dependencies and applications
 
 ```sh
-python -m scripts.cloud.render_observability --output .runtime/cloud/telemetry.json
+python -m scripts.cloud.render_observability --release-manifest .runtime/cloud/release-manifest.json --output .runtime/cloud/telemetry.json
 python -m scripts.cloud.render_gitops --release .runtime/cloud/release-manifest.json --repo-url https://github.com/Aoun62336/OpsProof.git --alb-security-group ACTUAL_PLATFORM_ALB_SG --output .runtime/cloud/applications.json
 ```
 

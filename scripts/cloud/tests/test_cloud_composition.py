@@ -20,7 +20,7 @@ def release():
         "workflow_run_id": 123,
         "images": {
             role: f"ghcr.io/example/opsproof/opsproof-{role}@sha256:{str(i) * 64}"
-            for i, role in enumerate(("demo", "control", "web", "edge"))
+            for i, role in enumerate(("demo", "control", "web", "edge", "grafana"))
         },
     }
 
@@ -120,7 +120,10 @@ def test_controller_permissions_have_no_secret_reads_or_rbac_writes():
 
 
 def test_existing_telemetry_renders_with_cloud_storage_and_pinned_images():
-    images = json.loads((ROOT / "observability/images.lock.json").read_text(encoding="utf-8"))
+    images = {
+        **json.loads((ROOT / "observability/images.lock.json").read_text(encoding="utf-8")),
+        "grafana": release()["images"]["grafana"],
+    }
     rows = telemetry(images, storage_class="opsproof-ebs-gp3", cloud_profile=True)["items"]
     assert len([row for row in rows if row["kind"] == "Deployment"]) == 6
     assert all(
@@ -131,7 +134,10 @@ def test_existing_telemetry_renders_with_cloud_storage_and_pinned_images():
 
 
 def test_cloud_scrapes_each_api_replica_and_omits_unconfigured_canary():
-    images = json.loads((ROOT / "observability/images.lock.json").read_text(encoding="utf-8"))
+    images = {
+        **json.loads((ROOT / "observability/images.lock.json").read_text(encoding="utf-8")),
+        "grafana": release()["images"]["grafana"],
+    }
     rows = telemetry(images, storage_class="opsproof-ebs-gp3", cloud_profile=True)["items"]
     config = next(
         row["data"]["prometheus.yml"]

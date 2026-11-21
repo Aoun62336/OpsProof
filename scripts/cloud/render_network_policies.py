@@ -47,7 +47,10 @@ def policy(namespace: str, name: str, *, ingress=None, egress=None, selector=Non
 
 def build(private_subnets: list[str], api_addresses: list[str]) -> dict:
     networks = [ipaddress.ip_network(value, strict=True) for value in private_subnets]
-    expected = {ipaddress.ip_network("10.72.20.0/24"), ipaddress.ip_network("10.72.21.0/24")}
+    expected = {
+        ipaddress.ip_network("10.72.20.0/24"),
+        ipaddress.ip_network("10.72.21.0/24"),
+    }
     if len(networks) != 2 or set(networks) != expected:
         raise ValueError(
             "Use the two exact private subnet CIDRs from the approved platform outputs"
@@ -103,8 +106,25 @@ def build(private_subnets: list[str], api_addresses: list[str]) -> dict:
                 }
             ],
             egress=[
-                {"to": [peer("opsproof-demo"), peer("opsproof-control")], "ports": ports(8080)}
+                {
+                    "to": [peer("opsproof-demo"), peer("opsproof-control")],
+                    "ports": ports(8080),
+                }
             ],
+        )
+    )
+    rows.append(
+        policy(
+            "opsproof-observability",
+            "opsproof-kubelet-metrics",
+            egress=[
+                {"to": subnet_peers, "ports": ports(10250)},
+                {
+                    "to": [{"ipBlock": {"cidr": str(ip) + "/32"}} for ip in addresses],
+                    "ports": ports(443),
+                },
+            ],
+            selector={"matchLabels": {"app.kubernetes.io/name": "prometheus"}},
         )
     )
     rows.append(
@@ -112,7 +132,10 @@ def build(private_subnets: list[str], api_addresses: list[str]) -> dict:
             "opsproof-control",
             "opsproof-demo-inspection",
             egress=[
-                {"to": [peer("opsproof-demo", {"opsproof.io/role": "api"})], "ports": ports(8080)}
+                {
+                    "to": [peer("opsproof-demo", {"opsproof.io/role": "api"})],
+                    "ports": ports(8080),
+                }
             ],
         )
     )
@@ -122,7 +145,12 @@ def build(private_subnets: list[str], api_addresses: list[str]) -> dict:
             "opsproof-inspection-ingress",
             ingress=[
                 {
-                    "from": [peer("opsproof-control", {"app.kubernetes.io/part-of": "opsproof"})],
+                    "from": [
+                        peer(
+                            "opsproof-control",
+                            {"app.kubernetes.io/part-of": "opsproof"},
+                        )
+                    ],
                     "ports": ports(8080),
                 }
             ],

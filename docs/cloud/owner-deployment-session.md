@@ -76,7 +76,7 @@ rerender/schema review. The actual PostgreSQL minor must be locally compatible.
 
 Confirm your current public IPv4 `/32` independently and use only that address
 for operator access. Recheck it if your ISP/VPN changes. Confirm GHCR access and
-all four final release digests. Get fresh Mumbai prices/credit terms in the
+all five final release digests. Get fresh Mumbai prices/credit terms in the
 console, fill `cost-input.example.json` privately and run the cost review in
 [identity and cost](identity-and-cost.md). Set a teardown timer and review the
 single-NAT and single-replica limitations. Stop if any fact is unavailable.
@@ -84,8 +84,8 @@ single-NAT and single-replica limitations. Stop if any fact is unavailable.
 ## 3. Freeze and publish the reviewed release
 
 Follow [release](release.md): protected main, successful hosted CI, manually
-approved four-image GHCR workflow, pullable immutable digests, SBOMs and actual
-attestation verification for all four. Retain one exact-run manifest at
+approved five-image GHCR workflow, pullable immutable digests, SBOMs and actual
+attestation verification for all five. Retain one exact-run manifest at
 `.runtime/cloud/release-manifest.json`. A local image hash is not a registry
 release digest. Configure the protected release/Pages environment reviewers
 before using them. Public evidence publication is optional and separately
@@ -188,7 +188,7 @@ owner-apply that saved plan. Repeat account/cost confirmation first.
 ## 6. Capture proof, then remove resources
 
 Follow [acceptance and teardown](verification-and-teardown.md). Capture source
-SHA, four digests, UTC times, commands and actual results alongside screenshots:
+SHA, five digests, UTC times, commands and actual results alongside screenshots:
 private nodes/AZs; addon/Pod Identity health; Argo apps; authenticated UI cards and
 read-only runbooks; metrics/logs/traces/alerts; RDS/PVC/TLS checks; bounded scaling;
 public HTTPS marker/health and rejected write/operator paths. Redact secrets,

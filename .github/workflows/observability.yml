@@ -1,85 +1,80 @@
 name: OpsProof Observability Validation
-
 on:
   pull_request:
-    branches:
-      - main
-
+    branches: [main]
   push:
-    branches:
-      - main
-
+    branches: [main]
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
 permissions:
   contents: read
-
 concurrency:
   group: observability-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   configuration:
-    name: Monitoring Configuration
+    name: Monitoring configuration and alert behavior
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-
+    timeout-minutes: 20
     env:
       OPSPROOF_DB_PASSWORD: ci-placeholder
       OPSPROOF_CONTROL_DB_PASSWORD: ci-placeholder
       OPSPROOF_CONTROL_API_KEY: ci-placeholder
       OPSPROOF_CONTROL_ALERT_WEBHOOK_TOKEN: ci-placeholder
       OPSPROOF_GRAFANA_ADMIN_PASSWORD: ci-placeholder
-
     steps:
-      - name: Checkout source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Prepare placeholder local secret file
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.13.7'
+      - name: Validate all Compose profiles without owner secrets
         run: |
           mkdir -p .runtime/observability
-          printf '%s\n' "ci-placeholder" \
-            > .runtime/observability/webhook-token
-
-      - name: Validate observability Compose
+          printf '%s\n' 'ci-placeholder' > .runtime/observability/webhook-token
+          docker compose -f compose.observability.yaml config --quiet
+          docker compose -f compose.yaml -f compose.target-integration.yaml -f compose.demo.telemetry.yaml config --quiet
+          docker compose -f compose.control.yaml -f compose.control.telemetry.yaml config --quiet
+      - name: Validate exact locked binaries, rendered profiles and alert behavior
         run: |
-          docker compose \
-            -f compose.observability.yaml \
-            config --quiet
-
-      - name: Validate demo telemetry Compose
+          uv run --project apps/control-plane --locked python -m scripts.platform.validate_observability --output .runtime/verification/observability-config
+      - name: Run observability policy and independent-watch regression tests
         run: |
-          docker compose \
-            -f compose.yaml \
-            -f compose.target-integration.yaml \
-            -f compose.demo.telemetry.yaml \
-            config --quiet
-
-      - name: Validate Collector and Tempo with their pinned binaries
+          uv run --project apps/control-plane --locked python -m pytest scripts/platform/tests/test_observability_contracts.py scripts/platform/tests/test_observability_watch.py scripts/platform/tests/test_telemetry_security.py -q
+      - name: Retain configuration verification
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: observability-configuration
+          path: .runtime/verification/observability-config
+          retention-days: 14
+  security:
+    name: Full telemetry inventory and vulnerability gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.13.7'
+      - name: Install pinned scanner
+        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
+        with:
+          version: v0.76.2
+          cache: 'false'
+      - name: Scan components including OS-owned Go binaries and unfixed vulnerabilities
         run: |
-          docker network create opsproof-telemetry
-          docker compose -f compose.observability.yaml run --rm --no-deps \
-            otel-collector validate --config=/etc/otelcol/config.yaml
-          docker compose -f compose.observability.yaml run --rm --no-deps \
-            tempo -config.file=/etc/tempo/config.yaml -config.verify=true
-
-      - name: Validate control telemetry Compose
-        run: |
-          docker compose \
-            -f compose.control.yaml \
-            -f compose.control.telemetry.yaml \
-            config --quiet
-
-      - name: Validate Prometheus configuration and rules
-        run: |
-          docker run --rm \
-            --entrypoint /bin/promtool \
-            -v "$PWD/observability:/etc/prometheus:ro" \
-            prom/prometheus:v3.15.1 \
-            check config /etc/prometheus/prometheus.yml
-
-      - name: Validate Grafana dashboard JSON
-        run: |
-          python3 -m json.tool \
-            observability/grafana/dashboards/operations.json \
-            > /dev/null
+          docker build --pull --tag opsproof-grafana:verification observability/grafana
+          image_id="$(docker image inspect opsproof-grafana:verification --format '{{.Id}}')"
+          uv run --project apps/control-plane --locked python -m scripts.platform.scan_telemetry --grafana-image "$image_id" --output .runtime/verification/observability-security
+      - name: Retain unfiltered reports, SBOMs, fixed-source proofs and gate outcomes
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: observability-security
+          path: .runtime/verification/observability-security
+          retention-days: 30

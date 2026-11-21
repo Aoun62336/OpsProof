@@ -99,6 +99,34 @@ Signature checks stayed enabled. Initial schema lookup, secret-scan false-positi
 for a public checksum variable and Windows path failures were corrected before
 the passing runs. Complete failure logs were preserved rather than rewritten.
 
+## Observability hardening
+
+The later observability hardening added compatible outbox-context migrations,
+durable-state age/freshness metrics, actionable service/meta alerts, a bounded
+persistent Collector queue, correlated logs/traces and measured-resource panels.
+The four final application artifacts were rescanned with zero findings. The six
+telemetry artifacts passed the strict HIGH/CRITICAL policy with complete supported
+inventories and exact fixed-source proof where necessary; see the container
+security policy for the raw Grafana mappings and remaining lower-severity results.
+
+Actual disposable PostgreSQL acceptance now includes 29 integration tests and
+five TLS/role bootstrap tests. The monitoring pipeline passed persistent restart,
+real log/trace retrieval, authenticated Grafana queries, receiver-failure recovery
+and firing/resolved notifications. An independent foreground watch detected
+Prometheus and Alertmanager outages. Every fixture service exited zero.
+
+The isolated Kubernetes test passed ready/unready Pod discovery, missing-target
+alert firing, kubelet/cAdvisor TLS, measured container memory and explicit
+positive/negative subresource authorization checks. The original cluster and
+default kubeconfig were preserved. Local-path PVC capacity was unavailable;
+unknown capacity is never interpreted as free space. Cloud EBS metrics, CNI
+enforcement, hosted CI and approved publication are separate owner gates.
+
+The local image importer now verifies the Docker OCI index, selected platform
+manifest and CRI configuration identity separately. This avoids trusting a
+successful k3d import exit or confusing different digest types. Failed fixture
+attempts were retained as failures and their clusters were removed.
+
 ## Storage and history
 
 The original reconciled inventory found 59,533 files and 7,385,786,993 logical

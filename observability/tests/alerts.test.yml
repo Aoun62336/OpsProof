@@ -1,0 +1,373 @@
+rule_files:
+- ../alerts.yml
+- ../resource-alerts.yml
+evaluation_interval: 10s
+tests:
+- name: healthy API
+  interval: 10s
+  input_series:
+  - series: up{job="opsproof-demo-api"}
+    values: 1x30
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofDemoAPIUnavailable
+    exp_alerts: []
+- name: failed target sustained
+  interval: 10s
+  input_series:
+  - series: up{job="opsproof-demo-api"}
+    values: '0x30'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofDemoAPIUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: opsproof-demo-api
+      exp_annotations:
+        summary: Demo API is unavailable
+        description: No healthy scrape target; check Pod readiness, DNS and application startup.
+- name: brief failure is not an incident
+  interval: 10s
+  input_series:
+  - series: up{job="opsproof-demo-api"}
+    values: 0 0 1x30
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofDemoAPIUnavailable
+    exp_alerts: []
+- name: all targets missing
+  interval: 10s
+  input_series: []
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofDemoAPIUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: opsproof-demo-api
+      exp_annotations:
+        summary: Demo API is unavailable
+        description: No healthy scrape target; check Pod readiness, DNS and application startup.
+- name: target disappears after successful discovery
+  interval: 10s
+  input_series:
+  - series: up{job="opsproof-demo-api"}
+    values: 1 1 1 stale _x30
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofDemoAPIUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: opsproof-demo-api
+      exp_annotations:
+        summary: Demo API is unavailable
+        description: No healthy scrape target; check Pod readiness, DNS and application startup.
+- name: restored target resolves
+  interval: 10s
+  input_series:
+  - series: up{job="opsproof-demo-api"}
+    values: 0x6 1x20
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofDemoAPIUnavailable
+    exp_alerts: []
+- name: normal queue turnover stays young
+  interval: 10s
+  input_series:
+  - series: opsproof_demo_oldest_active_age_seconds{job="opsproof-demo-api",state="queued"}
+    values: 2x30
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofDemoQueueBacklog
+    exp_alerts: []
+- name: actual oldest queued job is delayed
+  interval: 10s
+  input_series:
+  - series: opsproof_demo_oldest_active_age_seconds{job="opsproof-demo-api",state="queued"}
+    values: 46x30
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofDemoQueueBacklog
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: opsproof-demo-api
+      exp_annotations:
+        summary: Demo oldest queued item exceeds 45 seconds
+        description: Experimental queue-age objective; inspect processing progress and pending outbox work.
+- name: duplicate API observers produce one queue alert
+  interval: 10s
+  input_series:
+  - series: opsproof_demo_oldest_active_age_seconds{job="opsproof-demo-api",state="queued",instance="one"}
+    values: 46x30
+  - series: opsproof_demo_oldest_active_age_seconds{job="opsproof-demo-api",state="queued",instance="two"}
+    values: 46x30
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofDemoQueueBacklog
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: opsproof-demo-api
+      exp_annotations:
+        summary: Demo oldest queued item exceeds 45 seconds
+        description: Experimental queue-age objective; inspect processing progress and pending outbox work.
+- name: unknown age is not a backlog observation
+  interval: 10s
+  input_series:
+  - series: opsproof_demo_oldest_active_age_seconds{job="opsproof-demo-api",state="queued"}
+    values: NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN
+      NaN NaN NaN NaN NaN NaN
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofDemoQueueBacklog
+    exp_alerts: []
+- name: fresh DB state
+  interval: 10s
+  input_series:
+  - series: opsproof_control_state_last_success_timestamp_seconds{job="opsproof-control-api"}
+    values: 0+10x30
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofControlStateStale
+    exp_alerts: []
+- name: stale DB state
+  interval: 10s
+  input_series:
+  - series: opsproof_control_state_last_success_timestamp_seconds{job="opsproof-control-api"}
+    values: '0x30'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofControlStateStale
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: opsproof-control-api
+      exp_annotations:
+        summary: Control durable-state observation is stale
+        description: Database-wide counts and ages must not be treated as fresh evidence.
+- name: zero traffic is not a service error
+  interval: 10s
+  input_series:
+  - series: opsproof_http_requests_total{job="opsproof-demo-api",route="/api/v1/jobs",status="200"}
+    values: '0x40'
+  - series: opsproof_http_requests_total{job="opsproof-demo-api",route="/api/v1/jobs",status="500"}
+    values: '0x40'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofAPIErrorRate
+    exp_alerts: []
+- name: low traffic does not page on a single failure
+  interval: 10s
+  input_series:
+  - series: opsproof_http_requests_total{job="opsproof-demo-api",route="/api/v1/jobs",status="200"}
+    values: 0+0.1x40
+  - series: opsproof_http_requests_total{job="opsproof-demo-api",route="/api/v1/jobs",status="500"}
+    values: 0+0.1x40
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofAPIErrorRate
+    exp_alerts: []
+- name: health errors are not mixed with application errors
+  interval: 10s
+  input_series:
+  - series: opsproof_http_requests_total{job="opsproof-demo-api",route="/health/ready",status="200"}
+    values: 0+100x40
+  - series: opsproof_http_requests_total{job="opsproof-demo-api",route="/health/ready",status="500"}
+    values: 0+10x40
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofAPIErrorRate
+    exp_alerts: []
+- name: failed spans visible even without log counter
+  interval: 10s
+  input_series:
+  - series: otelcol_exporter_send_failed_spans_total
+    values: 0+1x30
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofCollectorExportFailed
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: otel-collector
+      exp_annotations:
+        summary: Collector export attempts are failing
+        description: Check backend health and queue capacity; a retry failure is distinct from confirmed data loss.
+- name: refused logs visible even without span counter
+  interval: 10s
+  input_series:
+  - series: otelcol_receiver_refused_log_records_total
+    values: 0+1x30
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofCollectorDataRejected
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: otel-collector
+      exp_annotations:
+        summary: Collector has refused telemetry
+        description: Inspect memory, ingestion limits and persistent queue capacity; do not present rejected data
+          as delivered.
+- name: delivery failure visible
+  interval: 10s
+  input_series:
+  - series: alertmanager_notifications_failed_total
+    values: 0+1x30
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: OpsProofAlertDeliveryFailed
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: alertmanager
+      exp_annotations:
+        summary: Alertmanager notification delivery has failed
+        description: Check the control API, webhook credential and network path; inspect Alertmanager directly.
+- name: failure has not met for duration
+  interval: 10s
+  input_series:
+  - series: up{job="opsproof-demo-api"}
+    values: '0x40'
+  alert_rule_test:
+  - eval_time: 20s
+    alertname: OpsProofDemoAPIUnavailable
+    exp_alerts: []
+- name: failure meets for duration
+  interval: 10s
+  input_series:
+  - series: up{job="opsproof-demo-api"}
+    values: '0x40'
+  alert_rule_test:
+  - eval_time: 40s
+    alertname: OpsProofDemoAPIUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: opsproof-demo-api
+      exp_annotations:
+        summary: Demo API is unavailable
+        description: No healthy scrape target; check Pod readiness, DNS and application startup.
+- name: control aged queue fires
+  interval: 10s
+  input_series:
+  - series: opsproof_control_oldest_active_age_seconds{job="opsproof-control-api",state="queued"}
+    values: 46x60
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: OpsProofControlQueueBacklog
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: opsproof-control-api
+      exp_annotations:
+        summary: Control oldest queued item exceeds 45 seconds
+        description: Experimental queue-age objective; inspect processing progress and pending outbox work.
+- name: processing continues with recent completions
+  interval: 10s
+  input_series:
+  - series: opsproof_control_oldest_active_age_seconds{job="opsproof-control-api",state="running"}
+    values: 400x90
+  - series: opsproof_control_last_completion_timestamp_seconds{job="opsproof-control-api"}
+    values: 0+10x90
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: OpsProofControlProcessingStalled
+    exp_alerts: []
+- name: control old processing and no completions
+  interval: 10s
+  input_series:
+  - series: opsproof_control_oldest_active_age_seconds{job="opsproof-control-api",state="running"}
+    values: 400x90
+  - series: opsproof_control_last_completion_timestamp_seconds{job="opsproof-control-api"}
+    values: '0x90'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: OpsProofControlProcessingStalled
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: opsproof-control-api
+      exp_annotations:
+        summary: Control processing has old work without recent completion
+        description: Experimental progress objective; inspect worker logs, leases and downstream failures.
+- name: sustained application errors exceed floor
+  interval: 10s
+  input_series:
+  - series: opsproof_http_requests_total{job="opsproof-demo-api",route="/api/v1/jobs",status="500"}
+    values: 0+10x90
+  - series: opsproof_http_requests_total{job="opsproof-demo-api",route="/api/v1/jobs",status="200"}
+    values: 0+90x90
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: OpsProofAPIErrorRate
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: opsproof-demo-api
+      exp_annotations:
+        summary: Application error ratio exceeds one percent
+        description: Experimental objective requires at least 100 application requests in five minutes; inspect
+          route-level errors.
+- name: sustained slow application requests
+  interval: 10s
+  input_series:
+  - series: opsproof_http_request_duration_seconds_bucket{job="opsproof-demo-api",route="/api/v1/jobs",le="1"}
+    values: 0+1x90
+  - series: opsproof_http_request_duration_seconds_bucket{job="opsproof-demo-api",route="/api/v1/jobs",le="2"}
+    values: 0+10x90
+  - series: opsproof_http_request_duration_seconds_bucket{job="opsproof-demo-api",route="/api/v1/jobs",le="+Inf"}
+    values: 0+10x90
+  - series: opsproof_http_requests_total{job="opsproof-demo-api",route="/api/v1/jobs",status="200"}
+    values: 0+10x90
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: OpsProofAPILatency
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: opsproof-demo-api
+      exp_annotations:
+        summary: Application p95 latency exceeds one second
+        description: Experimental HTTP objective with a traffic floor; this is not asynchronous job completion latency.
+- name: measured monitoring volume low
+  interval: 10s
+  input_series:
+  - series: kubelet_volume_stats_available_bytes{namespace="opsproof-observability",persistentvolumeclaim="collector-data"}
+    values: 10x60
+  - series: kubelet_volume_stats_capacity_bytes{namespace="opsproof-observability",persistentvolumeclaim="collector-data"}
+    values: 100x60
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: OpsProofMonitoringVolumeSpaceLow
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: kubelet
+        namespace: opsproof-observability
+        persistentvolumeclaim: collector-data
+      exp_annotations:
+        summary: Monitoring volume has less than fifteen percent free
+        description: Inspect measured ingestion, retention and queue usage before resizing storage.
+- name: measured memory pressure
+  interval: 10s
+  input_series:
+  - series: container_memory_working_set_bytes{namespace="opsproof-control",container="api"}
+    values: 95x60
+  - series: container_spec_memory_limit_bytes{namespace="opsproof-control",container="api"}
+    values: 100x60
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: OpsProofContainerMemoryPressure
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: cadvisor
+        namespace: opsproof-control
+        container: api
+      exp_annotations:
+        summary: Container working set is above ninety percent of its memory limit
+        description: Inspect actual usage and configured limits; limits are not measured consumption.

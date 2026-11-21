@@ -62,6 +62,7 @@ metadata:
   labels: {app.kubernetes.io/part-of: opsproof}
 spec:
   clusterIP: None
+  publishNotReadyAddresses: true
   selector: {app.kubernetes.io/instance: {{ .Release.Name }}, opsproof.io/role: api}
   ports: [{name: metrics, port: 8080, targetPort: http}]
 {{- end }}

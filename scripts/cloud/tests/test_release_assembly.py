@@ -25,7 +25,7 @@ def build(rows):
     return assemble(rows, source_sha="a" * 40, repository="example/opsproof", run_id=123)
 
 
-def test_four_images_from_one_run():
+def test_five_images_from_one_run():
     assert set(build(receipts())["images"]) == set(NAMES)
 
 

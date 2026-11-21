@@ -5,14 +5,16 @@ requires `publish_approved=true` plus the protected `opsproof-release` environme
 Configure environment reviewers before first use. No publication has run during
 local implementation. No AWS identity is needed by the publishing workflow.
 
-## Four-image identity
+## Five-image identity
 
-The same source commit builds demo, control, web and isolated edge images. Each
+The same source commit builds demo, control, web, isolated edge and secured Grafana images. Each
 image is scanned before push, receives a CycloneDX SBOM and requested provenance
-and SBOM attestations. The policy blocks fixable HIGH/CRITICAL findings; unfixed
-findings still require review and must not be described as zero vulnerabilities.
+and SBOM attestations. The policy blocks HIGH/CRITICAL findings including unfixed findings. Grafana
+uses the supported Wolfi OS base; a narrowly bound OpenVEX fixed-source proof
+resolves only the two Tempo pseudo-version mappings whose embedded commit
+contains the upstream fixes. Raw reports and ancestry receipts are retained.
 The workflow retains per-image receipts/SBOMs and assembles one manifest with the
-source SHA, repository, workflow run ID and exactly four immutable GHCR digests.
+source SHA, repository, workflow run ID and exactly five immutable GHCR digests.
 Mixing runs, commits, repositories or duplicated roles fails assembly.
 
 ```sh
@@ -20,7 +22,7 @@ python -m scripts.cloud.verify_release_manifest --input .runtime/cloud/release-m
 ```
 
 This is only offline consistency validation. After approved publication, verify
-that all four actual digests are pullable, and verify both signatures against
+that all five actual digests are pullable, and verify both signatures against
 the exact repository, source commit, main ref and release workflow:
 
 ```sh

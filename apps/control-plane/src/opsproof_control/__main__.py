@@ -1,7 +1,6 @@
 """Entry points for independently deployed control-plane processes."""
 
 import argparse
-import logging
 
 import uvicorn
 
@@ -10,6 +9,7 @@ from .db import pool, redis_client
 from .evidence import run as run_evidence
 from .shutdown import lifecycle
 from .streams import dispatcher
+from .telemetry import configure_logging
 from .trial_worker import run as run_trial
 
 
@@ -27,19 +27,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format=("%(asctime)s %(levelname)s %(name)s %(message)s"),
-    )
-
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-    if not any(isinstance(handler, logging.StreamHandler) for handler in root_logger.handlers):
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-        )
-        root_logger.addHandler(console_handler)
+    configure_logging()
 
     if args.role == "api":
         uvicorn.run(

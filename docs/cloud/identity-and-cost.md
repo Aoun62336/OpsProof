@@ -47,6 +47,10 @@ pricing must already include its standby. Quote storage in hourly equivalents
 or explicitly bounded flat allowances; include root disks, telemetry PVCs,
 snapshots/backups, NAT data, cross-AZ transfer, public IPv4, Secrets Manager,
 API Gateway, logs, S3 state versions, internet egress, taxes and teardown delays.
+The current monitoring renderer requests six separate 1 GiB PVCs, including the
+Collector's persistent queue. Include all six and their provisioning minimums in
+the EBS estimate, as well as application PVCs and worker root volumes. Recompute
+from the actual rendered manifests and saved plans; no fresh price is assumed.
 Verify each service's credit applicability in the account; do not assume credits
 cover everything or subtract guessed credits from gross cost.
 

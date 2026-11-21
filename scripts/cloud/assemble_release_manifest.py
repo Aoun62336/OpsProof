@@ -1,4 +1,4 @@
-"""Assemble four image receipts from one approved GitHub Actions release run.
+"""Assemble five image receipts from one approved GitHub Actions release run.
 
 Offline consistency checks do not establish registry existence or signature trust.
 """
@@ -15,7 +15,7 @@ from scripts.cloud.verify_release_manifest import DIGEST, NAMES, validate
 def assemble(receipts: list[dict], *, source_sha: str, repository: str, run_id: int) -> dict:
     images: dict[str, str] = {}
     if len(receipts) != len(NAMES):
-        raise ValueError("Exactly four image receipts required")
+        raise ValueError("Exactly five image receipts required")
     for receipt in receipts:
         if not isinstance(receipt, dict) or set(receipt) != {
             "role",
@@ -66,7 +66,7 @@ def main() -> None:
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
-    print("FOUR_IMAGE_MANIFEST_ASSEMBLED; registry and attestation verification still required")
+    print("FIVE_IMAGE_MANIFEST_ASSEMBLED; registry and attestation verification still required")
 
 
 if __name__ == "__main__":

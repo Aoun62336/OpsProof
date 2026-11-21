@@ -6,10 +6,13 @@ Uses existing local image digests, retained PVCs, and out-of-band credentials.
 import json
 import subprocess
 
+from scripts.platform.import_local_image import import_image
 from scripts.platform.local_cluster import kubectl_prefix
 from scripts.platform.observability import inputs, render
 from scripts.platform.preflight import ROOT
 from scripts.platform.render_local_secrets import read_env
+from scripts.platform.telemetry_images import local_grafana_image
+from scripts.reliability.build_images_local import context_hash
 
 NS = "opsproof-observability"
 
@@ -21,6 +24,24 @@ def main():
     images = []
     identities = {}
     for name, image, *_rest in services:
+        if name == "grafana":
+            record = json.loads(
+                (ROOT / ".runtime/reliability/acceptance/image-provenance.json").read_text()
+            )["grafana"]
+            actual = subprocess.check_output(
+                ["docker", "image", "inspect", image, "--format", "{{.Id}}"], text=True
+            ).strip()
+            if (
+                image != local_grafana_image()
+                or record["tag"] != image
+                or record["source_content_sha256"] != context_hash(ROOT / "observability/grafana")
+                or record["local_image_id"] != actual
+            ):
+                raise RuntimeError("Build the current secured Grafana artifact before deployment")
+            identities[name] = image
+            imported = import_image(image, actual, "opsproof")
+            images.append({"service": name, **imported})
+            continue
         if "@sha256:" not in image:
             digests = json.loads(
                 subprocess.check_output(

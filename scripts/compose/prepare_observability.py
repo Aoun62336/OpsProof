@@ -2,6 +2,7 @@
 
 import os
 import secrets
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -13,6 +14,88 @@ REQUIRED = (
     "OPSPROOF_CONTROL_ALERT_WEBHOOK_TOKEN",
     "OPSPROOF_GRAFANA_ADMIN_PASSWORD",
 )
+
+
+def prepare_storage():
+    """Initialize exact Compose-owned volume roots; never recurse into existing data."""
+    import json
+
+    images = json.loads((ROOT / "observability/images.lock.json").read_text())
+    for service, uid in (
+        ("prometheus", 65534),
+        ("alertmanager", 65534),
+        ("collector", 10001),
+        ("loki", 10001),
+        ("tempo", 10001),
+        ("grafana", 472),
+    ):
+        name = "opsproof-observability_" + service + "-data"
+        existing = subprocess.run(
+            ["docker", "volume", "inspect", name],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+        if existing.returncode:
+            subprocess.run(
+                [
+                    "docker",
+                    "volume",
+                    "create",
+                    "--label",
+                    "com.docker.compose.project=opsproof-observability",
+                    "--label",
+                    "com.docker.compose.volume=" + service + "-data",
+                    name,
+                ],
+                check=True,
+                timeout=15,
+            )
+        metadata = json.loads(
+            subprocess.check_output(["docker", "volume", "inspect", name], timeout=15)
+        )[0]
+        labels = metadata.get("Labels", {})
+        if (
+            labels.get("com.docker.compose.project") != "opsproof-observability"
+            or labels.get("com.docker.compose.volume") != service + "-data"
+        ):
+            raise RuntimeError("Monitoring volume ownership cannot be established")
+        running = subprocess.check_output(
+            ["docker", "ps", "--filter", "volume=" + name, "--quiet"], timeout=15
+        )
+        if running.strip():
+            raise RuntimeError("Stop monitoring services before initializing volume ownership")
+        # Root is confined to this initialization process and the exact named volume.
+        # The service itself keeps its established UID with all capabilities dropped.
+        subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "--network",
+                "none",
+                "--read-only",
+                "--user",
+                "0:0",
+                "--cap-drop",
+                "ALL",
+                "--cap-add",
+                "CHOWN",
+                "--security-opt",
+                "no-new-privileges",
+                "--mount",
+                f"type=volume,source={name},target=/data",
+                "--entrypoint",
+                "/bin/chown",
+                images["prometheus"],
+                str(uid) + ":" + str(uid),
+                "/data",
+            ],
+            check=True,
+            timeout=30,
+        )
+        print("Monitoring persistent volume ownership prepared.")
 
 
 def read_values(lines: list[str]) -> dict[str, str]:
@@ -28,6 +111,15 @@ def read_values(lines: list[str]) -> dict[str, str]:
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--storage", action="store_true", help="Initialize the six monitoring Compose volumes"
+    )
+    args = parser.parse_args()
+    if args.storage:
+        prepare_storage()
     RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
     lines: list[str] = []

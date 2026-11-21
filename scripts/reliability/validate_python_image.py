@@ -85,6 +85,19 @@ def main():
     )
     env[prefix + "API_KEY"] = secrets.token_hex(24)
     env.update(
+        OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:4318",
+        OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf",
+        OTEL_TRACES_EXPORTER="otlp",
+        OTEL_LOGS_EXPORTER="otlp",
+        OTEL_METRICS_EXPORTER="none",
+        OTEL_TRACES_SAMPLER="always_on",
+        OTEL_PYTHON_LOG_AUTO_INSTRUMENTATION="true",
+        OTEL_PYTHON_FASTAPI_EXCLUDED_URLS="metrics,health/live,health/ready,api/v1/auth",
+    )
+    if args.component == "control":
+        env["OPSPROOF_CONTROL_TARGET_URL"] = "http://127.0.0.1:4318"
+
+    env.update(
         OPSPROOF_CONTROL_AI_ENABLED="false",
         OPSPROOF_CONTROL_RECOVERY_ENABLED="false",
         OPSPROOF_CONTROL_KUBERNETES_RECOVERY_ENABLED="false",
@@ -238,7 +251,7 @@ def main():
                 f"type=bind,source={private / filename},target=/tls/{filename},readonly",
             ]
         for key in env:
-            if key.startswith(("OPSPROOF_", "IMAGE_TEST_")):
+            if key.startswith(("OPSPROOF_", "IMAGE_TEST_", "OTEL_")):
                 application += ["-e", key]
         migration = container(
             [*application, "--entrypoint", "alembic"],
@@ -264,6 +277,12 @@ def main():
                 + "@127.0.0.1:5432/opsproof?"
                 + suffix
             )
+        env["IMAGE_TEST_STAGE"] = "receiver"
+        if "IMAGE_TEST_STAGE" not in application:
+            application += ["-e", "IMAGE_TEST_STAGE"]
+        container(
+            [*application, "--entrypoint", "python"], image=image, command=["-u", "-c", probe]
+        )
         env["IMAGE_TEST_STAGE"] = "probe"
         if "IMAGE_TEST_STAGE" not in application:
             application += ["-e", "IMAGE_TEST_STAGE"]
@@ -272,7 +291,17 @@ def main():
             if args.component == "control"
             else ["api", "dispatcher", "worker"]
         ):
-            identifier = container(application, image=image, command=[role])
+            identifier = container(
+                [
+                    *application,
+                    "-e",
+                    "OTEL_SERVICE_NAME=opsproof-" + args.component + "-" + role,
+                    "--entrypoint",
+                    "opentelemetry-instrument",
+                ],
+                image=image,
+                command=["python", "-m", "opsproof_" + args.component, role],
+            )
             roles.append((role, identifier))
         api = roles[0][1]
         for _ in range(40):

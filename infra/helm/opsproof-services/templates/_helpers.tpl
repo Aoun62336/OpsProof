@@ -140,6 +140,7 @@
 - {name: OTEL_TRACES_EXPORTER, value: otlp}
 - {name: OTEL_LOGS_EXPORTER, value: otlp}
 - {name: OTEL_METRICS_EXPORTER, value: none}
+- {name: OTEL_PYTHON_FASTAPI_EXCLUDED_URLS, value: "metrics,health/live,health/ready,api/v1/auth"}
 - {name: OTEL_PYTHON_LOG_AUTO_INSTRUMENTATION, value: "true"}
 - {name: OTEL_TRACES_SAMPLER, value: parentbased_traceidratio}
 - name: OTEL_TRACES_SAMPLER_ARG

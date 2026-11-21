@@ -1,7 +1,7 @@
 """Bounded HTTP and durable-state metrics, independently scraped by Prometheus."""
 
 from threading import Lock
-from time import perf_counter
+from time import perf_counter, time
 
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
@@ -21,6 +21,19 @@ DURATION = Histogram(
 STATES = ("queued", "processing", "completed", "failed")
 COUNTS = Gauge("opsproof_demo_jobs", "Durable jobs by state", ["state"])
 READY = Gauge("opsproof_demo_dependencies_ready", "PostgreSQL and Redis readiness")
+DEPENDENCIES = Gauge("opsproof_demo_dependency_ready", "Dependency probe success", ["dependency"])
+STATE_UPDATED = Gauge(
+    "opsproof_demo_state_last_success_timestamp_seconds",
+    "Last successful durable-state observation, Unix seconds",
+)
+AGES = Gauge(
+    "opsproof_demo_oldest_active_age_seconds", "Age of oldest unfinished item, seconds", ["state"]
+)
+LAST_COMPLETION = Gauge(
+    "opsproof_demo_last_completion_timestamp_seconds",
+    "Latest durable successful completion, Unix seconds",
+)
+ACTIVE_STATES = ("queued", "processing")
 SCRAPE_LOCK = Lock()
 METHODS = frozenset(
     ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT")
@@ -33,14 +46,27 @@ def refresh_state() -> None:
     try:
         with pool().connection(timeout=2) as conn:
             conn.execute("SET LOCAL statement_timeout = '2s'")
-            rows = conn.execute("SELECT status, COUNT(*) AS n FROM jobs GROUP BY status").fetchall()
+            rows = conn.execute("""SELECT status, COUNT(*) AS n,
+                       GREATEST(0, EXTRACT(EPOCH FROM (now() - MIN(
+                           CASE WHEN status = 'queued' THEN created_at
+                                ELSE COALESCE(started_at, created_at) END)))) AS age_seconds,
+                       MAX(EXTRACT(EPOCH FROM completed_at)) AS last_completion
+                FROM jobs GROUP BY status""").fetchall()
         counts = {row["status"]: row["n"] for row in rows}
         for state in STATES:
             COUNTS.labels(state=state).set(counts.get(state, 0))
+        by_state = {row["status"]: row for row in rows}
+        for state in ACTIVE_STATES:
+            AGES.labels(state=state).set(float(by_state.get(state, {}).get("age_seconds") or 0))
+        LAST_COMPLETION.set(float(by_state.get("completed", {}).get("last_completion") or 0))
+        STATE_UPDATED.set(time())
         database_ready = True
     except Exception:
         for state in STATES:
             COUNTS.labels(state=state).set(float("nan"))
+        for state in ACTIVE_STATES:
+            AGES.labels(state=state).set(float("nan"))
+        LAST_COMPLETION.set(float("nan"))
     try:
         with Redis.from_url(
             settings().redis_url, socket_connect_timeout=2, socket_timeout=2
@@ -49,6 +75,8 @@ def refresh_state() -> None:
         redis_ready = True
     except Exception:
         pass
+    DEPENDENCIES.labels(dependency="postgresql").set(int(database_ready))
+    DEPENDENCIES.labels(dependency="redis").set(int(redis_ready))
     READY.set(int(database_ready and redis_ready))
 
 

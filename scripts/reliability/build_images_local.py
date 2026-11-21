@@ -59,8 +59,9 @@ def main():
     write_json(output / "source.json", source)
     records = {}
     started = time.monotonic()
-    for component, folder in APPS.items():
-        directory = ROOT / "apps" / folder
+    contexts = {component: ROOT / "apps" / folder for component, folder in APPS.items()}
+    contexts["grafana"] = ROOT / "observability/grafana"
+    for component, directory in contexts.items():
         identity = context_hash(directory)
         tag = "opsproof-" + component + ":src-" + identity[:16]
         command = [

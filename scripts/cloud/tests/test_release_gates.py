@@ -18,7 +18,13 @@ class ReleaseManifestTests(unittest.TestCase):
             "workflow_run_id": 123,
             "images": {
                 role: f"ghcr.io/example/opsproof/opsproof-{role}@sha256:{i * 64}"
-                for role, i in (("demo", "a"), ("control", "b"), ("web", "c"), ("edge", "d"))
+                for role, i in (
+                    ("demo", "a"),
+                    ("control", "b"),
+                    ("web", "c"),
+                    ("edge", "d"),
+                    ("grafana", "e"),
+                )
             },
         }
 

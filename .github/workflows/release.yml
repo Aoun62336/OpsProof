@@ -37,9 +37,7 @@ jobs:
         env:
           PYTHONPATH: apps/control-plane/src
         run: |
-          python3 -m unittest discover -s scripts/platform/tests -v
-          uv run --project apps/control-plane --locked pytest scripts/reliability/tests -q
-          uv run --project apps/control-plane --locked python -m pytest scripts/cloud/tests -q
+          uv run --project apps/control-plane --locked python -m pytest scripts/platform/tests scripts/reliability/tests scripts/cloud/tests -q
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
@@ -66,6 +64,9 @@ jobs:
     environment: opsproof-release # Configure protected reviewers externally before first release
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      TRIVY_DETECTION_PRIORITY: comprehensive
+      TRIVY_LIST_ALL_PKGS: 'true'
     strategy:
       fail-fast: true
       matrix:
@@ -82,6 +83,9 @@ jobs:
           - name: edge
             context: apps/edge-proof
             dockerfile: apps/edge-proof/Dockerfile
+          - name: grafana
+            context: observability/grafana
+            dockerfile: observability/grafana/Dockerfile
     permissions:
       contents: read
       packages: write
@@ -92,6 +96,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Set up the project Python tooling
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.13.7'
+      - run: uv python install 3.14
       - name: Authenticate to GitHub Container Registry
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -115,7 +124,7 @@ jobs:
         run: |
           docker pull postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
           docker pull redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
-          python3 -m scripts.reliability.validate_python_image --component "$COMPONENT" --image "$IMAGE"
+          uv run --project apps/control-plane --locked python -m scripts.reliability.validate_python_image --component "$COMPONENT" --image "$IMAGE"
       - name: Retain sanitized Python compatibility outcome
         if: always() && (matrix.name == 'demo' || matrix.name == 'control')
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
@@ -124,12 +133,21 @@ jobs:
           path: .runtime/verification/python-images/*/result.json
           if-no-files-found: error
           retention-days: 30
+      - name: Verify secured Grafana with the actual monitoring pipeline
+        if: matrix.name == 'grafana'
+        run: |
+          docker build --tag opsproof-telemetry-fixture:verification apps/demo-workload
+          fixture_id="$(docker image inspect opsproof-telemetry-fixture:verification --format '{{.Id}}')"
+          grafana_id="$(docker image inspect "$IMAGE" --format '{{.Id}}')"
+          uv run --project apps/control-plane --locked python -m scripts.platform.verify_observability_runtime --fixture-image "$fixture_id" --grafana-image "$grafana_id" --output .runtime/verification/observability-runtime
       - name: Complete vulnerability report, including unfixed findings
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           scan-type: image
           image-ref: ${{ env.IMAGE }}
           scanners: vuln
+          version: v0.76.2
+          list-all-pkgs: true
           format: json
           output: image-vulnerabilities.json
           ignore-unfixed: false
@@ -143,21 +161,39 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Trivy image policy (must pass before publication)
+        if: matrix.name != 'grafana'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
           image-ref: ${{ env.IMAGE }}
           scanners: vuln
+          version: v0.76.2
+          list-all-pkgs: true
           severity: CRITICAL,HIGH
           ignore-unfixed: false
           exit-code: '1'
           cache: 'false'
+      - name: Secured Grafana complete inventory and source-fix policy
+        if: matrix.name == 'grafana'
+        run: |
+          uv run --project apps/control-plane --locked python -m scripts.platform.scan_telemetry --only-grafana --grafana-image "$IMAGE" --output .runtime/verification/grafana-security
+      - name: Retain Grafana runtime and complete security evidence
+        if: always() && matrix.name == 'grafana'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: grafana-verification
+          path: |
+            .runtime/verification/observability-runtime/result.json
+            .runtime/verification/grafana-security
+          retention-days: 30
       - name: CycloneDX software bill of materials
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           scan-type: image
           image-ref: ${{ env.IMAGE }}
           format: cyclonedx
+          version: v0.76.2
+          list-all-pkgs: true
           output: sbom.cdx.json
           exit-code: '0'
           cache: 'false'
@@ -225,7 +261,7 @@ jobs:
           pattern: release-*
           path: .runtime/cloud/release-receipts
           merge-multiple: false
-      - name: Assemble exact four-image release identity
+      - name: Assemble exact five-image release identity
         env:
           SOURCE_SHA: ${{ github.sha }}
           REPOSITORY: ${{ github.repository }}

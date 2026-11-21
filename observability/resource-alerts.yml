@@ -1,0 +1,39 @@
+# Kubernetes resource evidence is required, never inferred from reservations.
+groups:
+  - name: opsproof-resources
+    rules:
+      - alert: OpsProofResourceScrapeUnavailable
+        expr: up{job=~"kubelet|cadvisor"} == 0
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: Kubernetes resource metrics are unavailable
+          description: Check direct kubelet TLS trust, read-only authorization and network access. Never disable certificate verification.
+      - alert: OpsProofVolumeMetricsMissing
+        expr: absent_over_time(kubelet_volume_stats_capacity_bytes{namespace="opsproof-observability"}[5m])
+        for: 1m
+        labels: {severity: warning, job: kubelet}
+        annotations:
+          summary: No monitoring volume-capacity evidence is available
+          description: Verify the CSI driver supports volume statistics; unknown disk usage is not free space.
+      - alert: OpsProofMonitoringVolumeSpaceLow
+        expr: kubelet_volume_stats_available_bytes{namespace="opsproof-observability"} / kubelet_volume_stats_capacity_bytes{namespace="opsproof-observability"} < 0.15
+        for: 2m
+        labels: {severity: warning, job: kubelet}
+        annotations:
+          summary: Monitoring volume has less than fifteen percent free
+          description: Inspect measured ingestion, retention and queue usage before resizing storage.
+      - alert: OpsProofContainerMemoryPressure
+        expr: container_memory_working_set_bytes{namespace=~"opsproof-.*",container!="",container!="POD"} / container_spec_memory_limit_bytes{namespace=~"opsproof-.*",container!="",container!="POD"} > 0.9
+        for: 2m
+        labels: {severity: warning, job: cadvisor}
+        annotations:
+          summary: Container working set is above ninety percent of its memory limit
+          description: Inspect actual usage and configured limits; limits are not measured consumption.
+      - alert: OpsProofContainerCPUThrottled
+        expr: rate(container_cpu_cfs_throttled_periods_total{namespace=~"opsproof-.*",container!="",container!="POD"}[5m]) / rate(container_cpu_cfs_periods_total{namespace=~"opsproof-.*",container!="",container!="POD"}[5m]) > 0.2
+        for: 2m
+        labels: {severity: warning, job: cadvisor}
+        annotations:
+          summary: Container CPU throttling is sustained
+          description: Inspect latency and actual CPU demand before changing limits or scaling bounds.

@@ -8,6 +8,8 @@ from uuid import uuid4
 import yaml
 
 from scripts.cloud.install_controllers import filename, loaded, verify
+from scripts.platform.observability import render as telemetry
+from scripts.platform.telemetry_images import runtime_images
 from scripts.platform.validate_charts import validate
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -164,6 +166,14 @@ def main() -> None:
                 )
         (output / (controller["name"] + ".yaml")).write_text(rendered, encoding="utf-8")
         summaries.append({"profile": controller["name"], "objects": len(rows)})
+    rows = telemetry(
+        runtime_images("ghcr.io/offline/fixture/opsproof-grafana@" + DIGEST),
+        storage_class="opsproof-ebs-gp3",
+        cloud_profile=True,
+    )["items"]
+    validate([row for row in rows if row["kind"] not in {"ClusterRole", "ClusterRoleBinding"}])
+    (output / "observability.yaml").write_text(yaml.safe_dump_all(rows), encoding="utf-8")
+    summaries.append({"profile": "observability", "objects": len(rows)})
     result = {"status": "RENDER_VALIDATED_NOT_RUNTIME_ACCEPTED", "profiles": summaries}
     (output / "result.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2))

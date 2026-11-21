@@ -2,7 +2,13 @@ name: opsproof-observability
 
 services:
   prometheus:
-    image: prom/prometheus:v3.15.1
+    entrypoint: ["/usr/bin/prometheus"]
+    image: ghcr.io/quenchworks/images/prometheus@sha256:1783da450273bb51d42e604b105739e55961b70b74553975344c81ecfa150786
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=33554432"]
 
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -13,7 +19,11 @@ services:
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
-      - prometheus-data:/prometheus
+      - type: volume
+        source: prometheus-data
+        target: /prometheus
+        volume:
+          nocopy: true
 
     ports:
       - "127.0.0.1:9090:9090"
@@ -22,10 +32,17 @@ services:
       - opsproof-telemetry
 
     mem_limit: 512m
+    stop_grace_period: 60s
     restart: unless-stopped
 
   alertmanager:
-    image: prom/alertmanager:v0.34.2
+    entrypoint: ["/usr/bin/alertmanager"]
+    image: ghcr.io/quenchworks/images/alertmanager@sha256:4d51bc7dea8c47c931075d2f67bc70bd5686aac6589701001f457e03747c6615
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=33554432"]
 
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
@@ -34,7 +51,11 @@ services:
     volumes:
       - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ./.runtime/observability/webhook-token:/etc/alertmanager/webhook-token:ro
-      - alertmanager-data:/alertmanager
+      - type: volume
+        source: alertmanager-data
+        target: /alertmanager
+        volume:
+          nocopy: true
 
     ports:
       - "127.0.0.1:9093:9093"
@@ -43,32 +64,53 @@ services:
       - opsproof-telemetry
 
     mem_limit: 128m
+    stop_grace_period: 60s
     restart: unless-stopped
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.164.0@sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b
+    image: otel/opentelemetry-collector-contrib@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=33554432"]
 
     command:
       - --config=/etc/otelcol/config.yaml
 
     volumes:
       - ./observability/otel-collector.yml:/etc/otelcol/config.yaml:ro
+      - type: volume
+        source: collector-data
+        target: /var/lib/otelcol
+        volume:
+          nocopy: true
 
     networks:
       - opsproof-telemetry
 
     mem_limit: 256m
+    stop_grace_period: 60s
     restart: unless-stopped
 
   loki:
-    image: grafana/loki:3.7.8
+    image: grafana/loki@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=33554432"]
 
     command:
       - -config.file=/etc/loki/local.yaml
 
     volumes:
       - ./observability/loki.yml:/etc/loki/local.yaml:ro
-      - loki-data:/loki
+      - type: volume
+        source: loki-data
+        target: /loki
+        volume:
+          nocopy: true
 
     ports:
       - "127.0.0.1:3100:3100"
@@ -77,17 +119,27 @@ services:
       - opsproof-telemetry
 
     mem_limit: 512m
+    stop_grace_period: 60s
     restart: unless-stopped
 
   tempo:
-    image: grafana/tempo:3.1.1
+    image: ghcr.io/quenchworks/images/tempo@sha256:eba09e226f8ac6874bed9237832e1b3b35ea5083a2d981741e5b18aa306a88cf
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=33554432"]
 
     command:
       - -config.file=/etc/tempo/config.yaml
 
     volumes:
       - ./observability/tempo.yml:/etc/tempo/config.yaml:ro
-      - tempo-data:/var/tempo
+      - type: volume
+        source: tempo-data
+        target: /var/tempo
+        volume:
+          nocopy: true
 
     ports:
       - "127.0.0.1:3200:3200"
@@ -96,20 +148,36 @@ services:
       - opsproof-telemetry
 
     mem_limit: 512m
+    stop_grace_period: 60s
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:13.2.4
+    build: ./observability/grafana
+    image: opsproof-grafana:local
+    user: "472:472"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=33554432"]
 
     environment:
       GF_SECURITY_ADMIN_USER: opsproof
       GF_SECURITY_ADMIN_PASSWORD: "${OPSPROOF_GRAFANA_ADMIN_PASSWORD:?Set Grafana password}"
+      GF_PATHS_DATA: /var/lib/grafana
+      GF_PATHS_LOGS: /var/lib/grafana/log
+      GF_PATHS_PLUGINS: /var/lib/grafana/plugins
+      GF_PATHS_HOME: /usr/share/grafana
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
 
     volumes:
-      - grafana-data:/var/lib/grafana
+      - type: volume
+        source: grafana-data
+        target: /var/lib/grafana
+        volume:
+          nocopy: true
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
 
@@ -120,6 +188,7 @@ services:
       - opsproof-telemetry
 
     mem_limit: 512m
+    stop_grace_period: 60s
     restart: unless-stopped
 
 networks:
@@ -128,6 +197,7 @@ networks:
     name: opsproof-telemetry
 
 volumes:
+  collector-data:
   prometheus-data:
   alertmanager-data:
   loki-data:
