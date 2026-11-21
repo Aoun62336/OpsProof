@@ -19,8 +19,9 @@ The current repository standardization and checks are described in the
 [repository review](docs/history/repository-review-2026-11-16.md). The repository cleanup and local verification baseline has passed;
 [verification results](docs/engineering/verification.md) record the actual checks and limits
 on a separate branch;
-see [cloud readiness](docs/cloud/readiness.md). Python base-image HIGH findings
-currently block release; AI remains disabled. AWS acceptance still requires the
+see [cloud readiness](docs/cloud/readiness.md). The Python image security issue is
+fixed and all four final images scanned clean; [details](docs/engineering/container-security.md).
+AI remains disabled. AWS acceptance still requires the
 owner-run deployment and teardown. No AWS resources have been provisioned here.
 
 AI remains disabled. The completed, independently reviewed comparison used the

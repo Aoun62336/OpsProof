@@ -1,13 +1,26 @@
 # syntax=docker/dockerfile:1.7
 
-FROM python:3.14-slim@sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f AS builder
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:be019c1c74fe69204a42c4e10bc4d886a49bf5403ffa74374ef7baa408fc9a26 AS python-base
+
+# Vendor-signed glibc packages preserve the Python minor version and include the
+# upstream SQLite fixes; no unstable repository or locally patched library.
+RUN apk upgrade --no-cache \
+    && apk add --no-cache \
+        python-3.14=3.14.10_git20261118-r0 \
+        sqlite-libs=3.54.1-r1 \
+        tzdata
+
+FROM python-base AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490 \
     /uv /uvx /bin/
 
 ENV UV_NO_DEV=1 \
     UV_LINK_MODE=copy \
-    UV_PYTHON_DOWNLOADS=never
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PYTHON=python3.14 \
+    UV_CONCURRENT_DOWNLOADS=2 \
+    UV_HTTP_TIMEOUT=60
 
 WORKDIR /app
 
@@ -22,14 +35,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable
 
 
-FROM python:3.14-slim@sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f AS runtime
+FROM python-base AS runtime
 
-# Packages are installed only by the locked builder. The runtime never installs
-# dependencies; remove pip and its unrelated, vulnerable vendored components.
-RUN apt-get update \
-    && apt-get install --yes --no-install-recommends --only-upgrade zlib1g \
-    && rm -rf /var/lib/apt/lists/* \
-    && python -m pip uninstall --yes pip
+# The supported vendor runtime has no pip/bootstrap installer. Keep the package
+# database for scanning and the complete application environment from the builder.
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

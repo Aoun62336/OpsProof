@@ -2,8 +2,8 @@
 
 Reviewed 21 November 2026. The repository cleanup and local verification work is
 complete for the checks recorded below. This is not cloud acceptance or release
-approval. Python base-image HIGH findings still block publication, and runtime
-AI remains disabled and unqualified. No real AWS resource, Terraform apply,
+approval. The Python base-image findings have been remediated and all four final
+images scanned clean. Runtime AI remains disabled and unqualified. No real AWS resource, Terraform apply,
 model request, Git push or publication occurred during this finalization.
 
 ## What changed and why
@@ -52,9 +52,20 @@ model request, Git push or publication occurred during this finalization.
 | Secrets | Current source and earlier all-history scans passed | Private ignored credentials deliberately excluded |
 | Four final images | Build, nonroot/read-only smoke, export-integrity scan and CycloneDX SBOM passed | Local IDs recorded; no registry publication or cloud deployment |
 | Final nginx vulnerability scan | Zero findings in web and edge images | libxml2 2.13.9-r3 floor, signed official mirror packages |
-| Final Python vulnerability scan | Zero CRITICAL; 47 HIGH occurrences per image, 11 distinct CVEs; zero available HIGH/CRITICAL package fixes | Release remains blocked; no exception/blanket ignore approved |
+| Final Python vulnerability scan | Zero findings at every reported severity in both images; all eleven original HIGH CVEs absent | Signed Wolfi runtime packages; no exception/blanket ignore; repeat scans at release |
+| Final Python artifact compatibility | Both images passed against fresh TLS PostgreSQL/Redis; eight service roles exited zero | Real job completion, restricted SQL role/login, negative TLS/auth, standard library and OTLP; SQLite 3.54.1 independently checked |
 | Evidence retention | Six public-case private lineage bindings and 5,961 original handover artifact hashes passed | Proves preserved bytes/recorded status, not renewed incident execution |
 | Preservation | .env, two kubeconfigs and webhook token matched checkpoint hashes | No credential values logged or overwritten |
+
+The Python runtime remediation follow-up reran the full source gate: 409
+Python/tooling tests plus 21 subtests, 33 demo tests and 46 web tests passed,
+along with lint/format, production build, Helm/schema and workflow checks.
+The 32 SQL-only tests remain outside that source gate; the earlier full SQL
+baseline above and the new real artifact/TLS checks are separate evidence.
+Native source vulnerability/IaC scanning found no HIGH/CRITICAL issues, actionlint
+passed and the source secret scan was clean. A Docker-unavailable negative run
+also failed closed and removed its generated private keys. Hosted execution of
+the new artifact gate remains pending.
 
 The actual maintained commands were run from the repository root, also from an
 isolated clone with initially empty Python/npm dependency caches:
@@ -69,6 +80,8 @@ uv run --project apps/control-plane --locked python -m scripts.reliability.valid
 uv run --project apps/control-plane --locked --with PyYAML==6.0.3 python -m scripts.cloud.validate_redis --execute
 uv run --project apps/control-plane --locked python -m scripts.reliability.build_images_local
 uv run --project apps/control-plane --locked python -m scripts.reliability.smoke_images
+uv run --project apps/control-plane --locked python -m scripts.reliability.validate_python_image --component demo --image opsproof-demo:src-c8e974484ca9df49
+uv run --project apps/control-plane --locked python -m scripts.reliability.validate_python_image --component control --image opsproof-control:src-d150747af6bf73b3
 ```
 
 Expanded command arrays, exit codes, source identities, complete scanner output,
@@ -106,16 +119,14 @@ compatibility contracts. See [structure and retention](repository-structure.md).
 
 ## Work that remains outside this verified baseline
 
-1. Resolve the exact Python image findings through supported fixes or a separately
-   reviewed, narrowly scoped owner security decision. No release waiver exists.
-2. AI enablement requires new qualification of the actual runtime feature and
+1. AI enablement requires new qualification of the actual runtime feature and
    separate bounded call approval. The old 24 requests are exhausted and neither
    provider qualified. Deterministic operations remain available with AI off.
-3. Owner review/merge, hosted CI, approved image publication and actual registry
+2. Owner review/merge, hosted CI, approved image publication and actual registry
    digest/attestation verification remain pending. Local checks cannot prove them.
-4. Owner account/profile, regional versions/quotas, fresh prices and saved-plan
+3. Owner account/profile, regional versions/quotas, fresh prices and saved-plan
    review must precede any apply. No account-specific checks were invented.
-5. Real EKS/RDS/ALB/IAM/network/storage acceptance, cloud screenshots, teardown
+4. Real EKS/RDS/ALB/IAM/network/storage acceptance, cloud screenshots, teardown
    and settled billing checks necessarily follow the owner deployment window.
 
 The six fault demonstrations and nine accepted scaling trials remain historical
