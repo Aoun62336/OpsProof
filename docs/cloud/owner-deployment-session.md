@@ -8,7 +8,7 @@ its evidence before proceeding. There is no all-in-one apply command.
 ## 1. Prepare the reviewed source and tools
 
 Start at `C:/Users/AOUN/Desktop/OpsProof` in PowerShell. Review the final
-`codex/cloud-readiness` commit and checks before merging it into `main`; merging,
+`release/cloud-readiness` commit and checks before merging it into `main`; merging,
 pushing and publication remain separate owner actions. Keep the original local
 cluster stopped. Confirm Terraform, AWS CLI, kubectl, Helm, uv, Node and GitHub
 CLI versions and authentication. Run the source, native Terraform, Helm and
