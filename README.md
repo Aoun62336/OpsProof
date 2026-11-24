@@ -24,12 +24,27 @@ fixed and all four final images scanned clean; [details](docs/engineering/contai
 AI remains disabled. AWS acceptance still requires the
 owner-run deployment and teardown. No AWS resources have been provisioned here.
 
-AI remains disabled. The completed, independently reviewed comparison used the
-original eight regression cases and four held-out capacity cases. Neither Groq
-nor Gemini qualified. See the [evaluation decision](docs/engineering/advisory-evaluation.md)
-for scores, grounding failures and the historical label limitations. Mechanical
-evidence-path validation and explicit metric units/freshness are implemented.
-Model output never authorizes recovery.
+The NVIDIA advisory integration passed the frozen 42-case development qualification
+on 24 November 2026: ten runtime cases and 32 broader evidence-contract cases.
+All answers passed mechanical checks and the frozen decision labels; independent
+review found no material unsupported explanation or unsafe recommendation.
+Runtime AI remains disabled; this evaluation does not activate it or establish
+production reliability on unseen incidents. Cause/action disagreements are
+rejected by deterministic policy, and model output never authorizes recovery.
+
+Evidence paths come from the actual request. Broad wire citations use sparse
+true-only selections, requiring at least one citation for a positive finding
+and at most six. They decode losslessly to the unchanged public list; invalid
+answers are rejected rather than repaired. Explicit units, freshness, thresholds,
+missing-value semantics and conservative abstention are part of the contract.
+The final source-only reproduction passed 550 tests and 21 subtests, 39 demo
+tests and 46 web tests. Its 36 skipped SQL cases passed separately against
+disposable PostgreSQL. Lint, formatting, production build and infrastructure
+checks passed; see the [release closeout](docs/engineering/verification.md#pre-cloud-release-closeout--24-november-2026). Gemini/Groq execution
+commands and local credentials are retired; their historical failures remain
+preserved. See the [evaluation decision](docs/engineering/advisory-evaluation.md).
+The updated source was built into local release images and tested. No registry
+publication or Kubernetes/AWS deployment has occurred.
 
 ## Architecture
 

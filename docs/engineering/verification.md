@@ -3,8 +3,59 @@
 Reviewed 21 November 2026. The repository cleanup and local verification work is
 complete for the checks recorded below. This is not cloud acceptance or release
 approval. The Python base-image findings have been remediated and all four final
-images scanned clean. Runtime AI remains disabled and unqualified. No real AWS resource, Terraform apply,
-model request, Git push or publication occurred during this finalization.
+images scanned clean. At this 21 November baseline, runtime AI was disabled and
+unqualified. The subsequent 24 November NVIDIA development qualification passed
+all 42 cases; see [the current decision](advisory-evaluation.md). Runtime AI stays
+disabled. No real AWS resource, Terraform apply, model request, Git push or
+publication occurred during the earlier baseline finalization.
+
+## Pre-cloud release closeout — 24 November 2026
+
+The final source was reproduced in a disposable source-only checkout with fresh
+locked Python and npm installs. No owner environment, previous virtual
+environment, node_modules or private historical runtime evidence was copied.
+The complete source gate passed 550 Python/tooling tests and 21 subtests, 39 demo
+tests, 46 web tests, lint/format, production web build, 25 local Helm profiles,
+cloud/controller/shared telemetry renders, 215 Kubernetes objects against 51
+schemas, workflow contracts, source secret scanning and whitespace checks.
+The 36 SQL-only cases skipped by this source gate were executed separately:
+31 actual PostgreSQL integrations and five TLS/role bootstrap tests passed.
+
+Two added SQL integrations cover authenticated AI queueing, the real worker,
+restricted-role durable results, duplicate-request behavior and rejection of
+policy-mismatched model output. Only the provider transport is intercepted;
+these tests make no model calls and do not enable runtime AI. The previously
+reviewed live NVIDIA 42-case pass remains unchanged and was not repeated.
+
+The five source-identified local release images built successfully. The four
+application images passed network-isolated nonroot/read-only smoke tests, and
+both Python artifacts passed actual TLS dependency/job/worker/shutdown checks.
+The complete application inventories found zero vulnerabilities at every
+reported severity; all six telemetry artifacts passed the unchanged strict
+HIGH/CRITICAL gate, including unfixed findings and the documented exact-source
+Grafana policy. Complete reports and SBOMs remain private. These dated results
+must be refreshed for the separately approved published release.
+
+Real disposable checks also passed PostgreSQL migration preservation, the
+production browser/API at five viewport widths with 20 screenshots and
+accessibility checks, both Redis TLS/auth profiles, the loopback-only AWS
+Emulator contracts, and the monitoring restart/log/trace/Grafana/alert/watch
+pipeline. All three Terraform roots passed formatting, backend-disabled init,
+validation and 11 native mock tests. Ten workflows passed actionlint.
+
+Private proof is under `.runtime/verification/release/`; the final receipt binds
+the source checkpoint, exact image identities, commands, prior evidence and
+cleanup. The initial telemetry attempt rejected a mutable fixture tag before
+starting; the exact-ID run passed. Initial temporary-checkout cleanup encountered
+read-only generated Git objects; owned cleanup was completed and the original
+failure log preserved. Neither failure was relabeled as a successful command.
+
+This is local pre-cloud verification. No Kubernetes cluster was started,
+provider request made, AWS resource provisioned, Terraform apply executed,
+Git push/merge performed or image published. Runtime AI remains disabled.
+Hosted CI/publication, account-specific quota/version/cost checks, owner-reviewed
+saved plans, real AWS acceptance, screenshots and complete teardown remain
+separate deployment-session gates.
 
 ## What changed and why
 
@@ -147,9 +198,11 @@ compatibility contracts. See [structure and retention](repository-structure.md).
 
 ## Work that remains outside this verified baseline
 
-1. AI enablement requires new qualification of the actual runtime feature and
-   separate bounded call approval. The old 24 requests are exhausted and neither
-   provider qualified. Deterministic operations remain available with AI off.
+1. The later NVIDIA qualification passed all 42 development cases, including
+   ten runtime cause/action cases. Runtime enablement remains a separate operator
+   decision, and deployed artifacts must contain the qualified source. Existing
+   model calls must not be repeated solely to regenerate proof. Earlier failed
+   provider evaluations remain historical; deterministic operations work with AI off.
 2. Owner review/merge, hosted CI, approved image publication and actual registry
    digest/attestation verification remain pending. Local checks cannot prove them.
 3. Owner account/profile, regional versions/quotas, fresh prices and saved-plan

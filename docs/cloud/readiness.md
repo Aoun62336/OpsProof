@@ -24,10 +24,13 @@ and no images or website were published. The original local cluster stayed off.
 - Five-image release/SBOM/provenance workflows, pinned Actions, six curated
   historical public cases with verified private lineage, and exact-ID teardown
   auditing across 22 resource categories.
-- Explicit evidence units/freshness/thresholds, mechanical citation validation and
-  a completed 24-request independently reviewed AI comparison. Neither provider
-  qualified; runtime AI remains off. No further calls are required for the current
-  AI-disabled deployment scope; enabling AI remains an open qualification item.
+- Explicit evidence units/freshness/thresholds and mechanical citation validation.
+  The final NVIDIA development qualification passed all 42 cases on 24 November
+  2026, including ten runtime cause/action cases and independent factual review.
+  Earlier Groq/Gemini and NVIDIA failures remain preserved separately. Runtime AI
+  stays disabled; operational enablement and deployment validation are separate
+  from benchmark qualification. No repeat comparison is required for unchanged
+  model request and policy contracts. See the documented precision limitations.
 
 ## Local verification
 
@@ -58,8 +61,17 @@ missing-evidence rule applies. EBS/CSI capacity metrics remain a live cloud gate
 
 See the [verification review](../history/cloud-readiness-review-2026-11-17.md) for actual
 commands, retained receipts, failures repaired and remaining limitations. The
-[AI decision](../engineering/advisory-evaluation.md) preserves failed qualification
-and historical label/threshold tensions without changing labels after evaluation.
+[AI decision](../engineering/advisory-evaluation.md) records the final 42-case pass,
+retained failed epochs and precision limitations without changing frozen labels.
+
+## Final local release checks
+
+The 24 November pre-cloud closeout refreshed the complete source gate in a
+source-only checkout, real SQL/API/browser integrations, built application
+artifacts, strict image/source security, telemetry and Terraform mock tests.
+See [the executed checks and limitations](../engineering/verification.md#pre-cloud-release-closeout--24-november-2026).
+The qualified AI source is included in local release artifacts; runtime AI
+remains disabled. No repeat provider calls or Kubernetes startup were needed.
 
 ## Remaining owner gates
 

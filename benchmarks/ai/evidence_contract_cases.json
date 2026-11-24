@@ -1,0 +1,372 @@
+{
+  "schema": 1,
+  "origin": "synthetic_contract_cases_not_real_incidents",
+  "independent_label_review": "PENDING",
+  "cases": [
+    {
+      "id": "contract-01",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "queue_lag": 27,
+          "queue_age_seconds": 8.5,
+          "active_workers": 1
+        }
+      },
+      "expected_hypothesis": "worker_saturation",
+      "expected_abstained": false,
+      "rationale": "Waiting-message count, age in seconds and available replicas meet all configured signature criteria."
+    },
+    {
+      "id": "contract-02",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "queue_lag": 10,
+          "queue_age_seconds": 5.0,
+          "active_workers": 4
+        }
+      },
+      "expected_hypothesis": "worker_saturation",
+      "expected_abstained": false,
+      "rationale": "Inclusive waiting-message and age boundaries; scale-out does not establish drainage."
+    },
+    {
+      "id": "contract-03",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "candidate_error_rate": 0.08,
+          "rollout_analysis_failed": true
+        }
+      },
+      "expected_hypothesis": "faulty_release",
+      "expected_abstained": false,
+      "rationale": "Measured candidate-only error fraction and failed rollout analysis are both supplied."
+    },
+    {
+      "id": "contract-04",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "candidate_error_rate": 0.05,
+          "rollout_analysis_failed": true
+        }
+      },
+      "expected_hypothesis": "faulty_release",
+      "expected_abstained": false,
+      "rationale": "Candidate-specific error fraction equals the inclusive configured boundary."
+    },
+    {
+      "id": "contract-05",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "db_probe_ok": false,
+          "db_connection_errors": 4
+        }
+      },
+      "expected_hypothesis": "database_connectivity",
+      "expected_abstained": false,
+      "rationale": "Failed database probe is corroborated by four observed connection errors."
+    },
+    {
+      "id": "contract-06",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "db_probe_ok": false,
+          "db_connection_errors": 1
+        }
+      },
+      "expected_hypothesis": "database_connectivity",
+      "expected_abstained": false,
+      "rationale": "One observed connection error and failed database probe meet the configured signature."
+    },
+    {
+      "id": "contract-07",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "logs_fresh": true,
+          "active_workers": 0,
+          "worker_restarts": 2,
+          "queue_lag": 6
+        }
+      },
+      "expected_hypothesis": "worker_failure",
+      "expected_abstained": false,
+      "rationale": "Fresh logs, zero available workers, explicit container restart count and waiting messages are supplied."
+    },
+    {
+      "id": "contract-08",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "logs_fresh": true,
+          "active_workers": 0,
+          "worker_restarts": 1,
+          "queue_lag": 1
+        }
+      },
+      "expected_hypothesis": "worker_failure",
+      "expected_abstained": false,
+      "rationale": "One waiting message and one explicit container restart with fresh logs; no available workers."
+    },
+    {
+      "id": "contract-09",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "traces_fresh": true,
+          "downstream_p95_seconds": 1.25,
+          "downstream_timeouts": 3
+        }
+      },
+      "expected_hypothesis": "downstream_latency",
+      "expected_abstained": false,
+      "rationale": "Measured downstream p95 in seconds is corroborated by timeouts and fresh traces."
+    },
+    {
+      "id": "contract-10",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "traces_fresh": true,
+          "downstream_p95_seconds": 0.5,
+          "downstream_timeouts": 1
+        }
+      },
+      "expected_hypothesis": "downstream_latency",
+      "expected_abstained": false,
+      "rationale": "Measured p95 equals the inclusive latency boundary and has fresh timeout traces."
+    },
+    {
+      "id": "contract-11",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "traces_fresh": true,
+          "downstream_timeouts": 1
+        },
+        "recorded_evidence": {
+          "telemetry": {
+            "timeout_configuration_ms": 400,
+            "linked_timeout_trace": true
+          }
+        }
+      },
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "A configured 400 ms timeout and timeout event do not supply measured p95."
+    },
+    {
+      "id": "contract-12",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "rollout_analysis_failed": true
+        },
+        "recorded_evidence": {
+          "gateway_requests": 86,
+          "gateway_errors": 28,
+          "candidate_only_error_fraction": null
+        }
+      },
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "Gateway-wide 28/86 errors cannot substitute for an unmeasured candidate-only rate."
+    },
+    {
+      "id": "contract-13",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "logs_fresh": true,
+          "active_workers": 0,
+          "queue_lag": 2
+        },
+        "recorded_evidence": {
+          "original_pod_disappeared": true,
+          "replacement_pod_observed": true,
+          "job_attempts": 2
+        }
+      },
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "Pod replacement and another job attempt do not establish a container restart count."
+    },
+    {
+      "id": "contract-14",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "queue_lag": 61,
+          "queue_age_seconds": 1.0,
+          "active_workers": 1
+        }
+      },
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "A new burst has not met the configured queue-age criterion."
+    },
+    {
+      "id": "contract-15",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "queue_lag": 0,
+          "queue_age_seconds": 0.0,
+          "active_workers": 1
+        },
+        "recorded_evidence": {
+          "queue": {
+            "lag": 0,
+            "pending": 45,
+            "lag_known": true
+          }
+        }
+      },
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "Pending messages are already delivered; zero undelivered lag is not a waiting backlog."
+    },
+    {
+      "id": "contract-16",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-21T23:58:59+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "queue_lag": 47,
+          "queue_age_seconds": 12.0,
+          "active_workers": 1
+        }
+      },
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "A 61-second-old observation exceeds the existing 60-second freshness bound despite the flag."
+    },
+    {
+      "id": "contract-17",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:01+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "queue_lag": 47,
+          "queue_age_seconds": 12.0,
+          "active_workers": 1
+        }
+      },
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "Future observations are unusable even when marked fresh."
+    },
+    {
+      "id": "contract-18",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "db_probe_ok": false,
+          "db_connection_errors": 4,
+          "collection_errors": [
+            "database probe collector returned incomplete window"
+          ]
+        }
+      },
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "Collector failure makes otherwise matching database signals incomplete."
+    },
+    {
+      "id": "contract-19",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "queue_lag": 27,
+          "queue_age_seconds": 8.5,
+          "active_workers": 1,
+          "contradictions": [
+            "queue and worker samples were collected from different targets"
+          ]
+        }
+      },
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "Explicitly contradictory evidence requires abstention."
+    },
+    {
+      "id": "contract-20",
+      "facts": {
+        "evaluation_at": "2026-11-22T00:00:00+00:00",
+        "observation": {
+          "observed_at": "2026-11-22T00:00:00+00:00",
+          "target": "opsproof-demo",
+          "metrics_fresh": true,
+          "queue_lag": 27,
+          "queue_age_seconds": 8.5,
+          "active_workers": 1,
+          "db_probe_ok": false,
+          "db_connection_errors": 4
+        }
+      },
+      "expected_hypothesis": "unknown",
+      "expected_abstained": true,
+      "rationale": "Database and worker-saturation signatures both match; no unique signature is established."
+    }
+  ]
+}

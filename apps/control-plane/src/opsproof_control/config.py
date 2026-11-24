@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     prometheus_url: str = "http://prometheus:9090"
     ai_enabled: bool = False
     ai_daily_limit: int = 10
-    ai_provider: str = "gemini"
-    ai_model: str = "gemini-2.5-flash-lite"
+    ai_provider: str = "nvidia"
+    ai_model: str = "nvidia/nemotron-3.5-super-vl-120b-a12b"
     ai_api_key: str = ""
     target_url: str = "http://opsproof-demo-api:8080"
     action_stream: str = "opsproof:actions:v1"
