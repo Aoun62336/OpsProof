@@ -90,4 +90,4 @@ five background processes. It restores workers and saves evidence in
 use the sequence above afterward.
 
 Local validation results and remaining nonlocal scope are recorded in
-[worker shutdown validation](../history/worker-shutdown-validation.md).
+[local results](../public/README.md#local-results-and-screenshots).

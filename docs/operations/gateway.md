@@ -1,8 +1,7 @@
 # Local gateway and private operator access
 
 The local Gateway profile exposes the production web application on
-`http://127.0.0.1:8081`. Historical acceptance is recorded separately from the
-state of any current cluster. See [verification](../engineering/verification.md).
+`http://127.0.0.1:8081`.
 
 Traefik runs in `opsproof-gateway`; the UI HTTPRoute targets its same-namespace web
 Service. Nginx serves the compiled React application and proxies `/api/` to the

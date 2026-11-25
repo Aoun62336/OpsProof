@@ -34,7 +34,7 @@ docs/
   engineering/       Current structure, verification and AI qualification decision
   operations/        Maintained local operating procedures
   cloud/             Owner preparation, deployment, proof and teardown
-  history/           Selected local acceptance and measured evidence
+  public/            Sanitized scenario records and local screenshots
 ```
 
 Root Compose overlays are separate opt-in recovery, telemetry and integration
@@ -51,11 +51,9 @@ tests after behavior, not milestones. Run tooling from the repository root with
 `python -m scripts.<responsibility>.<module>` so package imports are consistent.
 
 Maintained tooling uses `platform`, `reliability`, `cloud` and `compose` names.
-Legacy `/api/v1/m6` routes, `OPSPROOF_*_M6_*` settings, Helm `m6` values, SQL names,
-migration revision IDs and frozen benchmark bytes remain compatibility contracts.
-Historical documents use descriptive filenames. Original dates and milestone
-labels stay in the records for provenance. Preserve original runtime evidence
-locators and compatibility identifiers when renaming documents.
+Existing API routes, settings, Helm values, SQL names, migration revisions and
+benchmark inputs remain compatibility contracts. Keep the original identifiers
+and receipt paths in archived records so measurements remain traceable.
 
 ## Generated files and retention
 
@@ -84,9 +82,11 @@ historical records live outside the checkout:
 - `private/archive/documentation-finalization/` retains the original reviews and
   interim reports removed from the working tree, with their paths and SHA-256
   hashes in the archive manifest.
+- `private/archive/portfolio-proof/` preserves the original local reports and
+  shutdown receipt consolidated into the verification guide.
 
-`scripts.paths.read_artifact` resolves current paths, old `.runtime/m5` and
-`.runtime/m6` aliases, then private archived originals. Isolated test checkouts
+`scripts.paths.read_artifact` resolves current and historical paths, then private
+archived originals. Isolated test checkouts
 cannot silently consult another checkout's historical archive. Archived handover
 copies may have Windows paths longer than 260 characters; use extended-length
 paths for exhaustive archive inspection. They are not build inputs.
@@ -115,18 +115,11 @@ registries may be needed; these commands need no model key or AWS account.
 Terraform validation uses external data and committed mocks; it never initializes
 a state backend or runs apply. Docker integrations are separate bounded checks
 and remove only their owned resources. Local Kubernetes need not be running.
-Historical commands in `docs/history` refer to their recorded revisions.
 
 See [cloud readiness](../cloud/readiness.md) for the distinction between local
 verification, hosted release proof and owner-run cloud acceptance.
 
+## Dependency updates
 
-## Dependency updates and commit identity
-
-The existing Dependabot configuration proposes monthly Python, npm, Docker and
-Action updates. It does not authorize automatic merges. Review compatibility,
-security and the resulting commit attribution before accepting a proposal.
-The current local history contains the owner's identity; that is not a guarantee
-about future automated commits or GitHub's contributor display. The owner decides
-whether to retain update PRs or replace them with a manual review process.
-Do not falsify third-party authorship or disable security updates silently.
+[Dependabot](../../.github/dependabot.yml) proposes monthly Python, npm, Docker
+and GitHub Actions updates. Review compatibility and CI results before merging.

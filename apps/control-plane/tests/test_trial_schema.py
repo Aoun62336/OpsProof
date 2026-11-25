@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def test_schema_is_additive_and_has_independent_verification_checks():
-    path = Path(__file__).resolve().parents[1] / "alembic/versions/0006_m6_trials.py"
+    path = Path(__file__).resolve().parents[1] / "alembic/versions/0006_trial_ledger.py"
     schema = path.read_text(encoding="utf-8")
     for table in (
         "m6_trials",

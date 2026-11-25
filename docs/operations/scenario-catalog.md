@@ -1,6 +1,6 @@
 # Versioned reliability scenario protocol
 
-These definitions preserve the canonical frozen v1.0 scope. `scripts/reliability/contracts.py` is the machine-readable companion. **All controlled faults require accepted M5 local Kubernetes, an explicit authorized test window, CPU/RAM headroom, an abort plan and verified cleanup.** No production targets and no public cloud injection.
+These definitions preserve the canonical frozen v1.0 scope. `scripts/reliability/contracts.py` is the machine-readable companion. **All controlled faults require a verified local Kubernetes environment, an explicit authorized test window, CPU/RAM headroom, an abort plan and verified cleanup.** No production targets and no public cloud injection.
 
 ## Shared preparation and evidence contract
 
@@ -13,7 +13,7 @@ The selected end state must be one of succeeded, failed, aborted or indeterminat
 ## 01 | Worker saturation
 
 - **Hypothesis:** With one worker, a bounded influx of durable jobs raises queue age/backlog; KEDA can increase worker capacity under the same load while maintaining correctness.
-- **Allowed mechanism:** Ordinary bounded POSTs to the demo API, via the existing M5 capacity harness and M6 k6 benchmark. No stop/kill or arbitrary target required.
+- **Allowed mechanism:** Ordinary bounded POSTs to the demo API, via the local capacity harness and k6 benchmark. No stop/kill or arbitrary target required.
 - **Independent sources:** PostgreSQL exact jobs/attempts and timestamps, Redis `XINFO GROUPS` lag/pending and `XPENDING`, actual Deployment ready/desired replicas, Prometheus queue/request metrics and CPU/RAM samples.
 - **Controlled configurations:** Fixed worker, HPA API and KEDA worker, identical job count, duration and HTTP background traffic. Do not call HPA versus KEDA a direct apples-to-apples worker-scaler competition.
 - **Abort:** Less than 1 GiB free RAM, unresolved previous work, excessive retries/errors, unexpected resource growth or lost target identity.
@@ -22,7 +22,7 @@ The selected end state must be one of succeeded, failed, aborted or indeterminat
 ## 02 | Faulty release
 
 - **Hypothesis:** A distinct bad candidate causes measurable degradation and Argo Rollouts aborts while the stable revision continues to serve.
-- **Allowed mechanism:** An **approved Git-owned candidate image revision** installed through the accepted M5 Argo CD/Rollouts/Gateway API configuration. No imperative manual rollback that Argo immediately reverses.
+- **Allowed mechanism:** An **approved Git-owned candidate image revision** installed through the verified Argo CD/Rollouts/Gateway API configuration. No imperative manual rollback that Argo immediately reverses.
 - **Independent sources:** Stable/candidate digests, AnalysisRun decisions, HTTPRoute backend weights/conditions, actual request error/latency metrics, Prometheus scrape timestamps, final service responses and controller events.
 - **Abort:** Unexpected unrelated service degradation, missing metric analysis, unbounded traffic, incorrect routing ownership or deployment revision ambiguity.
 - **Proof:** Bad candidate failure is observed, analysis abort recorded, routing/ready Pods/stable image health verified. Argo controller rollback must not be credited to a human-approved OpsProof action.
@@ -63,11 +63,11 @@ The selected end state must be one of succeeded, failed, aborted or indeterminat
 
 The six bounded adapters, durable ledger and independent verifier are implemented.
 Historical local acceptance is recorded in the
-[acceptance report](../history/reliability-trials-acceptance.md).
+[measured results](../public/README.md#local-results-and-screenshots).
 Those results apply to their recorded source, image and execution mechanisms.
 They are not a claim that every fresh deployment or every attempted fault passed.
 
-Run a new trial only under the [local execution profile](local-trials.md), with
+Run a new trial only under the [local trial runbook](reliability-verification.md#bounded-fault-trials-and-reconciliation), with
 explicit acknowledgement, resource headroom, target ownership and cleanup.
 Acknowledgement alone cannot certify fault effect or restoration. The cloud
 profile does not authorize destructive local scenarios against control services

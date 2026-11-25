@@ -40,7 +40,7 @@ Telemetry configuration is managed by `deploy_observability.py`. After changing 
 
 The sole Kubernetes operation restores `Deployment/opsproof-demo/demo-worker` from zero to one replica. The proposal requires explicit `APPROVE DEMO WORKER RESTORE`, expires after 120 seconds, and is bound to target identity/revision, incident and fresh telemetry. Active conflicting scaling ownership is rejected. Never broaden this into arbitrary kubectl, shell, selectors, namespaces or resources.
 
-Action execution is separate from independent evidence verification. A successful PATCH is not sufficient: exact workload readiness/image, service response, exact jobs and alert resolution must pass. An uncertain network/action result is indeterminate and must be investigated before any new proposal; do not automatically replay it. Existing M4 HTTP resume behavior remains separate.
+Action execution is separate from independent evidence verification. A successful PATCH is not sufficient: exact workload readiness/image, service response, exact jobs and alert resolution must pass. An uncertain network/action result is indeterminate and must be investigated before any new proposal; do not automatically replay it. The HTTP resume flow has its own verification procedure.
 
 ## Memory, cleanup and data protection
 

@@ -2,7 +2,7 @@
 
 Argo CD owns the adopted application resources. Source/image identity and a single
 reconciler are the operational contracts; local Git availability is separate from
-GitHub publication. Dated outcomes are in [verification](../engineering/verification.md).
+GitHub publication.
 
 ## Local source and adoption
 

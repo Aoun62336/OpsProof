@@ -7,8 +7,8 @@ from scripts.reliability.run_k6_local import execute
 
 def args(tmp_path, **overrides):
     data = dict(
-        acknowledge="M6_LOCAL_DURABLE_JOBS",
-        run_id="m6-trial-20261108",
+        acknowledge="LOCAL_DURABLE_JOBS",
+        run_id="local-job-check-01",
         rate=2,
         seconds=30,
         duration_ms=250,
@@ -26,6 +26,8 @@ def args(tmp_path, **overrides):
     [
         {"acknowledge": ""},
         {"run_id": "real-production"},
+        {"run_id": "local-short"},
+        {"run_id": "local-" + "x" * 34},
         {"rate": 50},
         {"seconds": 121},
         {"rate": 5, "seconds": 120},
@@ -41,7 +43,16 @@ def test_invalid_or_unbounded_load_never_calls_kubectl(tmp_path, monkeypatch, ch
         execute(args(tmp_path, **changes))
 
 
-def test_low_host_memory_blocks_load_before_any_port_or_job_write(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    ("run_id", "acknowledge"),
+    [
+        ("local-job-check-01", "LOCAL_DURABLE_JOBS"),
+        ("m6-trial-20261108", "M6_LOCAL_DURABLE_JOBS"),
+    ],
+)
+def test_low_host_memory_blocks_load_before_any_port_or_job_write(
+    tmp_path, monkeypatch, run_id, acknowledge
+):
     monkeypatch.setattr("scripts.reliability.run_k6_local.local_prefix", lambda _: ["kubectl"])
     monkeypatch.setattr("scripts.reliability.run_k6_local.memory_available", lambda: 1024**3)
 
@@ -50,4 +61,4 @@ def test_low_host_memory_blocks_load_before_any_port_or_job_write(tmp_path, monk
 
     monkeypatch.setattr("scripts.reliability.run_k6_local.assert_port_free", forbidden)
     with pytest.raises(RuntimeError, match="Host RAM"):
-        execute(args(tmp_path))
+        execute(args(tmp_path, run_id=run_id, acknowledge=acknowledge))

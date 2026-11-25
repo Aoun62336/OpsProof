@@ -1,9 +1,6 @@
 # Local Kubernetes platform
 
-The local platform has historical acceptance; a fresh installation must pass its
-own checks. This guide does not assert that a cluster is currently running.
-Use [the operating runbook](local-runbook.md) for an existing deployment and
-[verification](../engineering/verification.md) for dated results.
+For routine checks on an existing deployment, use the [operating runbook](local-runbook.md).
 
 ## Safe context and prerequisites
 
@@ -59,5 +56,5 @@ on another port. Readiness alone does not prove telemetry delivery or recovery.
 Keep the cluster stopped when no live check needs it. Preserve PVCs, job history,
 private credentials and unique evidence. Never automatically delete `opsproof`,
 its volumes, or use `git clean -fdx`. Current private platform records are under
-`.runtime/platform`; archived milestone locators resolve through `scripts.paths`.
+`.runtime/platform`; historical receipt paths resolve through `scripts.paths`.
 AWS deployment has separate [owner gates](../cloud/owner-deployment-session.md).
