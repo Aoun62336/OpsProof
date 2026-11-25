@@ -1,64 +1,48 @@
-# Milestone 5 | GitOps reconciliation protocol
+# GitOps reconciliation protocol
 
-## Local execution safety update (November 7, 2026)
+Argo CD owns the adopted application resources. Source/image identity and a single
+reconciler are the operational contracts; local Git availability is separate from
+GitHub publication. Dated outcomes are in [verification](../engineering/verification.md).
 
-Use `python scripts/platform/preflight.py`, then `python scripts/platform/bootstrap.py`.
-Bootstrap writes only `.runtime/m5/kubeconfig.yaml`; it never switches the default context.
-The inspected default context was an AWS EKS context, so **before any manual commands below**,
-set the isolated config in each Git Bash terminal:
+## Local source and adoption
 
-```bash
-export KUBECONFIG="$PWD/.runtime/m5/kubeconfig.yaml"
-test -f "$KUBECONFIG" || exit 1
-test "$(kubectl config current-context)" = k3d-opsproof || exit 1
-```
+The local generator validates repository/revision syntax, not remote reachability.
+The read-only local Git server can provide a reviewed local commit without pushing
+it to GitHub. It must be reachable by repo-server at the intended full SHA. Ensure
+the recorded image provenance also matches the source; a commit-derived tag alone
+does not prove an image built from a dirty tree.
 
-For the foundation, prefer `python scripts/platform/deploy_foundation.py`, followed by
-`python scripts/platform/smoke.py`. Both use explicit local configuration; the latter owns
-the dedicated port forwards. Do not run the old manual cluster-create commands again
-after bootstrap. All runtime acceptance remains pending until the evidence exists.
+The existing helpers are `scripts.platform.serve_local_git`,
+`scripts.platform.install_argocd` and `scripts.platform.adopt_gitops`.
+Run them only in an approved local deployment session with locked dependencies;
+the installer requires `--with PyYAML==6.0.3` in the uv invocation. Adoption consumes
+`.runtime/platform/acceptance/gitops-images.json`; inspect that existing provenance
+before any write. It adopts five Applications in order while retaining Helm history
+and PVCs. Do not reconstruct deployment identities or assume this file exists in a
+fresh checkout. Follow [local operation](local-runbook.md).
 
+For existing Applications, update reviewed Git revisions and affected image
+parameters, preserving narrowly scoped controller-owned-field exceptions. Never run
+parallel `helm upgrade` commands against Argo-owned releases. Secrets remain outside
+Git. Do not add whole-resource drift exclusions or automatic PVC pruning.
 
-**Prepared, not yet deployed.** The script `scripts/platform/render_gitops.py` reads the actual Git remote, rejects unknown hosts, requires an explicitly chosen reachable full commit SHA, and emits an Argo CD AppProject plus five Application manifests. It does not push or make network calls. The project restricts destinations to the three application namespaces; Kubernetes controller RBAC still needs separate assessment.
+## Acceptance
 
-## Bootstrapping
+Verify repository reachability, source SHA, actual image identity, scoped AppProject
+and Kubernetes permissions, initial sync, non-destructive drift reconciliation and
+recovery from missing prerequisites. Application annotations in a JSON List do not
+order independent sync operations; verify dependencies/storage before applications
+and migrations, then UI routing. Controller health is not progressive-delivery proof.
 
-1. Verify M5 Stage 1–3 and the approved local resource headroom. Argo CD adds CPU/RAM and may need to run as a separate experiment profile rather than alongside the entire observability suite.
-2. Pin the chart version. As of November 7, 2026 the Argo CD Helm chart `10.14.0` exists; verify current compatibility and release notes before use. Use `helm show chart argo/argo-cd --version 10.14.0` after adding the repository.
-3. Install Argo CD in a dedicated `argocd` namespace without a publicly accessible LoadBalancer. Use a locally approved minimal chart values file after resource benchmarking. Do not run `curl | sh` or fetch installation manifests without version pins.
-4. Confirm your actual Git remote and that the revision is **pushed and readable by Argo CD**. The user has not authorized remote push/merge yet. A local-only SHA cannot be read by the Argo CD repo-server. If the remote is private, obtain explicit approval for a narrowly scoped read-only repo credential.
-5. Render the manifests only after the remote revision exists and image tags are actually resolvable by k3d/GHCR; do not invent provenance.
+## Temporary cloud profile
 
-```bash
-git remote -v
-git rev-parse HEAD
-helm repo add argo https://argoproj.github.io/argo-helm
-helm repo update argo
-helm show chart argo/argo-cd --version 10.14.0
-export M5_REVISION="$(git rev-parse HEAD)"
-export M5_TAG="m5-$(git rev-parse --short=12 HEAD)"
-python scripts/platform/render_gitops.py --revision "$M5_REVISION" --tag "$M5_TAG" > .runtime/m5/argocd-applications.json
-```
+Cloud controller charts and checksums are pinned under `infra/k8s/cloud/`.
+`scripts.cloud.render_gitops` consumes the verified five-image release manifest
+and renders six workload Applications at its exact source SHA. Initial sync is
+manual and ordered. Reconciliation may be enabled only after bootstrap checks;
+automatic pruning stays off. The cloud profile uses Deployments/HPA/KEDA, not an
+unverified transplant of the local traffic-router integration.
 
-**Do not `kubectl apply` that manifest until the authorized Git revision and images are reachable, Secrets are installed, controller and namespaces are ready, and the application's resource ownership has been reconciled with earlier manual Helm releases.** Helm and Argo CD should not simultaneously claim ownership of the same release resources. Establish an explicit cutover and preserve PVCs.
-
-## Acceptance: real GitOps
-
-- Record AppProject, repo URL, commit SHA, image digest, sync history and application health.
-- Demonstrate initial sync; a Git-approved manifest revision; intentional non-destructive drift; reconciliation; failure on missing Secret; and recovery from out-of-sync state.
-- `prune` is disabled in generated Applications until a reviewed cleanup policy exists. No automatic deletion of PVC/data.
-- Later Argo Rollouts owns HTTPRoute backend weights; Argo CD `ignoreDifferences` must be limited to those fields, not all HTTPRoute behavior. Verify plugin writes before claiming traffic proportions.
-
-## Repository and ordering audit
-
-User-selected repository: `https://github.com/Aoun62336/OpsProof.git`.
-The November 7 read-only `git ls-remote` returned exit 0 with no refs: the repository
-is reachable but has no deployable revision. No push has been performed.
-
-The generator validates URL and SHA syntax; it does **not** verify remote reachability.
-Check the exact revision separately before use. Sync-wave annotations on five independent
-Applications do not orchestrate dependency health by themselves. For first adoption,
-complete dependency sync and storage health first, then application migrations/workloads,
-then web routing. Do not infer cross-Application ordering from the JSON List.
-No blanket HTTPRoute drift exclusion is generated; introduce an exclusion only for the
-exact route and fields proven to be controlled by a later Rollouts integration.
+See [approved release](../cloud/release.md) and
+[runtime deployment](../cloud/runtime-deployment.md). A local passing check does
+not establish hosted CI, registry trust, real IAM, CNI or AWS deployment acceptance.

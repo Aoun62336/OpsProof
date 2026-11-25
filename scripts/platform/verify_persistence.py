@@ -6,16 +6,16 @@ import time
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from local_cluster import kubectl_prefix
-from preflight import ROOT
-from render_local_secrets import read_env
-from smoke import forwarded_apis
-from verify_k3d import http
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
+from scripts.platform.render_local_secrets import read_env
+from scripts.platform.smoke import forwarded_apis
+from scripts.platform.verify_k3d import http
 
 
 def main():
     kube = kubectl_prefix()
-    smoke = json.loads((ROOT / ".runtime/m5/k3d-smoke.json").read_text())
+    smoke = json.loads((ROOT / ".runtime/platform/k3d-smoke.json").read_text())
     key = read_env(ROOT / ".env")["OPSPROOF_CONTROL_API_KEY"]
     marker = "opsproof:m5:persistence:" + str(uuid4())
     changes = []
@@ -117,7 +117,7 @@ def main():
         "redis_markers_retained": ["demo", "control"],
         "verified_event_count": 1,
     }
-    (ROOT / ".runtime/m5/acceptance/persistence.json").write_text(
+    (ROOT / ".runtime/platform/acceptance/persistence.json").write_text(
         json.dumps(record, indent=2) + "\n"
     )
     print(

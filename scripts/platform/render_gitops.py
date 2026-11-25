@@ -102,8 +102,8 @@ def render(repo, revision, tag, allow_local=False):
     repo = git_url(repo, allow_local)
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise ValueError("Use a full 40-character Git SHA already present on the remote")
-    if not re.fullmatch(r"m5-[0-9a-f]{12,40}", tag):
-        raise ValueError("Provide a traceable immutable M5 image tag")
+    if not re.fullmatch(r"(?:m5-[0-9a-f]{12,40}|src-[0-9a-f]{16})", tag):
+        raise ValueError("Provide a source-content tag or preserved legacy image identity")
     project = {
         "apiVersion": "argoproj.io/v1alpha1",
         "kind": "AppProject",

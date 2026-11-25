@@ -26,7 +26,7 @@ SECRET = "opsproof-control-m6-runtime"
 def execute(acknowledgment):
     if acknowledgment != "M6_LOCAL_DATABASE_ROLE":
         raise ValueError("Explicit local database-role preparation acknowledgment required")
-    directory = ROOT / ".runtime/m6/acceptance/deployment" / ("database-" + uuid4().hex)
+    directory = ROOT / ".runtime/reliability/acceptance/deployment" / ("database-" + uuid4().hex)
     directory.mkdir(parents=True)
     env = LocalEnvironment(directory)
     result = {"started_at": utc(), "prepared": False, "secret_name": SECRET}
@@ -120,7 +120,7 @@ def execute(acknowledgment):
         )
     result["ended_at"] = utc()
     write_json(directory / "result.json", result)
-    pointer = ROOT / ".runtime/m6/acceptance/deployment/runtime-role.json"
+    pointer = ROOT / ".runtime/reliability/acceptance/deployment/runtime-role.json"
     if not pointer.exists():
         write_json(pointer, result)
     elif json.loads(pointer.read_text())["secret_uid"] != result["secret_uid"]:

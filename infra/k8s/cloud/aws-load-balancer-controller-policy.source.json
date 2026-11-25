@@ -1,0 +1,8 @@
+{
+  "source": "https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v3.6.2/docs/install/iam_policy.json",
+  "controller_version": "v3.6.2",
+  "chart_sha256": "9255bf39873b6cb31106dbe61dc87c3617bff4197783b5b94381811a13f99c3c",
+  "sha256": "16f232c9d9f79366fe949c4550ad517a202380058a9e48d45a4e215044a20a6a",
+  "statements": 16,
+  "review": "Official controller install policy; resource wildcards required for discovery and managed resource lifecycle, conditional tag/cluster scoping reviewed before deployment"
+}

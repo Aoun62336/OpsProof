@@ -17,14 +17,14 @@ from scripts.reliability.run_k6_local import local_prefix
 
 
 def main():
-    output = ROOT / ".runtime/m6/acceptance/environment" / ("startup-" + uuid4().hex)
+    output = ROOT / ".runtime/reliability/acceptance/environment" / ("startup-" + uuid4().hex)
     output.mkdir(parents=True, exist_ok=False)
     resources = resource_preflight("startup")
     write_json(output / "resources.json", resources)
     if not resources["passed"]:
         print(json.dumps({"status": "BLOCKED", "blockers": resources["blockers"]}, indent=2))
         return 2
-    kube = local_prefix(ROOT / ".runtime/m5/kubeconfig.yaml")
+    kube = local_prefix(ROOT / ".runtime/platform/kubeconfig.yaml")
     default_config = Path.home() / ".kube/config"
     before = (
         hashlib.sha256(default_config.read_bytes()).hexdigest() if default_config.exists() else None
@@ -63,7 +63,7 @@ def main():
     pvcs = json.loads(
         subprocess.check_output([*kube, "get", "pvc", "-A", "-o", "json"], text=True, timeout=20)
     )
-    historical = json.loads((ROOT / ".runtime/m5/acceptance/final-state.json").read_text())
+    historical = json.loads((ROOT / ".runtime/platform/acceptance/final-state.json").read_text())
     expected = {(p["namespace"], p["name"]): p["uid"] for p in historical["pvcs"]}
     actual = {
         (p["metadata"]["namespace"], p["metadata"]["name"]): p["metadata"]["uid"]

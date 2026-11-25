@@ -1,87 +1,82 @@
-> Status: existing cloud preparation. M7 implementation, publishing and Terraform apply require separate owner approval. These procedures are not evidence of cloud acceptance.
+# Identity, account preflight and cost review
 
-# OpsProof M7 | AWS access, identity, IAM and cost preflight
+Implementation is approved. AWS provisioning, image/site publication and model
+requests are separate owner gates. No script in this guide has been run against
+an AWS account during pre-cloud implementation.
 
-**State:** Implemented documentation; NO cloud account provisioned, no EKS cost acceptance. This procedure runs only after local M5/M6 acceptance. Review with an authorized AWS account owner. All examples are for Windows 11 Git Bash, and operate on named profiles rather than the default account.
+## Identity
 
-## 1. Define the actual cloud verification goal
+Use a dedicated short-lived operator role and named profile `opsproof-cloud`.
+Prefer IAM Identity Center/SSO; do not create long-lived root access keys. The
+role needs the reviewed Terraform bootstrap permissions and EKS access entry.
+The EKS worker role and controller Pod Identity roles are separate identities.
+GHCR publication uses GitHub's package token and has no AWS deployment role.
 
-We are **not** running a permanent production cluster. We need a small, temporary EKS verification of approved images and application postconditions. Current Terraform design creates a VPC with two public subnets, one managed EKS cluster and one single-node managed node group, no NAT gateway and no internet-facing load balancer. For this temporary cost-saving arrangement, the node can have a public IPv4 address; the Kubernetes API has private access plus public access restricted to the approved operator's /32. The approach is **not production private-node architecture**, not highly available, and creates billable resources.
+Owner setup and read-only checks:
 
-Before proceeding, verify the current status and remaining work in `docs/history/m6-m7-integration-status.md`.
-
-## 2. Confirm existing tools (no installation required unless absent)
-
-```bash
-aws --version
-terraform version
-gh --version
-kubectl version --client
-helm version
+```sh
+aws configure sso --profile opsproof-cloud
+aws sso login --profile opsproof-cloud
+aws sts get-caller-identity --profile opsproof-cloud
+aws configure get region --profile opsproof-cloud
 ```
 
-Original user toolchain includes AWS CLI v2, Terraform 1.17.1, Git Bash, kubectl, Helm and GitHub CLI. Do not reinstall or change versions blindly.
+Confirm the exact account, operator role ARN, Mumbai region, two distinct
+available AZs, current public IPv4 `/32`, EC2 vCPU quota, two `m7i-flex.large`
+offerings, and RDS `db.t4g.small` Multi-AZ PostgreSQL 18 minor availability.
+Capture these facts privately; never substitute the native test fixtures.
+For the selected Kubernetes version, query `eks describe-addon-versions` for
+`eks-pod-identity-agent`, `vpc-cni`, `kube-proxy`, `coredns`,
+`aws-ebs-csi-driver`, and `metrics-server`. Inspect `describe-addon-configuration`
+for each selected exact build. Check AL2023/x86_64 compatibility. Version 1.35
+is the locally validated schema target; regional availability remains an AWS
+preflight, not a fact established by Terraform mock tests.
 
-## 3. Establish a separate AWS CLI profile
+## Cost
 
-If the selected AWS account supports IAM Identity Center, request the **appropriate permission set** for account inspection and, later, controlled ephemeral infrastructure administration. The read-only profile does not need EKS create/delete permissions.
+The proposed envelope is at most 12 hours, a $15 operating allocation and $25
+reserve within a $40 gross ceiling. These are review limits, not authorization,
+a guarantee of free credit coverage or an automatic spending cap. Budget alerts
+and Cost Explorer can lag; assign an owner and teardown timer before creation.
 
-```bash
-aws configure sso --profile opsproof-m7-inspect
-aws sso login --profile opsproof-m7-inspect
-aws sts get-caller-identity --profile opsproof-m7-inspect
-aws configure get region --profile opsproof-m7-inspect
+Copy `docs/cloud/cost-input.example.json` into `.runtime/cloud/private/`.
+Populate all 17 categories with current Mumbai/account pricing and measured or
+conservative usage. Hourly quantities must include exactly two worker nodes,
+one EKS cluster, one NAT, one ALB and one Multi-AZ RDS instance. RDS Multi-AZ
+pricing must already include its standby. Quote storage in hourly equivalents
+or explicitly bounded flat allowances; include root disks, telemetry PVCs,
+snapshots/backups, NAT data, cross-AZ transfer, public IPv4, Secrets Manager,
+API Gateway, logs, S3 state versions, internet egress, taxes and teardown delays.
+The current monitoring renderer requests six separate 1 GiB PVCs, including the
+Collector's persistent queue. Include all six and their provisioning minimums in
+the EBS estimate, as well as application PVCs and worker root volumes. Recompute
+from the actual rendered manifests and saved plans; no fresh price is assumed.
+Verify each service's credit applicability in the account; do not assume credits
+cover everything or subtract guessed credits from gross cost.
+
+```sh
+python -m scripts.cloud.cost_envelope \
+  --input .runtime/cloud/private/cost-input.json \
+  --output .runtime/cloud/cost-review.json
 ```
 
-Keep exact account identifiers out of public evidence and chat. Compare the returned account with the **approved** twelve-digit account before any further action. If Identity Center is unavailable, use a separately authorized short-lived role session. Do not create permanent IAM administrator keys to make setup easier. Avoid `aws configure` on the default profile when multiple AWS accounts exist.
+Quotes expire after 24 hours. `REVIEW_ONLY` means the arithmetic fits the
+proposed allocation; it never authorizes apply. Over-budget, incomplete, stale,
+nonfinite, negative and understated core quantities are rejected or blocked.
+Reprice immediately before the owner approves the actual saved plans.
 
-## 4. Read-only Region and EKS eligibility checks
+## Reviewed boundaries
 
-After selecting `AWS_REGION` from actual Region-specific prices and service support:
+Two private workers across two AZs and Multi-AZ RDS improve resilience, but one
+NAT is a deliberate single-AZ egress dependency. EBS-backed demo databases,
+Redis and the bounded monitoring services are single-replica demonstrations.
+The internal ALB's connection to the static edge is private HTTP; public API
+Gateway access has managed HTTPS. This is not end-to-end TLS or a claim of
+production high availability. The standard VPC CNI policy mode also has a Pod
+startup policy-programming window; verify policy activation before security
+acceptance and do not describe it as strict startup deny.
 
-```bash
-export AWS_PROFILE=opsproof-m7-inspect
-export AWS_REGION=ap-south-1  # Example only; change after review
-aws eks describe-cluster-versions --region "$AWS_REGION" --profile "$AWS_PROFILE"
-aws ec2 describe-availability-zones --region "$AWS_REGION" --profile "$AWS_PROFILE" \
-  --filters Name=state,Values=available
-```
-
-If the permission set denies these read-only actions, request the correct narrowly scoped access. Do not bypass restrictions by using another broad account automatically. Verify that the selected Kubernetes version is in EKS **standard support** and supported by the local client/controllers.
-
-## 5. Verify current credit and actual price data
-
-An AWS CLI identity does not prove credits cover usage. In the AWS Console, open Billing & Cost Management and verify credits **remaining, expiry, eligible services, and account-wide billing access**. Use official pricing for the chosen Region and actual instance type. At a minimum include:
-
-- EKS cluster hourly control-plane fee, support tier and hours.
-- Managed EC2 node compute and EBS root disk.
-- Four application storage PVC volumes, EBS sizes, IOPS/throughput if relevant.
-- Public IPv4 hourly fee, any network egress, VPC endpoints/NAT if introduced.
-- Load balancers (zero in the current direct-port-forward concept), CloudWatch and logs.
-- S3 remote Terraform backend storage, request operations and any retention charges.
-- Contingency, verification delay, billing lag and manual emergency teardown.
-
-Do not interpret AWS Budgets alarms as hard caps. Do not assume historical $35 credits are still present.
-
-## 6. Offline price-envelope gate
-
-Create `.runtime/m7/cost-estimate.private.json` by copying `docs/cloud/cost-estimate.example.json` and replace **every zero/placeholder price with actual quotes**. The example data is deliberately not usable as a cost claim.
-
-```bash
-mkdir -p .runtime/m7
-cp docs/cloud/cost-estimate.example.json .runtime/m7/cost-estimate.private.json
-# Edit the private copy; real source URLs, timestamp, Region, credits and pricing.
-python -m scripts.cloud.cost_gate \
-  --estimate .runtime/m7/cost-estimate.private.json \
-  --output .runtime/m7/cost-gate.json
-```
-
-The resulting JSON explicitly has `cloud_operation_authorized=false`, even if the arithmetic is within allocation. Review the quote source, credit coverage and human approval externally.
-
-## 7. Final decision before enabling Terraform
-
-Capture the approved account, Region, EKS version, operator role ARN, operator IPv4 /32, exact infrastructure plan, approved maximum duration/spend, S3 backend and cleanup plan. Obtain explicit separate user permission to incur charges.
-
-Until that happens, keep `enable_paid_resources = false` and do not run Terraform apply or any AWS create operation.
-
-**Sources:** https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html ; https://aws.amazon.com/eks/pricing/ ; https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html
+Official references: [EKS versions](https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html),
+[metrics server](https://docs.aws.amazon.com/eks/latest/userguide/metrics-server.html),
+[VPC CNI policy modes](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy-configure.html),
+[AWS pricing](https://aws.amazon.com/pricing/).

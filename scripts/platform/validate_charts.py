@@ -56,6 +56,7 @@ def validate(objects):
                 sec["allowPrivilegeEscalation"] is False and "ALL" in sec["capabilities"]["drop"],
                 f"Container privileges: {name}",
             )
+            require(sec.get("readOnlyRootFilesystem") is True, f"Writable root filesystem: {name}")
             require(
                 container["resources"].get("requests") and container["resources"].get("limits"),
                 f"Unbounded resources: {name}",
@@ -156,7 +157,7 @@ def main():
                 "passed": True,
             }
         )
-    output = ROOT / ".runtime/m5/acceptance/chart-contracts.json"
+    output = ROOT / ".runtime/platform/acceptance/chart-contracts.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(summaries, indent=2) + "\n", encoding="utf-8")
     print(

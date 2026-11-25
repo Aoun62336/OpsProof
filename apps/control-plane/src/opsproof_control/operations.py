@@ -10,6 +10,7 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
 from .auth import authorize
+from .capabilities import environment_description, observations_enabled
 from .config import settings
 from .db import pool
 from .diagnosis import Diagnosis, Snapshot, allowed_recovery
@@ -80,6 +81,9 @@ def eligible(conn, investigation: dict | None) -> None:
 def capabilities() -> dict:
     s = settings()
     return {
+        **environment_description(s),
+        "kubernetes_observation_enabled": observations_enabled(s),
+        "kubernetes_recovery_enabled": getattr(s, "kubernetes_recovery_enabled", False),
         "recovery_enabled": s.recovery_enabled,
         "ai_enabled": s.ai_enabled,
         "ai_provider": s.ai_provider,

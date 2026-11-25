@@ -16,6 +16,37 @@ from .shutdown import checkpoint
 
 logger = logging.getLogger(__name__)
 
+# Session ownership survives the durable claim commit. A second evidence process
+# cannot reap or dispatch AI work while the first still owns its connection.
+AI_WORKER_LOCK = 74021443
+AI_ABANDONED_SECONDS = 180  # Above either provider's HTTP timeout; never a retry lease.
+
+
+def scrapes_fresh(vectors: list[list[dict]], now: float) -> bool:
+    """Require matching, unique targets and recent healthy samples for every replica."""
+    indexed = []
+    for vector in vectors:
+        targets = {}
+        if not vector:
+            raise ValueError("No scrape targets")
+        for sample in vector:
+            labels = sample["metric"]
+            if not isinstance(labels, dict):
+                raise ValueError("Invalid target labels")
+            identity = tuple(
+                sorted((key, value) for key, value in labels.items() if key != "__name__")
+            )
+            if not identity or identity in targets:
+                raise ValueError("Ambiguous scrape targets")
+            value = float(sample["value"][1])
+            if not isfinite(value):
+                raise ValueError("Nonfinite scrape evidence")
+            targets[identity] = value
+        indexed.append(targets)
+    if len(indexed) != 2 or indexed[0].keys() != indexed[1].keys():
+        raise ValueError("Scrape target sets changed during collection")
+    return all(indexed[0][key] == 1 and 0 <= now - stamp <= 30 for key, stamp in indexed[1].items())
+
 
 def collect(incident: dict, run_id: UUID | None) -> Snapshot:
     config = settings()
@@ -87,21 +118,16 @@ def collect(incident: dict, run_id: UUID | None) -> Snapshot:
     try:
         with httpx.Client(base_url=config.prometheus_url, timeout=3, trust_env=False) as client:
             # timestamp(up) returns the underlying sample time, not the query evaluation time.
-            values = []
+            vectors = []
             for query in ('up{job="opsproof-demo-api"}', 'timestamp(up{job="opsproof-demo-api"})'):
                 checkpoint()
                 response = client.get("/api/v1/query", params={"query": query})
                 response.raise_for_status()
                 data = response.json()
-                result = data["data"]["result"]
-                if data["status"] != "success" or len(result) != 1:
-                    raise ValueError("Ambiguous scrape evidence")
-                values.append(float(result[0]["value"][1]))
-            facts["scrape_fresh"] = (
-                all(isfinite(v) for v in values)
-                and values[0] == 1
-                and 0 <= time() - values[1] <= 30
-            )
+                if data["status"] != "success" or data["data"]["resultType"] != "vector":
+                    raise ValueError("Invalid scrape response")
+                vectors.append(data["data"]["result"])
+            facts["scrape_fresh"] = scrapes_fresh(vectors, time())
     except httpx.HTTPError, ValueError, KeyError, TypeError:
         errors.append("Prometheus scrape evidence unavailable")
     return Snapshot(
@@ -123,11 +149,6 @@ def process_next_investigation() -> None:
         conn.execute(
             "UPDATE investigations SET status='queued' WHERE status='running' "
             "AND started_at < now() - interval '60 seconds'"
-        )
-        conn.execute(
-            "UPDATE investigations SET ai_status='failed', "
-            "error='AI response unknown after worker interruption' "
-            "WHERE ai_status='running' AND ai_started_at < now() - interval '60 seconds'"
         )
         row = conn.execute(
             "SELECT * FROM investigations WHERE status='queued' "
@@ -172,37 +193,64 @@ def process_next_ai() -> None:
     from .model_provider import compare
 
     with pool().connection() as conn:
-        row = conn.execute(
-            "SELECT * FROM investigations WHERE ai_status='queued' "
-            "ORDER BY ai_requested_at FOR UPDATE SKIP LOCKED LIMIT 1"
-        ).fetchone()
-        if not row:
+        owned = conn.execute(
+            "SELECT pg_try_advisory_lock(%s) AS owned", (AI_WORKER_LOCK,)
+        ).fetchone()["owned"]
+        if not owned:
             return
-        conn.execute(
-            "UPDATE investigations SET ai_status='running', ai_started_at=now() WHERE id=%s",
-            (row["id"],),
-        )
-    try:
-        result = compare(Snapshot.model_validate(row["snapshot"]))
-        with pool().connection() as conn:
+        try:
+            conn.commit()
             conn.execute(
-                "UPDATE investigations SET ai_status='ready', ai_result=%s, "
-                "ai_provider=%s, ai_model=%s, ai_usage=%s, ai_elapsed_ms=%s "
-                "WHERE id=%s AND ai_status='running'",
-                (
-                    Jsonb(result["diagnosis"]),
-                    result["provider"],
-                    result["model"],
-                    Jsonb(result["usage"]),
-                    result["elapsed_ms"],
-                    row["id"],
-                ),
+                "UPDATE investigations SET ai_status='failed', "
+                "error='AI response unknown after worker interruption' "
+                "WHERE ai_status='running' AND ai_started_at < "
+                "now() - make_interval(secs => %s)",
+                (AI_ABANDONED_SECONDS,),
             )
-    except Exception as exc:
-        # Never persist provider exception bodies, URLs, keys or raw model responses.
-        with pool().connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM investigations WHERE ai_status='queued' "
+                "ORDER BY ai_requested_at FOR UPDATE SKIP LOCKED LIMIT 1"
+            ).fetchone()
+            if not row:
+                return
             conn.execute(
-                "UPDATE investigations SET ai_status='failed', error=%s "
-                "WHERE id=%s AND ai_status='running'",
-                (f"AI evaluation failed: {type(exc).__name__}", row["id"]),
+                "UPDATE investigations SET ai_status='running', ai_started_at=now() WHERE id=%s",
+                (row["id"],),
             )
+            # Persist before the external request. A crash must leave unknown
+            # running work, never a queued request that another worker repeats.
+            conn.commit()
+            try:
+                result = compare(Snapshot.model_validate(row["snapshot"]))
+                conn.execute(
+                    "UPDATE investigations SET ai_status='ready', ai_result=%s, "
+                    "ai_provider=%s, ai_model=%s, ai_usage=%s, ai_elapsed_ms=%s "
+                    "WHERE id=%s AND ai_status='running'",
+                    (
+                        Jsonb(result["diagnosis"]),
+                        result["provider"],
+                        result["model"],
+                        Jsonb(result["usage"]),
+                        result["elapsed_ms"],
+                        row["id"],
+                    ),
+                )
+            except Exception as exc:
+                conn.rollback()
+                # Do not persist provider bodies, URLs, credentials or raw output.
+                conn.execute(
+                    "UPDATE investigations SET ai_status='failed', error=%s "
+                    "WHERE id=%s AND ai_status='running'",
+                    (f"AI evaluation failed: {type(exc).__name__}", row["id"]),
+                )
+            conn.commit()
+        finally:
+            # A pooled connection must never retain a session-level lock. If
+            # cleanup fails, discard it; closing the session also drops ownership.
+            try:
+                conn.commit()
+                conn.execute("SELECT pg_advisory_unlock(%s)", (AI_WORKER_LOCK,))
+                conn.commit()
+            except Exception:
+                conn.close()
+                raise

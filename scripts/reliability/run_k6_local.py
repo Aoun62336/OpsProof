@@ -106,9 +106,9 @@ def execute(args):
         raise RuntimeError("Host RAM below 2 GiB; refusing additional load")
     assert_port_free()
     # Keep generated artifacts in the existing ignored, local-only runtime tree.
-    allowed_output = Path(".runtime/m6").resolve()
+    allowed_output = Path(".runtime/reliability").resolve()
     if args.output_root.resolve() != allowed_output:
-        raise ValueError("Only the ignored .runtime/m6 evidence directory is allowed")
+        raise ValueError("Only the ignored .runtime/reliability evidence directory is allowed")
     evidence = args.output_root / args.run_id
     if evidence.exists():
         raise ValueError("Run evidence directory already exists: refuse implicit overwrite/replay")
@@ -184,14 +184,16 @@ def execute(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--kubeconfig", type=Path, default=Path(".runtime/m5/kubeconfig.yaml"))
+    parser.add_argument(
+        "--kubeconfig", type=Path, default=Path(".runtime/platform/kubeconfig.yaml")
+    )
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--rate", type=int, default=2)
     parser.add_argument("--seconds", type=int, default=30)
     parser.add_argument("--duration-ms", type=int, default=250)
     parser.add_argument("--vus", type=int, default=4)
     parser.add_argument("--timeout", type=int, default=300)
-    parser.add_argument("--output-root", type=Path, default=Path(".runtime/m6"))
+    parser.add_argument("--output-root", type=Path, default=Path(".runtime/reliability"))
     parser.add_argument("--acknowledge", required=True)
     args = parser.parse_args()
     if not 1 <= args.vus <= 16 or not 1 <= args.timeout <= 600:

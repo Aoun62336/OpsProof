@@ -186,7 +186,7 @@ describe("operational Kubernetes cards", () => {
       observations: [],
     });
     const mounted = mount("Runbooks");
-    expect(await screen.findByText(/observation are disabled/)).toBeVisible();
+    expect(await screen.findByText(/observation is disabled/)).toBeVisible();
     expect(
       screen.queryByLabelText("Incident fingerprint"),
     ).not.toBeInTheDocument();
@@ -291,5 +291,34 @@ describe("explicit runbook approval", () => {
         name: "Approve restoring one demo worker",
       }),
     ).not.toBeInTheDocument();
+  });
+});
+
+
+describe("temporary EKS observation permissions", () => {
+  it("shows the actual cloud environment without implying measured costs", async () => {
+    vi.mocked(getKubernetesWorkloads).mockResolvedValue({
+      enabled: true, recovery_enabled: false, environment: "temporary-eks",
+      environment_label: "Temporary EKS", observations: [observation()],
+    });
+    mount("Capacity");
+    expect(await screen.findByText("TEMPORARY EKS")).toBeVisible();
+    expect(screen.getByText(/Measured consumption and cloud cost estimates are unavailable/)).toBeVisible();
+    expect(screen.queryByText(/Local sandbox/)).not.toBeInTheDocument();
+  });
+
+  it("retains recovery history while hiding all mutation controls", async () => {
+    vi.mocked(getKubernetesWorkloads).mockResolvedValue({
+      enabled: true, recovery_enabled: false, environment: "temporary-eks",
+      observations: [observation()],
+    });
+    vi.mocked(getKubernetesRecoveries).mockResolvedValue([recovery()]);
+    mount("Runbooks");
+    expect(await screen.findByRole("heading", {name: "Recovery actions are disabled"})).toBeVisible();
+    expect(await screen.findByText("recorded-recovery-id")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Incident fingerprint")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", {name: /Approve restoring/})).not.toBeInTheDocument();
+    expect(proposeKubernetesRecovery).not.toHaveBeenCalled();
+    expect(approveKubernetesRecovery).not.toHaveBeenCalled();
   });
 });

@@ -1,13 +1,13 @@
 """Entry points for independently running workload processes."""
 
 import argparse
-import logging
 
 import uvicorn
 
 from .db import pool
 from .dispatcher import run as run_dispatcher
 from .shutdown import lifecycle
+from .telemetry import configure_logging
 from .worker import run as run_worker
 
 
@@ -19,19 +19,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format=("%(asctime)s %(levelname)s %(name)s %(message)s"),
-    )
-
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-    if not any(isinstance(handler, logging.StreamHandler) for handler in root_logger.handlers):
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-        )
-        root_logger.addHandler(console_handler)
+    configure_logging()
 
     if args.service == "fixture":
         uvicorn.run(

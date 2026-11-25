@@ -1,0 +1,10 @@
+# SAFE DEFAULT. API Gateway VPC Link must never be created before a verified
+# internal ALB with an isolated static edge probe exists.
+enable_paid_resources = false
+# Private ignored file supplies the confirmed exact values:
+# expected_account_id = "ACTUAL_ACCOUNT_ID"
+# approval_reference = "APPROVED_ESTIMATE_AND_CHANGE_TICKET"
+# approval_acknowledgement = "I_APPROVE_TEMPORARY_OPSPROOF_AWS_CHARGES"
+# internal_alb_listener_arn = "ACTUAL_ALB_HTTP_LISTENER_ARN"
+# private_subnet_ids = ["ACTUAL_PRIVATE_SUBNET_1", "ACTUAL_PRIVATE_SUBNET_2"]
+# vpc_link_security_group_id = "ACTUAL_EGRESS_RESTRICTED_VPCLINK_SG"

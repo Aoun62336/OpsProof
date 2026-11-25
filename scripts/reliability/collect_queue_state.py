@@ -125,7 +125,9 @@ def collect(kubeconfig: Path) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--kubeconfig", type=Path, default=Path(".runtime/m5/kubeconfig.yaml"))
+    parser.add_argument(
+        "--kubeconfig", type=Path, default=Path(".runtime/platform/kubeconfig.yaml")
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     assert_local_scope(kubeconfig=args.kubeconfig, context="k3d-opsproof", mutation=False)

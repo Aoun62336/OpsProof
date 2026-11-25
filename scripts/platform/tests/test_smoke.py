@@ -1,12 +1,10 @@
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import verify_k3d
+from scripts.platform import verify_k3d
 
 
 class SmokeEvidenceTests(unittest.TestCase):
@@ -45,7 +43,7 @@ class SmokeEvidenceTests(unittest.TestCase):
                     patch.object(verify_k3d, "http", side_effect=request),
                 ):
                     verify_k3d.verify(Path("unused"))
-                self.assertTrue(Path(".runtime/m5/k3d-smoke.json").is_file())
+                self.assertTrue(Path(".runtime/platform/k3d-smoke.json").is_file())
             finally:
                 os.chdir(previous)
         return calls

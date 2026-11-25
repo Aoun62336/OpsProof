@@ -10,6 +10,7 @@ import time
 from uuid import uuid4
 
 from scripts.platform.preflight import ROOT
+from scripts.reliability.build_images_local import APPS
 from scripts.reliability.local_environment import write_json
 
 PROBE = r"""
@@ -26,11 +27,13 @@ print(json.dumps(results))
 
 
 def main():
-    images = json.loads((ROOT / ".runtime/m6/acceptance/image-provenance.json").read_text())
-    output = ROOT / ".runtime/m6/acceptance/images" / ("smoke-" + uuid4().hex)
+    images = json.loads(
+        (ROOT / ".runtime/reliability/acceptance/image-provenance.json").read_text()
+    )
+    output = ROOT / ".runtime/reliability/acceptance/images" / ("smoke-" + uuid4().hex)
     output.mkdir(parents=True, exist_ok=False)
     records = {}
-    for component in ("demo", "control", "web"):
+    for component in (name for name in APPS if name in images):
         image = images[component]
         identifier = None
         record = {
@@ -64,7 +67,7 @@ def main():
                 "--add-host",
                 "control-api.opsproof-control.svc.cluster.local:127.0.0.1",
             ]
-        else:
+        elif component != "edge":
             prefix = "OPSPROOF_CONTROL_" if component == "control" else "OPSPROOF_"
             args += [
                 "-e",
@@ -77,7 +80,7 @@ def main():
                 [*args, image["local_image_id"]], text=True, timeout=30
             ).strip()
             for _ in range(30):
-                if component == "web":
+                if component in ("web", "edge"):
                     ready = subprocess.run(
                         [
                             "docker",
@@ -112,13 +115,47 @@ def main():
                 time.sleep(0.2)
             else:
                 raise RuntimeError("Image service did not start in its bounded environment")
-            if component == "web":
-                record["static_index_served"] = '<div id="root">' in ready.stdout
+            if component in ("web", "edge"):
+                marker = '<div id="root">' if component == "web" else "OPSPROOF_EDGE_READ_ONLY"
+                record["static_index_served"] = marker in ready.stdout
                 uid = subprocess.check_output(
                     ["docker", "exec", identifier, "id", "-u"], text=True
                 ).strip()
                 record["uid"] = int(uid)
                 record["passed"] = record["static_index_served"] and record["uid"] != 0
+                if component == "edge":
+                    for path, expected, extra in (
+                        ("/healthz", 200, []),
+                        ("/api/v1/health", 404, []),
+                        ("/", 405, ["--post-data=fixture"]),
+                        ("/healthz", 405, ["--post-data=fixture"]),
+                    ):
+                        checked = subprocess.run(
+                            [
+                                "docker",
+                                "exec",
+                                identifier,
+                                "wget",
+                                "--server-response",
+                                "-O",
+                                "/dev/null",
+                                *extra,
+                                "http://127.0.0.1:8080" + path,
+                            ],
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                            timeout=10,
+                        )
+                        import re
+
+                        match = re.search(r"HTTP/1\.[01] (\d{3})", checked.stderr)
+                        code = int(match.group(1)) if match else None
+                        record.setdefault("route_statuses", {})[
+                            ("POST " if extra else "GET ") + path
+                        ] = code
+                        record["passed"] &= code == expected
+
             else:
                 probe = subprocess.run(
                     ["docker", "exec", "-i", identifier, "python", "-"],

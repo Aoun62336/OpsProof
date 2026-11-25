@@ -6,7 +6,7 @@ import subprocess
 import time
 from contextlib import contextmanager
 
-from local_cluster import kubectl_prefix
+from scripts.platform.local_cluster import kubectl_prefix
 
 
 @contextmanager

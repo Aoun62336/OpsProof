@@ -16,6 +16,8 @@ class ReplayTests(unittest.TestCase):
             "title": "Safe test",
             "environment": "local-k3d",
             "source_commit": "a" * 40,
+            "source_tree_sha256": "c" * 64,
+            "source_dirty": False,
             "status": "failed",
             "observed_utc": "2026-11-08T12:00:00Z",
             "summary": "Observed a synthetic interruption",

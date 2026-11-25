@@ -1,54 +1,100 @@
-> Status: existing cloud preparation. M7 implementation, publishing and Terraform apply require separate owner approval. These procedures are not evidence of cloud acceptance.
+# Cloud acceptance, evidence and teardown
 
-# OpsProof M7 | Cost-gated EKS evidence and teardown runbook
+Pre-cloud validation is not final M7 acceptance. Only the owner-run temporary AWS
+window can prove EKS addons/Pod Identity, real RDS failover and TLS, EBS/CNI,
+private ALB, VPC Link/API Gateway, actual image pulls and complete teardown.
+Keep exact commands, timestamps, exit codes and source/image identities.
 
-**NO AUTHORIZATION IS IMPLIED BY THIS RUNBOOK.** The default Terraform plan provisions no paid resources. Running a cloud test requires actual current credits/billing approval, explicit account/Region authorization and reviewed cost estimate, then a second approval of the Terraform plan. Keep the current `.runtime/m7/` artifacts locally and secret-free.
+## Live acceptance
 
-## Preflight
+- Match the account, region and cluster ARN before every write. Verify exactly
+  two private Ready workers in distinct AZs, six pinned addons, and all five
+  controllers healthy. Show actual Pod Identity roles, not only association names.
+- Verify encrypted gp3 PVCs, trusted RDS connections as app/migration roles,
+  successful migration, denied app DDL and independent-proof writes, and absence
+  of bootstrap master credentials after revocation.
+- Verify Redis trusted TLS/auth works and wrong credentials, wrong CA, wrong
+  hostname and cleartext fail. Test an unauthorized namespace cannot connect;
+  test every intended namespace/DNS/metrics/telemetry path succeeds. Policy
+  manifests alone do not establish enforcement. Test API egress with the actual
+  private endpoint/service addresses and refresh policies after address changes.
+- Verify unauthenticated/invalid-CSRF operator calls fail, login/logout works,
+  all operational cards refresh from real evidence, and read-only cloud runbooks
+  have no mutation controls. Check 1440, 1280, 768, 390 and 320-pixel widths.
+- Reconcile exact job IDs/counts, stream lag and pending entries. Exercise bounded
+  HPA/KEDA within the two-worker-node resource budget; verify healthy return to
+  baseline. No local fault executor is armed in EKS. Do not rerun destructive M6
+  scenarios against RDS or control infrastructure.
+- Verify actual metrics with units/freshness, correlated logs and traces, alert
+  authentication, and private Grafana/Argo UI health. Check current requests,
+  limits, allocatable capacity and transient update headroom before scaling.
+- Verify the public managed HTTPS URL serves the static marker/health, while
+  POST and `/api/` are rejected. ALB must be internal with healthy target groups;
+  no operator/API credentials may reach this edge.
 
-1. M5/M6 accepted, all six scenario evidence packages checked. No live M6 faults on EKS.
-2. Confirm `AWS_PROFILE`, STS identity, Region and IAM operator role; verify actual EKS version support.
-3. Confirm approved max spend and max duration; reserve time for unexpected deployment delays and teardown.
-4. Confirm S3 state backend, encryption, versioning, lockfile, backups and access/recovery procedures.
-5. Review Terraform plan and a **destroy/rollback plan before apply**. Assign a human to monitor actual resources and charges while they exist.
-6. Confirm operator public IPv4 /32, no open 0.0.0.0/0 API endpoint, AWS region and deployment identity.
-7. Check one-node compute can fit the exact intended small workload. Do not deploy the full heavy observability stack blindly on a small EC2 node.
+Screenshots should show the project architecture/status, private node placement,
+RDS encryption/Multi-AZ, healthy controller/addon views, operator pages, metrics,
+logs/traces, Argo synchronization, bounded scaling and the read-only HTTPS edge.
+Hide account IDs, endpoints that should remain private, cookies and every Secret.
+Screenshots supplement command evidence; they do not replace it.
 
-## Representative cloud verification after approval
+## Capture before deleting
 
-- Record source commit and the immutable GHCR image digests; confirm images are actually pullable by nodes.
-- Provision only the approved VPC/EKS/node/add-ons. Confirm the exact cluster ARN and Region.
-- Apply `opsproof-ebs-gp3` StorageClass and EKS-specific dependency Helm values. Verify EBS CSI Pod Identity and encryption behavior.
-- Bootstrap the original existing Helm and GitOps application contracts in the correct namespace with **restricted generated runtime secrets**, not checked-in secrets.
-- Do not assume default local `local-path` storage works on EKS.
-- Validate auth, demo API and worker interactions, exact job reconciliation, rollback/Argo health where feasible and actual Kubernetes permissions.
-- Capture representative logs and metrics **within the approved resource/time budget**; do not rerun all M6 destructive scenarios.
-- Record all failures, incomplete controller checks, node pressure and resource identifiers.
+Collect `scripts.cloud.aws_readonly_inventory` before creation, after apply and
+after destroy. It intentionally includes some unfiltered service discovery to
+find controller-created or incorrectly tagged resources. Inspect ownership;
+listing an object is never authority to delete it. Include resources with
+`Project=OpsProof`, the cloud environment tag, controller cluster tags, and the
+actual Terraform states. AWS-managed RDS secrets need explicit capture too.
 
-## Mandatory teardown
+Maintain a private schema-2 identity manifest for `audit_aws_cleanup` with exact
+account/region, `capture_complete` and all 22 `resources` category lists declared
+in its `LOOKUPS` table. Explicit empty lists mean an inspected category had no
+owned objects. Include every node ASG, ALB target group, NAT/EIP, ENI, EBS volume
+and snapshot, RDS/manual backup, secret, log group, IAM role/policy and dedicated
+backend bucket. Capture EBS IDs before PVC deletion and controller-created IDs
+before uninstall. Mark partial capture false; the auditor cannot pass it. Also
+review RDS retained automated backups and versioned S3 objects separately.
 
-- Review actual resource inventory before destroy, including EKS cluster, managed node group, ENIs, volumes, NLB/ALB if created, NAT, EIPs, IPv4, security groups, VPC endpoints, CloudWatch logs and S3 state bucket.
-- Confirm there is no open operation or recoverable state requiring retention; save only sanitized evidence.
-- Run the **reviewed, account-checked** Terraform destroy against the original backend/state only after explicit authorization. Never use a different backend or workspace accidentally.
-- Query AWS inventory independently. Current read-only helper:
-
-```bash
-python -m scripts.cloud.aws_readonly_inventory \
-  --profile opsproof-m7-inspect \
-  --region <APPROVED_REGION> \
-  --expected-account <APPROVED_ACCOUNT_ID> \
-  --output .runtime/m7/post-destroy-inventory.json
+```sh
+python -m scripts.cloud.aws_readonly_inventory --profile opsproof-cloud --region ap-south-1 --expected-account ACTUAL_ACCOUNT_ID --output .runtime/cloud/private/discovery.json
+python -m scripts.cloud.audit_aws_cleanup --profile opsproof-cloud --expected-resource-ids .runtime/cloud/private/resource-identities.json --output .runtime/cloud/private/cleanup-audit.json
 ```
 
-- The helper is intentionally **not exhaustive**. Manual inventory in the AWS Console, other Regions, untagged resources, CloudWatch logs, EBS snapshots and state backend are required.
-- If any chargeable resource remains, escalate for manual removal immediately. Do not wait for an assistant to perform future cleanup.
-- Reconcile costs from Billing/Cost Explorer when usage and invoice data become available. Billing can lag.
-- Mark real EKS status `PASSED`, `FAILED`, or `BLOCKED` with raw verification, never infer EKS readiness from local k3d.
+A precise service-specific absence code is required. Access denied, timeout,
+unparsed errors and pending deletion stay unverified/present. Never accept a
+message merely containing the word NotFound as cleanup evidence.
 
-## Stop and emergency rules
+## Owner-run teardown order
 
-Stop on wrong account/region, expired credits, host/node pressure, unexpected costs, unknown resources, denied IAM, unverified cleanup, time limit overrun or missing immutable release image. For an emergency where Terraform fails, preserve the state, inventory actual AWS objects and use approved manual cleanup steps with the account owner. Don't delete state files to force a green teardown.
+1. Stop tests/submissions. Preserve sanitized evidence and private state exports;
+   record resource IDs. Suspend automated Argo reconciliation before removals.
+2. Review and owner-apply the public-edge destroy plan first. Wait for API Gateway
+   and its VPC Link/ENIs to disappear, releasing the internal ALB dependency.
+3. Delete the edge Ingress/Application while the ALB controller and its Pod
+   Identity still work. Wait for the ALB, listeners, target groups and managed
+   security groups to disappear. Do not force-remove finalizers to fake success.
+4. Remove workload Applications/resources in dependency order; automatic prune is
+   off, so deleting an Application alone is insufficient. Explicitly delete owned
+   PVCs while EBS CSI/nodes remain available and verify volume deletion. Preserve
+   any intentionally retained data with owner approval; do not claim full cleanup.
+5. Remove bootstrap Jobs/ExternalSecrets/Secrets and telemetry workloads/PVCs.
+   Revoke temporary role permissions. Keep controllers alive until their external
+   resources and finalizers are gone.
+6. Review the platform destroy plan against its original backend; owner applies
+   it and confirms EKS, nodes, NAT/EIP, RDS, logs, roles and VPC deletion.
+7. Run `scripts.cloud.delete_db_credentials` only for the two verified owned
+   credential Secrets, using its explicit confirmation. Independently verify RDS
+   managed-secret/backup cleanup; a seven-day pending Secret is still retained.
+8. Export required final state/audit evidence privately. Only after both remote
+   states are finished, inspect and deliberately remove all versions, delete
+   markers and lock objects in the dedicated backend bucket. Review and owner
+   apply the state-bootstrap destroy plan last. Never empty an unrelated bucket.
+9. Run exact-ID audit plus independent discovery/console checks, including other
+   Regions and untagged leftovers. Reconcile Billing/Cost Explorer after charges
+   settle. Neither Terraform destroy nor an immediate dashboard proves a zero bill.
 
-## Public replay
-
-Only sanitize and curate real evidence after acceptance. `python -m scripts.cloud.build_public_replay` renders static HTML with no API calls, no auth and no mutations. It refuses suspicious fields but cannot substitute for a human privacy review. Publish only after final explicit approval.
+On partial failure, preserve state and capture actual objects immediately. Use
+account-checked, exact-identity recovery/deletion steps with the owner; do not
+blindly repeat broad deletion commands. Final status is PASSED, FAILED or BLOCKED
+with remaining resources/checks listed explicitly, never inferred from local tests.

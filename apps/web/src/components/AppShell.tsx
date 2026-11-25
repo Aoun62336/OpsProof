@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { Brand } from "./Brand";
+import type { ExecutionEnvironment } from "../lib/types";
 
 const links = [
   { label: "Workloads", path: "/workloads", icon: Boxes, end: false },
@@ -92,9 +93,13 @@ function NavItems({
 export function AppShell({
   children,
   onSignOut,
+  environment,
+  environmentLabel = "Environment unavailable",
 }: {
   children: ReactNode;
   onSignOut: () => Promise<void>;
+  environment?: ExecutionEnvironment;
+  environmentLabel?: string;
 }) {
   const drawer = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -154,7 +159,7 @@ export function AppShell({
         <div className="sidebar__lower">
           <div className="sidebar-context">
             <span className="nav-kicker">TARGET</span>
-            <strong>Local sandbox</strong>
+            <strong>{environmentLabel}</strong>
             <span>
               Only configured integrations are shown as available.
             </span>
@@ -218,7 +223,7 @@ export function AppShell({
           <NavItems onNavigate={closeDrawer} />
 
           <div className="mobile-drawer__bottom">
-            <span>Local sandbox · Development</span>
+            <span>{environmentLabel}</span>
 
             <button
               type="button"
@@ -267,7 +272,7 @@ export function AppShell({
                 className="environment-square"
                 aria-hidden="true"
               />
-              Local sandbox
+              {environmentLabel}
             </span>
 
             <span className="topbar__session">
@@ -284,7 +289,8 @@ export function AppShell({
           <span>
             OpsProof · Cloud Reliability & Safe Operations
           </span>
-          <span>Local development environment</span>
+          <span>{environment === "temporary-eks" ? "Temporary AWS verification environment"
+            : environment === "local" ? "Local development environment" : "Environment information unavailable"}</span>
         </footer>
       </div>
     </div>

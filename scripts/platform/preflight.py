@@ -107,7 +107,7 @@ def collect():
 
 def main():
     record = collect()
-    target = ROOT / ".runtime/m5/acceptance/preflight.json"
+    target = ROOT / ".runtime/platform/acceptance/preflight.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({key: value for key, value in record.items() if key != "checks"}, indent=2))

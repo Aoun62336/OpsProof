@@ -1,3 +1,4 @@
+{{- if .Values.postgres.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -36,6 +37,7 @@ spec:
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities: {drop: [ALL]}
           ports:
             - {name: postgres, containerPort: 5432}
@@ -50,6 +52,7 @@ spec:
           volumeMounts:
             - {name: data, mountPath: /var/lib/postgresql}
             - {name: postgres-run, mountPath: /var/run/postgresql}
+            - {name: tmp, mountPath: /tmp}
           readinessProbe:
             exec:
               command: ["/bin/sh", "-ec", "pg_isready -U opsproof -d opsproof"]
@@ -62,6 +65,8 @@ spec:
             periodSeconds: 15
             timeoutSeconds: 5
       volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 32Mi}
         - name: postgres-run
           emptyDir: {sizeLimit: 16Mi}
   volumeClaimTemplates:
@@ -72,3 +77,4 @@ spec:
         resources:
           requests:
             storage: {{ .Values.postgres.storage | quote }}
+{{- end }}

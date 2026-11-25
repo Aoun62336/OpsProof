@@ -1,0 +1,15 @@
+# The cloud evidence process can observe exactly the supported worker.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: opsproof-worker-observation, namespace: opsproof-demo}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [demo-worker]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: opsproof-worker-observation, namespace: opsproof-demo}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: opsproof-worker-observation}
+subjects: [{kind: ServiceAccount, name: control-evidence, namespace: opsproof-control}]

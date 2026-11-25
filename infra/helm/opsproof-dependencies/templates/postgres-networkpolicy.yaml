@@ -1,0 +1,17 @@
+{{- if and .Values.postgres.enabled .Values.postgres.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-postgres-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: opsproof-postgres
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/part-of: opsproof}
+      ports: [{protocol: TCP, port: 5432}]
+{{- end }}

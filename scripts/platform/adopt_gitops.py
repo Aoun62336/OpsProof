@@ -8,14 +8,14 @@ import subprocess
 import time
 from datetime import UTC, datetime
 
-from local_cluster import kubectl_prefix
-from preflight import ROOT
-from render_gitops import LOCAL_REPO, render
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
+from scripts.platform.render_gitops import LOCAL_REPO, render
 
 
 def main():
     kube = kubectl_prefix()
-    provenance = json.loads((ROOT / ".runtime/m5/acceptance/gitops-images.json").read_text())
+    provenance = json.loads((ROOT / ".runtime/platform/acceptance/gitops-images.json").read_text())
     objects = render(LOCAL_REPO, provenance["revision"], provenance["tag"], allow_local=True)[
         "items"
     ]
@@ -59,7 +59,7 @@ def main():
         "applications": history,
         "ownership": "Argo CD; Helm release histories retained but manual upgrades retired",
     }
-    (ROOT / ".runtime/m5/acceptance/gitops-adoption.json").write_text(
+    (ROOT / ".runtime/platform/acceptance/gitops-adoption.json").write_text(
         json.dumps(record, indent=2) + "\n"
     )
     print("PASS: five applications Synced/Healthy at the exact local Git revision")

@@ -14,14 +14,14 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlencode
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 
 def browser_check(env, output, dsn):
+    cloud_profile = "--cloud-browser" in sys.argv
     import psycopg
     from opsproof_control.trial_catalog import Scenario
     from opsproof_control.trial_store import create_trial, request_abort
@@ -43,6 +43,43 @@ def browser_check(env, output, dsn):
         username = "m6_app_" + uuid4().hex[:16]
         password = secrets.token_hex(24)
         grant_control_application(conn, username, password)
+    if cloud_profile:
+        from psycopg.types.json import Jsonb
+
+        resource = {
+            "metadata": {
+                "name": "demo-worker",
+                "namespace": "opsproof-demo",
+                "uid": "isolated-ui-fixture",
+                "resourceVersion": "1",
+            },
+            "spec": {
+                "replicas": 1,
+                "template": {
+                    "spec": {
+                        "containers": [
+                            {
+                                "image": "ghcr.io/offline/fixture/opsproof-demo@sha256:" + "a" * 64,
+                                "resources": {
+                                    "requests": {"cpu": "25m", "memory": "72Mi"},
+                                    "limits": {"cpu": "350m", "memory": "256Mi"},
+                                },
+                            }
+                        ]
+                    }
+                },
+            },
+            "status": {"readyReplicas": 1},
+        }
+        with psycopg.connect(dsn) as conn:
+            conn.execute(
+                "INSERT INTO kubernetes_observations (name,observed_at,resource,telemetry) "
+                "VALUES ('demo-worker',now(),%s,%s)",
+                (
+                    Jsonb(resource),
+                    Jsonb({"ready": True, "queued": 0, "sample_time": time.time()}),
+                ),
+            )
     browser_env = {
         **env,
         "OPSPROOF_CONTROL_API_KEY": secrets.token_hex(24),
@@ -55,6 +92,20 @@ def browser_check(env, output, dsn):
         "CI": "true",
         "OPSPROOF_E2E_M6_SCREENSHOT": str(output / "trials-mobile.png"),
     }
+    if cloud_profile:
+        browser_env.update(
+            {
+                "OPSPROOF_CONTROL_ENVIRONMENT": "temporary-eks",
+                "OPSPROOF_CONTROL_KUBERNETES_OBSERVATION_ENABLED": "true",
+                "OPSPROOF_CONTROL_KUBERNETES_RECOVERY_ENABLED": "false",
+                "OPSPROOF_CONTROL_RECOVERY_ENABLED": "false",
+                "OPSPROOF_CONTROL_M6_ENABLED": "false",
+                "OPSPROOF_CONTROL_AI_ENABLED": "false",
+                "OPSPROOF_CONTROL_ALLOWED_BROWSER_ORIGINS": "http://localhost:8081,http://127.0.0.1:8081",
+                "OPSPROOF_E2E_CLOUD_PROFILE": "true",
+                "OPSPROOF_E2E_CLOUD_OUTPUT": str(output / "cloud-browser"),
+            }
+        )
     browser_env["OPSPROOF_E2E_OPERATOR_KEY"] = browser_env["OPSPROOF_CONTROL_API_KEY"]
     browser_env.pop("OPSPROOF_E2E_BASE_URL", None)
     with (output / "browser-api.log").open("w", encoding="utf-8") as api_log:
@@ -94,7 +145,7 @@ def browser_check(env, output, dsn):
                         "node",
                         "node_modules/@playwright/test/cli.js",
                         "test",
-                        "e2e/trials.spec.ts",
+                        "e2e/cloud-profile.spec.ts" if cloud_profile else "e2e/trials.spec.ts",
                         "--reporter=json",
                         "--output=" + str(output / "browser-artifacts"),
                     ],
@@ -115,15 +166,67 @@ def browser_check(env, output, dsn):
                 backend.wait(timeout=5)
 
 
+def prepare_cloud_tls(output):
+    """One-day localhost-only test certificate; private key never enters reports."""
+    directory = output / "tls-private"
+    directory.mkdir(mode=0o700)
+    for stem, common_name in (("server", "localhost"), ("wrong", "wrong-test-ca")):
+        subprocess.run(
+            [
+                "openssl",
+                "req",
+                "-new",
+                "-x509",
+                "-newkey",
+                "rsa:2048",
+                "-nodes",
+                "-sha256",
+                "-days",
+                "1",
+                "-subj",
+                "/CN=" + common_name,
+                "-addext",
+                "subjectAltName=DNS:localhost,IP:127.0.0.1",
+                "-keyout",
+                str(directory / (stem + ".key")),
+                "-out",
+                str(directory / (stem + ".crt")),
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            timeout=30,
+        )
+    (directory / "pg_hba.conf").write_text(
+        "local all all trust\nhostssl all all 0.0.0.0/0 scram-sha-256\n"
+        "hostnossl all all 0.0.0.0/0 reject\n",
+        encoding="utf-8",
+    )
+    return directory
+
+
 def main() -> int:
     name = "opsproof-m6-pg-test-" + uuid4().hex[:10]
-    output = ROOT / ".runtime/m6/acceptance/postgres" / name
+    cloud = "--cloud" in sys.argv
+    base = (
+        ".runtime/verification/cloud/postgres"
+        if cloud
+        else ".runtime/reliability/acceptance/postgres"
+    )
+    output = ROOT / base / name
     output.mkdir(parents=True, exist_ok=True)
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 15432))
     env = dict(os.environ)
     env["POSTGRES_PASSWORD"] = secrets.token_hex(24)
     dsn = f"postgresql://opsproof:{env['POSTGRES_PASSWORD']}@127.0.0.1:15432/opsproof_m6_test"
+    tls_directory = prepare_cloud_tls(output) if cloud else None
+    if cloud:
+        dsn += "?" + urlencode(
+            {"sslmode": "verify-full", "sslrootcert": str(tls_directory / "server.crt")}
+        )
+        env["OPSPROOF_CLOUD_TEST_DATABASE_URL"] = dsn
+        env["OPSPROOF_CLOUD_TEST_TLS_DIRECTORY"] = str(tls_directory)
     env["OPSPROOF_CONTROL_DATABASE_URL"] = dsn
     env["OPSPROOF_M6_TEST_DATABASE_URL"] = dsn
     env["PYTHONPATH"] = str(ROOT)
@@ -135,6 +238,27 @@ def main() -> int:
         "cleanup_verified": False,
     }
     owned_id = None
+    container_tail = [
+        "postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5"
+    ]
+    if cloud:
+        container_tail = [
+            "--mount",
+            f"type=bind,source={tls_directory},target=/tls-source,readonly",
+            "--tmpfs",
+            "/run/opsproof-tls:rw,noexec,nosuid,size=1048576",
+            "--entrypoint",
+            "sh",
+            *container_tail,
+            "-ec",
+            "cp /tls-source/server.key /tls-source/server.crt "
+            "/tls-source/pg_hba.conf /run/opsproof-tls/; "
+            "chown -R 70:70 /run/opsproof-tls; chmod 600 /run/opsproof-tls/server.key; "
+            "exec docker-entrypoint.sh postgres -c ssl=on "
+            "-c ssl_cert_file=/run/opsproof-tls/server.crt "
+            "-c ssl_key_file=/run/opsproof-tls/server.key "
+            "-c hba_file=/run/opsproof-tls/pg_hba.conf",
+        ]
     try:
         owned_id = subprocess.check_output(
             [
@@ -152,6 +276,13 @@ def main() -> int:
                 "1",
                 "--shm-size",
                 "64m",
+                "--read-only",
+                "--tmpfs",
+                "/tmp:rw,nosuid,nodev,uid=70,gid=70,size=33554432",
+                "--tmpfs",
+                "/var/run/postgresql:rw,nosuid,nodev,uid=70,gid=70,size=16777216",
+                "--tmpfs",
+                "/var/lib/postgresql:rw,nosuid,nodev,uid=70,gid=70,size=268435456",
                 "-e",
                 "POSTGRES_USER=opsproof",
                 "-e",
@@ -160,7 +291,7 @@ def main() -> int:
                 "POSTGRES_PASSWORD",
                 "-p",
                 "127.0.0.1:15432:5432",
-                "postgres:18-alpine",
+                *container_tail,
             ],
             env=env,
             text=True,
@@ -225,8 +356,10 @@ def main() -> int:
                     "apps/control-plane/tests/test_trial_postgres_integration.py",
                     "apps/control-plane/tests/test_postgres_safety.py",
                     "apps/control-plane/tests/test_postgres_api.py",
+                    "apps/control-plane/tests/test_incident_delivery_postgres.py",
                     "apps/control-plane/tests/test_verification_postgres.py",
                     "apps/control-plane/tests/test_database_permissions.py",
+                    "apps/control-plane/tests/test_telemetry_postgres.py",
                     "-q",
                     "-ra",
                 ],
@@ -250,11 +383,25 @@ def main() -> int:
 
                 with psycopg.connect(dsn) as conn:
                     if label == "baseline_migration":
+                        sentinel_id = uuid4()
                         conn.execute(
                             "INSERT INTO experiments(id,request_key,scenario,count,duration_ms) "
                             "VALUES (%s,'m6-legacy-preservation-sentinel','queue-burst',1,50)",
-                            (uuid4(),),
+                            (sentinel_id,),
                         )
+                        conn.execute(
+                            "INSERT INTO outbox(stream,run_id) VALUES ('legacy-sentinel',%s)",
+                            (sentinel_id,),
+                        )
+                    else:
+                        record["legacy_outbox_context_nullable"] = conn.execute(
+                            "SELECT trace_context IS NULL FROM outbox "
+                            "WHERE stream='legacy-sentinel'"
+                        ).fetchone() == (True,)
+                        if not record["legacy_outbox_context_nullable"]:
+                            raise RuntimeError(
+                                "Legacy outbox row changed during telemetry migration"
+                            )
                     rows = conn.execute(
                         "SELECT row_to_json(e) FROM experiments e ORDER BY id"
                     ).fetchall()
@@ -265,7 +412,27 @@ def main() -> int:
                         record["m5_rows_preserved"] = record["legacy_rows_sha256"] == digest
                         if not record["m5_rows_preserved"]:
                             raise RuntimeError("M5 sentinel data changed during migration")
-        if "--browser" in sys.argv:
+        if cloud:
+            with (output / "cloud-integration.log").open("w", encoding="utf-8") as log:
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pytest",
+                        "apps/control-plane/tests/test_db_bootstrap_postgres.py",
+                        "-q",
+                        "-ra",
+                    ],
+                    env=env,
+                    cwd=ROOT,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    timeout=180,
+                )
+            record["cloud_integration_exit_code"] = result.returncode
+            if result.returncode:
+                raise RuntimeError("Cloud role/TLS verification failed; inspect the private log")
+        if "--browser" in sys.argv or "--cloud-browser" in sys.argv:
             record["browser_exit_code"] = browser_check(env, output, dsn)
             if record["browser_exit_code"]:
                 raise RuntimeError("Actual SQL/API browser verification failed")
@@ -295,20 +462,30 @@ def main() -> int:
                 capture_output=True,
                 timeout=30,
             )
-            remaining = subprocess.check_output(
-                [
-                    "docker",
-                    "ps",
-                    "-a",
-                    "--filter",
-                    "id=" + owned_id,
-                    "--format",
-                    "{{.ID}}",
-                ],
-                text=True,
-                timeout=15,
-            ).strip()
+            removal_deadline = time.monotonic() + 10
+            while True:
+                remaining = subprocess.check_output(
+                    [
+                        "docker",
+                        "ps",
+                        "-a",
+                        "--filter",
+                        "id=" + owned_id,
+                        "--format",
+                        "{{.ID}}",
+                    ],
+                    text=True,
+                    timeout=15,
+                ).strip()
+                if not remaining or time.monotonic() >= removal_deadline:
+                    break
+                time.sleep(0.2)
             record["cleanup_verified"] = not remaining
+        if tls_directory is not None:
+            for key in tls_directory.glob("*.key"):
+                if not key.resolve().is_relative_to(output.resolve()):
+                    raise RuntimeError("Test key cleanup escaped its owned directory")
+                key.unlink()
         record["ended_at"] = datetime.now(UTC).isoformat()
         (output / "result.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(record, indent=2))

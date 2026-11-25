@@ -1,11 +1,8 @@
-import sys
 import unittest
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from local_cluster import validate_server
-from preflight import GIB, blockers
-from render_gitops import LOCAL_REPO, render
+from scripts.platform.local_cluster import validate_server
+from scripts.platform.preflight import GIB, blockers
+from scripts.platform.render_gitops import LOCAL_REPO, render
 
 
 class FoundationTests(unittest.TestCase):

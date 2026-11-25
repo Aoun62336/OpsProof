@@ -5,6 +5,8 @@ from uuid import UUID
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from .telemetry import capture_context
+
 
 def event(
     conn: Connection,
@@ -36,10 +38,10 @@ def enqueue(
 ) -> None:
     conn.execute(
         """
-        INSERT INTO outbox (stream, run_id)
-        VALUES (%s, %s)
+        INSERT INTO outbox (stream, run_id, trace_context)
+        VALUES (%s, %s, %s)
         """,
-        (stream, run_id),
+        (stream, run_id, Jsonb(capture_context())),
     )
 
 

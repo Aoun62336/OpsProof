@@ -1,0 +1,7 @@
+{
+  "prometheus": "ghcr.io/quenchworks/images/prometheus@sha256:1783da450273bb51d42e604b105739e55961b70b74553975344c81ecfa150786",
+  "alertmanager": "ghcr.io/quenchworks/images/alertmanager@sha256:4d51bc7dea8c47c931075d2f67bc70bd5686aac6589701001f457e03747c6615",
+  "otel-collector": "otel/opentelemetry-collector-contrib@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea",
+  "loki": "grafana/loki@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7",
+  "tempo": "ghcr.io/quenchworks/images/tempo@sha256:eba09e226f8ac6874bed9237832e1b3b35ea5083a2d981741e5b18aa306a88cf"
+}

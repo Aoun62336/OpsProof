@@ -2,6 +2,7 @@ import type {
   CreateExperiment,
   Experiment,
   ExperimentEvent,
+  ExecutionEnvironment,
   Incident,
   IncidentEvent,
   IncidentStatus,
@@ -26,7 +27,14 @@ export interface KubernetesRecovery {
   expires_at: string; created_at: string; error: string | null;
   completed_at?: string | null;
 }
-export const getKubernetesWorkloads = () => request<{ enabled: boolean; observations: KubernetesObservation[] }>("/kubernetes/workloads");
+export interface KubernetesWorkloadState {
+  enabled: boolean;
+  recovery_enabled?: boolean;
+  environment?: ExecutionEnvironment;
+  environment_label?: string;
+  observations: KubernetesObservation[];
+}
+export const getKubernetesWorkloads = () => request<KubernetesWorkloadState>("/kubernetes/workloads");
 export const getKubernetesRecoveries = () => request<KubernetesRecovery[]>("/kubernetes/recoveries");
 export const proposeKubernetesRecovery = (incident: string, run: string) => request<KubernetesRecovery>("/kubernetes/recoveries", {
   method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() },

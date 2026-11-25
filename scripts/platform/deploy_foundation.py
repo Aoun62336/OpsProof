@@ -9,9 +9,9 @@ import json
 import subprocess
 from datetime import UTC, datetime
 
-from local_cluster import helm_prefix, kubectl_prefix
-from preflight import ROOT
-from render_local_secrets import read_env, render
+from scripts.platform.local_cluster import helm_prefix, kubectl_prefix
+from scripts.platform.preflight import ROOT
+from scripts.platform.render_local_secrets import read_env, render
 
 
 def run(args, **kwargs):
@@ -128,7 +128,7 @@ def main():
         "previous_releases": json.loads(releases.stdout),
         "status": "Helm ready; smoke and security runtime acceptance still required",
     }
-    (ROOT / ".runtime/m5/acceptance/deployment.json").write_text(
+    (ROOT / ".runtime/platform/acceptance/deployment.json").write_text(
         json.dumps(record, indent=2) + "\n"
     )
 

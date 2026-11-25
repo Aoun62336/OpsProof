@@ -1,14 +1,14 @@
 {
   "uid": "opsproof-operations",
-  "title": "OpsProof | Local Reliability Signals",
+  "title": "OpsProof | Reliability Operations",
   "tags": [
     "opsproof",
-    "local",
+    "operations",
     "evidence"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "time": {
     "from": "now-30m",
@@ -33,7 +33,7 @@
         {
           "refId": "A",
           "expr": "up{job=~\"opsproof-demo-api|opsproof-control-api\"}",
-          "legendFormat": "{{job}}"
+          "legendFormat": "{{job}} / {{instance}}"
         }
       ],
       "fieldConfig": {
@@ -65,8 +65,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "opsproof_demo_jobs",
-          "legendFormat": "{{state}}"
+          "expr": "max by (job, state) (opsproof_demo_jobs)",
+          "legendFormat": "{{job}} / {{state}}"
         }
       ],
       "fieldConfig": {
@@ -97,13 +97,14 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (job) (rate(opsproof_http_requests_total[2m]))",
+          "expr": "sum by (job) (rate(opsproof_http_requests_total{job=~\"opsproof-demo-api|opsproof-control-api\",route!~\"/health/.*|/metrics\"}[2m]))",
           "legendFormat": "{{job}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "min": 0
+          "min": 0,
+          "unit": "reqps"
         },
         "overrides": []
       }
@@ -125,7 +126,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (job, le) (rate(opsproof_http_request_duration_seconds_bucket[2m])))",
+          "expr": "histogram_quantile(0.95, sum by (job, le) (rate(opsproof_http_request_duration_seconds_bucket{job=~\"opsproof-demo-api|opsproof-control-api\",route!~\"/health/.*|/metrics\"}[2m])))",
           "legendFormat": "{{job}}"
         }
       ],
@@ -136,6 +137,350 @@
         },
         "overrides": []
       }
+    },
+    {
+      "id": 5,
+      "title": "Application HTTP error ratio",
+      "description": "Unavailable measurements remain no data. Experimental alert objectives apply; see alert annotations.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "opsproof-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum by (job) (rate(opsproof_http_requests_total{job=~\"opsproof-demo-api|opsproof-control-api\",route!~\"/health/.*|/metrics\",status=~\"5..\"}[5m])) or on(job) (0 * sum by (job) (rate(opsproof_http_requests_total{job=~\"opsproof-demo-api|opsproof-control-api\",route!~\"/health/.*|/metrics\"}[5m])))) / sum by (job) (rate(opsproof_http_requests_total{job=~\"opsproof-demo-api|opsproof-control-api\",route!~\"/health/.*|/metrics\"}[5m]))",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "Oldest unfinished work, seconds",
+      "description": "Unavailable measurements remain no data. Experimental alert objectives apply; see alert annotations.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "opsproof-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (job,state) ({__name__=~\"opsproof_(demo|control)_oldest_active_age_seconds\"})",
+          "legendFormat": "{{job}} / {{state}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "Durable-state evidence age, seconds",
+      "description": "Unavailable measurements remain no data. Experimental alert objectives apply; see alert annotations.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "opsproof-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - max by(job) ({__name__=~\"opsproof_(demo|control)_state_last_success_timestamp_seconds\"})",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "title": "Time since last successful completion (interpret with backlog)",
+      "description": "Unavailable measurements remain no data. Experimental alert objectives apply; see alert annotations.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "opsproof-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - (max by(job) ({__name__=~\"opsproof_(demo|control)_last_completion_timestamp_seconds\"}) > 0)",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "Measured container CPU use, cores",
+      "description": "Unavailable measurements remain no data. Experimental alert objectives apply; see alert annotations.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "opsproof-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(namespace,pod) (rate(container_cpu_usage_seconds_total{namespace=~\"opsproof-.*\",container!=\"\",container!=\"POD\"}[2m]))",
+          "legendFormat": "{{namespace}} / {{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "none"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "title": "Measured container memory working set",
+      "description": "Unavailable measurements remain no data. Experimental alert objectives apply; see alert annotations.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "opsproof-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(namespace,pod) (container_memory_working_set_bytes{namespace=~\"opsproof-.*\",container!=\"\",container!=\"POD\"})",
+          "legendFormat": "{{namespace}} / {{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "bytes"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "title": "Measured monitoring PVC free space",
+      "description": "Unavailable measurements remain no data. Experimental alert objectives apply; see alert annotations.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "opsproof-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "kubelet_volume_stats_available_bytes{namespace=\"opsproof-observability\"} / kubelet_volume_stats_capacity_bytes{namespace=\"opsproof-observability\"}",
+          "legendFormat": "{{persistentvolumeclaim}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "title": "Collector persistent queue occupancy",
+      "description": "Unavailable measurements remain no data. Experimental alert objectives apply; see alert annotations.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "opsproof-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "otelcol_exporter_queue_size / otelcol_exporter_queue_capacity",
+          "legendFormat": "{{exporter}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "title": "Alert delivery failures in five minutes",
+      "description": "Unavailable measurements remain no data. Experimental alert objectives apply; see alert annotations.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "opsproof-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(alertmanager_notifications_failed_total[5m]))",
+          "legendFormat": "Failed attempts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "title": "Firing alerts",
+      "description": "Unavailable measurements remain no data. Experimental alert objectives apply; see alert annotations.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "opsproof-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "ALERTS{alertstate=\"firing\"}",
+          "legendFormat": "{{alertname}} / {{job}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 17,
+      "title": "Application logs ? trace links use structured trace_id metadata",
+      "type": "logs",
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "opsproof-loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service_name=~\"opsproof-.*\"}",
+          "queryType": "range",
+          "maxLines": 100
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending"
+      }
     }
-  ]
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "type": "constant",
+        "label": "Deployment profile",
+        "query": "local-compose",
+        "current": {
+          "text": "local-compose",
+          "value": "local-compose"
+        },
+        "hide": 0
+      }
+    ]
+  }
 }

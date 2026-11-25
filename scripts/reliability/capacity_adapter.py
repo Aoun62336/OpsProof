@@ -190,7 +190,7 @@ class Capacity(Adapter):
 
     def load_logs(self):
         path = (ROOT / self.state["capacity_log_path"]).resolve(strict=True)
-        if not path.is_relative_to(ROOT / ".runtime/m6/trials"):
+        if not path.is_relative_to(ROOT / ".runtime/reliability/trials"):
             raise ValueError("Capacity log must belong to the original local trial")
         logs = path.read_text(encoding="utf-8")
         if len(logs) > 2_000_000:

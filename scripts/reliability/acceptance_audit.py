@@ -10,6 +10,8 @@ import json
 import re
 from pathlib import Path
 
+from scripts.paths import ROOT, archive_root, read_artifact
+
 REQUIRED = frozenset(
     {
         "worker_saturation",
@@ -51,15 +53,20 @@ def audit(document: dict, root: Path) -> dict:
             if not isinstance(artifact, dict) or set(artifact) != {"path", "sha256"}:
                 raise ValueError("Invalid artifact descriptor")
             relative = artifact["path"]
-            if not isinstance(relative, str) or not relative.startswith(".runtime/m6/"):
-                raise ValueError("Artifacts must remain inside the ignored M6 runtime tree")
-            candidate = root / relative
+            if not isinstance(relative, str) or not relative.startswith(
+                (".runtime/m6/", ".runtime/reliability/")
+            ):
+                raise ValueError("Artifacts must remain inside a declared trial evidence tree")
+            candidate = read_artifact(relative, root=root)
             if candidate.is_symlink() or any(
                 parent.is_symlink() for parent in candidate.parents if parent != root
             ):
                 raise ValueError("Symlinked evidence paths are forbidden")
             p = candidate.resolve(strict=True)
-            if not p.is_relative_to(root / ".runtime" / "m6"):
+            bounds = [root / ".runtime" / area for area in ("m6", "reliability")]
+            if root == ROOT:
+                bounds.append(archive_root().resolve() / "m6")
+            if not any(p.is_relative_to(bound) for bound in bounds):
                 raise ValueError("Artifact path escapes bounded evidence tree")
             if p.is_symlink() or not p.is_file() or p.stat().st_size == 0:
                 raise ValueError("Missing, symlinked or empty evidence file")

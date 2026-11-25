@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 import redis
 from fastapi import Depends, FastAPI, Header, HTTPException, status
+from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict
 
 from .config import settings
@@ -12,6 +13,7 @@ from .contracts import CreateJob, JobCounts, JobDetails
 from .db import pool
 from .dependency_probe import probe as probe_database
 from .metrics import install_metrics
+from .telemetry import capture_context
 from .worker_control import hold_state, resume_worker
 
 app = FastAPI(
@@ -141,10 +143,10 @@ def create_job(
         else:
             conn.execute(
                 """
-                INSERT INTO outbox (job_id)
-                VALUES (%s)
+                INSERT INTO outbox (job_id, trace_context)
+                VALUES (%s, %s)
                 """,
-                (job_id,),
+                (job_id, Jsonb(capture_context())),
             )
 
     return JobDetails.model_validate(row)

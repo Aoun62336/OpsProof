@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "cluster": "opsproof-cloud",
+  "region": "ap-south-1",
+  "controllers": [
+    {"name": "aws-load-balancer-controller", "release": "aws-load-balancer-controller", "namespace": "kube-system", "repo": "eks", "repo_url": "https://aws.github.io/eks-charts", "chart": "aws-load-balancer-controller", "version": "3.6.2"},
+    {"name": "external-secrets", "release": "external-secrets", "namespace": "external-secrets", "repo": "external-secrets", "repo_url": "https://charts.external-secrets.io", "chart": "external-secrets", "version": "2.15.0"},
+    {"name": "argo-cd", "release": "argocd", "namespace": "argocd", "repo": "argo", "repo_url": "https://argoproj.github.io/argo-helm", "chart": "argo-cd", "version": "10.17.1"},
+    {"name": "argo-rollouts", "release": "argo-rollouts", "namespace": "argo-rollouts", "repo": "argo", "repo_url": "https://argoproj.github.io/argo-helm", "chart": "argo-rollouts", "version": "2.43.12"},
+    {"name": "keda", "release": "keda", "namespace": "keda", "repo": "kedacore", "repo_url": "https://kedacore.github.io/charts", "chart": "keda", "version": "2.21.0"}
+  ]
+}

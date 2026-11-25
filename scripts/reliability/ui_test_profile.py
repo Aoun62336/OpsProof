@@ -14,7 +14,7 @@ from scripts.platform.preflight import ROOT
 from scripts.reliability.local_environment import LocalEnvironment, utc, write_json
 
 TARGETS = (("opsproof-observability", "grafana"), ("argocd", "argocd-server"))
-POINTER = ROOT / ".runtime/m6/acceptance/ui-test-profile.json"
+POINTER = ROOT / ".runtime/reliability/acceptance/ui-test-profile.json"
 
 
 def template_hash(deployment):
@@ -37,7 +37,7 @@ def main():
         help="Restore desired UI state and immediately stop the owned test cluster",
     )
     args = parser.parse_args()
-    directory = ROOT / ".runtime/m6/acceptance/environment" / ("ui-profile-" + uuid4().hex)
+    directory = ROOT / ".runtime/reliability/acceptance/environment" / ("ui-profile-" + uuid4().hex)
     directory.mkdir(parents=True, exist_ok=False)
     env = LocalEnvironment(directory)
     if args.action == "enter":

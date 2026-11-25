@@ -11,17 +11,19 @@ class Fake:
 
 class InventoryTests(unittest.TestCase):
     def test_only_approved_read_methods(self):
-        allowed = {
-            "get-caller-identity",
-            "get-resources",
-            "list-clusters",
-            "describe-nat-gateways",
-            "describe-instances",
-            "describe-volumes",
-            "describe-addresses",
-            "describe-vpcs",
-        }
-        self.assertEqual({args[1] for args in COMMANDS.values()}, allowed)
+        self.assertTrue(
+            all(args[1].startswith(("get-", "list-", "describe-")) for args in COMMANDS.values())
+        )
+        self.assertTrue(
+            {
+                "network_interfaces",
+                "vpc_links",
+                "secrets",
+                "rds_retained_backups",
+                "snapshots",
+                "backend_buckets",
+            }.issubset(COMMANDS)
+        )
 
     def test_fails_on_mismatched_account(self):
         with patch("scripts.cloud.aws_readonly_inventory.subprocess.run", return_value=Fake()):

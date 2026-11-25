@@ -5,8 +5,8 @@ import json
 import subprocess
 from urllib.request import urlopen
 
-from local_cluster import helm_prefix, kubectl_prefix
-from preflight import ROOT
+from scripts.platform.local_cluster import helm_prefix, kubectl_prefix
+from scripts.platform.preflight import ROOT
 
 
 def run(args, **kwargs):
@@ -16,7 +16,7 @@ def run(args, **kwargs):
 def main():
     kube = kubectl_prefix()
     helm = helm_prefix()
-    directory = ROOT / ".runtime/m5"
+    directory = ROOT / ".runtime/platform"
     deployment = json.loads((directory / "acceptance/deployment.json").read_text())
     tag = deployment["source_content_tag"]
     url = "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml"

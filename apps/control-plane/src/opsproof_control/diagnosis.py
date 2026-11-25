@@ -127,5 +127,14 @@ def model_facts(snapshot: Snapshot) -> dict:
         "hold_ttl_seconds": snapshot.hold_ttl_seconds,
         "linked_run": snapshot.run_id is not None,
         "linked_job_count": len(snapshot.job_ids),
+        "linked_jobs_unique": bool(snapshot.job_ids)
+        and len(set(snapshot.job_ids)) == len(snapshot.job_ids),
         "collection_errors": bool(snapshot.errors),
+        "evidence_contract": {
+            "queued": "Waiting job count; null means unknown, zero means observed empty.",
+            "processing": "In-flight job count, not consumer count, readiness or worker capacity.",
+            "hold_ttl_seconds": "Seconds remaining on the observed worker hold.",
+            "freshness": "evidence_fresh is evaluated against the snapshot reference clock.",
+            "job_links": "Only count, linkage and uniqueness flags are provided; no identifiers.",
+        },
     }

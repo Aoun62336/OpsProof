@@ -568,12 +568,12 @@ def attach_artifact(
     path_parts = relative_path.replace("\\", "/").split("/")
     if (
         len(relative_path) > 240
-        or not relative_path.startswith(".runtime/m6/")
+        or not relative_path.startswith((".runtime/m6/", ".runtime/reliability/"))
         or any(part in ("", ".", "..") for part in path_parts)
         or ":" in relative_path
         or "\\" in relative_path
     ):
-        raise ValueError("Only canonical relative M6 evidence paths are allowed")
+        raise ValueError("Only canonical relative trial evidence paths are allowed")
     conn.execute(
         """INSERT INTO m6_trial_artifacts (trial_id,kind,relative_path,sha256,observations)
            VALUES (%s,%s,%s,%s,%s)""",

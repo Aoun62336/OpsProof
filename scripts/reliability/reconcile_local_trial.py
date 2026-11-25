@@ -39,7 +39,7 @@ def execute(directory, acknowledgment):
     if directory.is_symlink():
         raise ValueError("Linked trial directories are not accepted")
     directory = directory.resolve(strict=True)
-    if directory.parent != ROOT / ".runtime/m6/trials":
+    if directory.parent != ROOT / ".runtime/reliability/trials":
         raise ValueError("Exact local M6 run directory required")
     state = load_checkpoint(directory)
     output = directory / ("reconcile-" + uuid4().hex)

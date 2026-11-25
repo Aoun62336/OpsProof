@@ -1,0 +1,8 @@
+# M7: control PostgreSQL is AWS RDS. Keep only isolated control Redis in EKS.
+postgres:
+  enabled: false
+redis:
+  security:
+    enabled: true
+  storageClassName: opsproof-ebs-gp3
+  storage: 5Gi

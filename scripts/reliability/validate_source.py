@@ -1,6 +1,5 @@
 """Locked app regressions and source-only security checks; never injects faults."""
 
-import hashlib
 import json
 import os
 import shutil
@@ -8,25 +7,16 @@ import subprocess
 import sys
 import tempfile
 import time
-import zipfile
+from pathlib import Path
 from uuid import uuid4
 
 from scripts.platform.preflight import ROOT
 from scripts.reliability.local_environment import source_identity, utc, write_json
+from scripts.security_tools import binary
 
 
 def secret_scan(output):
-    tools = ROOT / ".runtime/m5/security-tools"
-    archive = tools / "gitleaks_8.30.1_windows_x64.zip"
-    executable = tools / "gitleaks.exe"
-    if os.name != "nt":
-        raise RuntimeError("Use the pinned CI secret scanner on non-Windows hosts")
-    expected = "d29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e"
-    if hashlib.sha256(archive.read_bytes()).hexdigest() != expected:
-        raise RuntimeError("Pinned scanner archive checksum mismatch")
-    with zipfile.ZipFile(archive) as package:
-        if package.read("gitleaks.exe") != executable.read_bytes():
-            raise RuntimeError("Installed scanner differs from its verified archive")
+    executable = binary("gitleaks")
     names = (
         subprocess.check_output(
             [
@@ -42,11 +32,13 @@ def secret_scan(output):
         .decode()
         .split("\0")
     )
-    with tempfile.TemporaryDirectory(prefix="source-scan-", dir=ROOT / ".runtime/m6") as temporary:
+    # Keep disposable source copies outside repository file watchers/indexers.
+    # Windows can otherwise hold a just-scanned directory open during cleanup.
+    with tempfile.TemporaryDirectory(prefix="opsproof-source-scan-") as temporary:
         from pathlib import Path
 
         directory = Path(temporary).resolve()
-        assert directory.is_relative_to((ROOT / ".runtime/m6").resolve())
+        assert directory.parent == Path(tempfile.gettempdir()).resolve()
         for name in set(names) - {""}:
             source = (ROOT / name).resolve()
             if not source.is_file():
@@ -78,12 +70,16 @@ def secret_scan(output):
         return run.returncode
 
 
-def main():
+def validate(pytest_root):
     output = ROOT / ".runtime/verification/source" / ("checks-" + uuid4().hex)
     output.mkdir(parents=True, exist_ok=False)
     identity = source_identity()
     write_json(output / "source-before.json", identity)
     env = {**os.environ, "PYTHONPATH": str(ROOT)}
+    env["PYTEST_ADDOPTS"] = (
+        f'--basetemp="{(pytest_root / "tests").as_posix()}" '
+        f'-o cache_dir="{(pytest_root / "cache").as_posix()}"'
+    )
     control = ["uv", "run", "--project", "apps/control-plane", "--locked"]
     demo = ["uv", "run", "--project", "apps/demo-workload", "--locked"]
     checks = [
@@ -160,6 +156,28 @@ def main():
                 "scripts.reliability.validate_charts",
             ],
         ),
+        (
+            "cloud-helm",
+            [*control, "--with", "PyYAML==6.0.3", "python", "-m", "scripts.cloud.validate_charts"],
+        ),
+        (
+            "cloud-schemas",
+            [*control, "--with", "PyYAML==6.0.3", "python", "-m", "scripts.cloud.validate_schemas"],
+        ),
+        (
+            "workflow-pins",
+            [
+                *control,
+                "python",
+                "-m",
+                "scripts.cloud.check_workflow_pins",
+                *[str(path) for path in sorted((ROOT / ".github/workflows").glob("*.yml"))],
+            ],
+        ),
+        (
+            "workflow-contracts",
+            [*control, "python", "-m", "scripts.cloud.check_workflow_contracts"],
+        ),
         ("k6-syntax", ["node", "--check", "benchmarks/k6/jobs.js"]),
         ("whitespace", ["git", "diff", "--check"]),
     ]
@@ -202,6 +220,13 @@ def main():
     write_json(output / "result.json", report)
     print(json.dumps(report, indent=2))
     return 0 if report["passed"] else 1
+
+
+def main():
+    # Nested checkout + report + test-case + trial paths exceed MAX_PATH on
+    # Windows. Keep disposable pytest state in the short OS temporary root.
+    with tempfile.TemporaryDirectory(prefix="opsproof-tests-") as temporary:
+        return validate(Path(temporary))
 
 
 if __name__ == "__main__":

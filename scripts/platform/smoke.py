@@ -6,9 +6,9 @@ import subprocess
 import time
 from contextlib import contextmanager
 
-from local_cluster import kubectl_prefix
-from preflight import ROOT
-from verify_k3d import verify
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
+from scripts.platform.verify_k3d import verify
 
 
 @contextmanager

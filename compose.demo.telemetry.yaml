@@ -10,7 +10,7 @@ x-demo-otel: &demo-otel
 
   OTEL_PYTHON_LOG_AUTO_INSTRUMENTATION: "true"
 
-  OTEL_PYTHON_FASTAPI_EXCLUDED_URLS: "metrics,health/live"
+  OTEL_PYTHON_FASTAPI_EXCLUDED_URLS: "metrics,health/live,health/ready"
 
   OTEL_TRACES_SAMPLER: parentbased_traceidratio
   OTEL_TRACES_SAMPLER_ARG: "0.25"

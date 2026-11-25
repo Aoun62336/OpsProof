@@ -93,4 +93,4 @@ def test_resource_blocker_never_reads_credentials_or_constructs_an_actuator(tmp_
     result = run_local_trial.execute("worker_failure", "M6_LOCAL_FAULT_TRIAL")
     assert result["status"] == "BLOCKED" and result["fault_sent"] is False
     assert "injected_at_utc" not in result
-    assert len(list(Path(tmp_path).glob(".runtime/m6/trials/*/result.json"))) == 1
+    assert len(list(Path(tmp_path).glob(".runtime/reliability/trials/*/result.json"))) == 1

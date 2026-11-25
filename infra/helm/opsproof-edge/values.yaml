@@ -1,0 +1,10 @@
+image:
+  repository: ""
+  digest: ""
+replicas: 2
+vpcCidr: 10.72.0.0/16
+albEnabled: false
+albSecurityGroupId: ""
+resources:
+  requests: {cpu: 20m, memory: 32Mi}
+  limits: {cpu: 150m, memory: 96Mi}

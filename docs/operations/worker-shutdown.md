@@ -78,7 +78,7 @@ The shared external networks can remain without attached containers.
 With the full local stacks already running and no active work or worker hold:
 
 ```bash
-python -B scripts/verify_shutdown.py
+python -B scripts/compose/verify_shutdown.py
 ```
 
 This creates an eight-job experiment, stops the demo worker during a job, stops the
@@ -86,8 +86,8 @@ evidence worker while verification is pending, stops the other background roles,
 and restarts them. It checks exit code 0, retention of pending evidence, exact job
 IDs, one attempt per job, successful resumed verification, and idle shutdown of all
 five background processes. It restores workers and saves evidence in
-`.runtime/shutdown-verification.json`. It does not perform the final full shutdown;
+`.runtime/verification/compose/shutdown.json`. It does not perform the final full shutdown;
 use the sequence above afterward.
 
 Local validation results and remaining nonlocal scope are recorded in
-[M4_LOCAL_VALIDATION_REPORT.md](../history/m4-local-validation-report.md).
+[worker shutdown validation](../history/worker-shutdown-validation.md).

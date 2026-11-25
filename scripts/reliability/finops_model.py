@@ -119,21 +119,28 @@ def model(document):
             "fixed_worker": "Same single node/control-plane/IPv4 gross infrastructure rate",
             "keda_workers": "Same node rate; Pod replicas change without node autoscaling",
             "measured_performance_improvement": None,
-            "limitation": "Nine comparable M6 runs blocked; no workload savings claimed",
+            "limitation": (
+                "Local scaling trials do not establish reduced EC2 spending; "
+                "cloud measurement pending"
+            ),
         },
     }
 
 
 def main():
     paths = sorted(
-        (ROOT / ".runtime/m6/acceptance/pricing").glob("prices-*/selected-prices.json"),
+        (ROOT / ".runtime/reliability/acceptance/pricing").glob("prices-*/selected-prices.json"),
         key=lambda path: path.stat().st_mtime,
     )
+    if not paths:
+        raise ValueError("Fetch fresh public price evidence before modeling costs")
     source = paths[-1]
     document = json.loads(source.read_text(encoding="utf-8"))
     report = model(document)
     report["pricing_evidence"] = source.relative_to(ROOT).as_posix()
-    images = json.loads((ROOT / ".runtime/m6/acceptance/image-provenance.json").read_text())
+    images = json.loads(
+        (ROOT / ".runtime/reliability/acceptance/image-provenance.json").read_text()
+    )
     report["local_image_measurements"] = {name: images[name] for name in ("demo", "control", "web")}
     report["optimization_review"] = {
         "existing_multistage_builds_retained": True,
@@ -143,7 +150,7 @@ def main():
         "build_time_caveat": "Local cache/changed source; no optimization speedup claimed",
         "comparable_runtime_before_after": "BLOCKED_HOST_MEMORY",
     }
-    output = ROOT / ".runtime/m6/acceptance/finops-analysis.json"
+    output = ROOT / ".runtime/reliability/acceptance/finops-analysis.json"
     output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(
         json.dumps(

@@ -1,7 +1,7 @@
-"""Pure M6 trial lifecycle invariants, separate from existing M4/M5 recovery.
+"""Pure trial lifecycle invariants, separate from recovery authorization.
 
-No side effects: transactional persistence, outbox, leases and target locks
-must be implemented and tested against the accepted final M5 revision.
+No side effects: trial_store applies these rules inside its durable transactions,
+with outbox, leases and target locks.
 This transition function is not itself an authorization or fault injector.
 """
 

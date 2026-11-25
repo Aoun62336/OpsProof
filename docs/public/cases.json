@@ -1,0 +1,116 @@
+[
+  {
+    "id": "worker-saturation-local-01",
+    "scenario": "worker_saturation",
+    "title": "Worker saturation and queue drain",
+    "environment": "local-k3d",
+    "source_commit": "093b7aebebff51363fdd2527987b25059a43b971",
+    "source_tree_sha256": "b95bf7127419bb6592198000b9c951a7b0d450ffc53d99dc5bf3c195ce005a27",
+    "source_dirty": true,
+    "status": "succeeded",
+    "observed_utc": "2026-11-14T15:57:24.738354Z",
+    "summary": "A controlled local reliability trial recorded the intended scenario and independently checked restoration. This is historical local evidence.",
+    "findings": [
+      "Independent receipt records the scenario hypothesis and cleanup as verified.",
+      "Recorded checks confirm current health, original configuration and observer identity.",
+      "60 exact durable job records were completed; the highest recorded attempt count was 1."
+    ],
+    "limitations": "One selected controlled local trial. The tested working tree included uncommitted changes identified by its source-tree hash. This is not proof of the current cloud release, production availability, AI correctness or AWS deployment.",
+    "source_evidence_sha256": "7e4a50e50f959c1b2a6479b9b8e5a1f934893318eabe8aa093d2b31734a0623f"
+  },
+  {
+    "id": "faulty-release-local-01",
+    "scenario": "faulty_release",
+    "title": "Faulty release and restored configuration",
+    "environment": "local-k3d",
+    "source_commit": "093b7aebebff51363fdd2527987b25059a43b971",
+    "source_tree_sha256": "19cd18e0a9777c70e5570b4e6045c869943934717d997540bd7bc14ef08d7835",
+    "source_dirty": true,
+    "status": "succeeded",
+    "observed_utc": "2026-11-14T16:04:49.184291Z",
+    "summary": "A controlled local reliability trial recorded the intended scenario and independently checked restoration. This is historical local evidence.",
+    "findings": [
+      "Independent receipt records the scenario hypothesis and cleanup as verified.",
+      "Recorded checks confirm current health, original configuration and observer identity.",
+      "This scenario submitted no durable job batch; exact-job checking is not batch-throughput evidence here."
+    ],
+    "limitations": "One selected controlled local trial. The tested working tree included uncommitted changes identified by its source-tree hash. This is not proof of the current cloud release, production availability, AI correctness or AWS deployment.",
+    "source_evidence_sha256": "6b290a10cc3073b6886c02b44107ca4a3be410992f15ece4323b8942662eb48d"
+  },
+  {
+    "id": "database-connectivity-local-01",
+    "scenario": "database_connectivity",
+    "title": "Demo database connectivity interruption",
+    "environment": "local-k3d",
+    "source_commit": "093b7aebebff51363fdd2527987b25059a43b971",
+    "source_tree_sha256": "19cd18e0a9777c70e5570b4e6045c869943934717d997540bd7bc14ef08d7835",
+    "source_dirty": true,
+    "status": "succeeded",
+    "observed_utc": "2026-11-14T16:00:52.765411Z",
+    "summary": "A controlled local reliability trial recorded the intended scenario and independently checked restoration. This is historical local evidence.",
+    "findings": [
+      "Independent receipt records the scenario hypothesis and cleanup as verified.",
+      "Recorded checks confirm current health, original configuration and observer identity.",
+      "2 exact durable job records were completed; the highest recorded attempt count was 1."
+    ],
+    "limitations": "One selected controlled local trial. The tested working tree included uncommitted changes identified by its source-tree hash. This is not proof of the current cloud release, production availability, AI correctness or AWS deployment.",
+    "source_evidence_sha256": "26c5dba1373463805d09fb550e69d3b67ac96d98fb9465a671acb9af6c5fb3a3"
+  },
+  {
+    "id": "worker-failure-local-01",
+    "scenario": "worker_failure",
+    "title": "Worker interruption and retried job",
+    "environment": "local-k3d",
+    "source_commit": "093b7aebebff51363fdd2527987b25059a43b971",
+    "source_tree_sha256": "70c215ebbf0b3e8f3091dbd59cd68b2c6f9b7d1d1bdc94f7d67132d03740d84a",
+    "source_dirty": true,
+    "status": "succeeded",
+    "observed_utc": "2026-11-14T16:11:51.697699Z",
+    "summary": "A controlled local reliability trial recorded the intended scenario and independently checked restoration. This is historical local evidence.",
+    "findings": [
+      "Independent receipt records the scenario hypothesis and cleanup as verified.",
+      "Recorded checks confirm current health, original configuration and observer identity.",
+      "1 exact durable job records were completed; the highest recorded attempt count was 2."
+    ],
+    "limitations": "One selected controlled local trial. The tested working tree included uncommitted changes identified by its source-tree hash. This is not proof of the current cloud release, production availability, AI correctness or AWS deployment.",
+    "source_evidence_sha256": "00f15e1baf9da1bc3e2647c6df8fdeb6d3b67bcd6c74bb1f86132e13b693db9b"
+  },
+  {
+    "id": "downstream-latency-local-01",
+    "scenario": "downstream_latency",
+    "title": "Downstream latency and job recovery",
+    "environment": "local-k3d",
+    "source_commit": "093b7aebebff51363fdd2527987b25059a43b971",
+    "source_tree_sha256": "70c215ebbf0b3e8f3091dbd59cd68b2c6f9b7d1d1bdc94f7d67132d03740d84a",
+    "source_dirty": true,
+    "status": "succeeded",
+    "observed_utc": "2026-11-14T16:10:53.163817Z",
+    "summary": "A controlled local reliability trial recorded the intended scenario and independently checked restoration. This is historical local evidence.",
+    "findings": [
+      "Independent receipt records the scenario hypothesis and cleanup as verified.",
+      "Recorded checks confirm current health, original configuration and observer identity.",
+      "1 exact durable job records were completed; the highest recorded attempt count was 3."
+    ],
+    "limitations": "One selected controlled local trial. The tested working tree included uncommitted changes identified by its source-tree hash. This is not proof of the current cloud release, production availability, AI correctness or AWS deployment.",
+    "source_evidence_sha256": "2459caca50b5d6e89124e9403675c3605c890d38b2e9a61d0d8a257b4db1d291"
+  },
+  {
+    "id": "misleading-evidence-local-01",
+    "scenario": "misleading_evidence",
+    "title": "Collector interruption and evidence limits",
+    "environment": "local-k3d",
+    "source_commit": "093b7aebebff51363fdd2527987b25059a43b971",
+    "source_tree_sha256": "19cd18e0a9777c70e5570b4e6045c869943934717d997540bd7bc14ef08d7835",
+    "source_dirty": true,
+    "status": "succeeded",
+    "observed_utc": "2026-11-14T16:01:22.597523Z",
+    "summary": "A controlled local reliability trial recorded the intended scenario and independently checked restoration. This is historical local evidence.",
+    "findings": [
+      "Independent receipt records the scenario hypothesis and cleanup as verified.",
+      "Recorded checks confirm current health, original configuration and observer identity.",
+      "This scenario submitted no durable job batch; exact-job checking is not batch-throughput evidence here."
+    ],
+    "limitations": "One selected controlled local trial. The tested working tree included uncommitted changes identified by its source-tree hash. This is not proof of the current cloud release, production availability, AI correctness or AWS deployment.",
+    "source_evidence_sha256": "f80cc1bd8fda859c0c8231e8c05eb18e463b3ca0c4dcdd432dc1421f0b160625"
+  }
+]

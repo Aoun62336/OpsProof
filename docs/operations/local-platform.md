@@ -1,147 +1,63 @@
-# Milestone 5 | k3d and Helm foundation (staged, not yet accepted)
+# Local Kubernetes platform
 
-## Local execution safety update (November 7, 2026)
+The local platform has historical acceptance; a fresh installation must pass its
+own checks. This guide does not assert that a cluster is currently running.
+Use [the operating runbook](local-runbook.md) for an existing deployment and
+[verification](../engineering/verification.md) for dated results.
 
-Use `python scripts/platform/preflight.py`, then `python scripts/platform/bootstrap.py`.
-Bootstrap writes only `.runtime/m5/kubeconfig.yaml`; it never switches the default context.
-The inspected default context was an AWS EKS context, so **before any manual commands below**,
-set the isolated config in each Git Bash terminal:
+## Safe context and prerequisites
 
-```bash
-export KUBECONFIG="$PWD/.runtime/m5/kubeconfig.yaml"
-test -f "$KUBECONFIG" || exit 1
-test "$(kubectl config current-context)" = k3d-opsproof || exit 1
+Run from the repository root. Install the documented pinned tools and locked app
+dependencies. Kubernetes helpers use `.runtime/platform/kubeconfig.yaml`, validate
+the loopback API and never infer authorization from the default context.
+
+```powershell
+uv run --project apps/control-plane --locked python -m scripts.platform.preflight
 ```
 
-For the foundation, prefer `python scripts/platform/deploy_foundation.py`, followed by
-`python scripts/platform/smoke.py`. Both use explicit local configuration; the latter owns
-the dedicated port forwards. Do not run the old manual cluster-create commands again
-after bootstrap. All runtime acceptance remains pending until the evidence exists.
+Startup requires 5 GiB free host memory and 15 GiB free disk, plus the existing
+Docker/node checks. A failed resource gate must not be lowered to continue.
+Inspect an existing `opsproof` cluster instead of recreating it. Bootstrap is for
+a genuinely new local installation only:
 
-
-**Status:** source authored; Kubernetes runtime not executed in the audit environment.
-
-## Design and scope
-
-- The source of truth is the latest corrected M4, not the historical original ZIP.
-- One k3d server node hosts two isolated application namespaces: `opsproof-demo` and `opsproof-control`.
-- Two installs of `opsproof-dependencies` provide independent PostgreSQL and Redis; two installs of `opsproof-services` provide the actual services.
-- No application service account receives a Kubernetes API token or RBAC grant in this foundation stage.
-- Secrets are created locally from the existing ignored `.env` and never committed or printed to the terminal.
-- Both AI and controlled recovery remain disabled by default.
-- PostgreSQL PVCs and Redis AOF PVCs survive Helm uninstall; their deletion requires explicit permission.
-- The demonstration API is internal to the cluster; developer access uses `kubectl port-forward`.
-- Local `api` and worker data must not be claimed identical to existing Compose volumes. These are separate experimental stores.
-
-## Resource gate, BEFORE creating the cluster
-
-Record Git HEAD, Docker memory total, host memory available and disk available. Abort if the machine does not have adequate headroom. Suggested provisional thresholds to **measure, not assume:** at least 5 GiB currently free system memory and 15 GiB free disk space. If values are below these, close excess workloads instead of increasing allocations blindly. Operators and observability are an additional profile and will be tested separately.
-
-```bash
-git status --short
-git rev-parse HEAD
-docker info --format '{{.MemTotal}}'
-docker system df
-powershell.exe -NoProfile -Command "Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize"
-df -h .
-k3d version
-kubectl version --client
-helm version
+```powershell
+uv run --project apps/control-plane --locked python -m scripts.platform.bootstrap
 ```
 
-## Stage 1 | Cluster
+## Foundation and ownership
 
-**Do not run if a cluster named `opsproof` already exists without inspecting it.**
+Prepare independent credentials in ignored `.env`; preserve existing configuration.
+The foundation tool builds/imports images, records provenance, installs dependencies
+and applies migrations before applications. Verify its actual output and readiness.
 
-```bash
-k3d cluster list
-k3d cluster create --config infra/k3d/cluster.yaml
-kubectl config use-context k3d-opsproof
-kubectl get nodes -o wide
-kubectl get storageclass
-kubectl apply -f infra/k8s/namespaces.yaml
-kubectl get namespaces -l app.kubernetes.io/part-of=opsproof
+```powershell
+uv run --project apps/control-plane --locked python -m scripts.platform.deploy_foundation
+uv run --project apps/control-plane --locked python -m scripts.platform.smoke
 ```
 
-## Stage 2 | Build and load immutable local images
+These are deployment commands, not static checks. Inspect the target and source
+before running them. After [GitOps adoption](gitops.md), Argo owns application
+resources: update the approved source/image parameters rather than running a
+parallel Helm reconciler. [Gateway access](gateway.md) remains loopback-only.
 
-On the **corrected M4 working tree**, record the full commit hash after applying the accepted changes. Use a short but unique SHA tag, never `:latest`.
+## Manual inspection
 
-```bash
-export M5_TAG="m5-$(git rev-parse --short=12 HEAD)"
-docker build -f apps/demo-workload/Dockerfile -t "opsproof-demo:$M5_TAG" apps/demo-workload
-docker build -f apps/control-plane/Dockerfile -t "opsproof-control:$M5_TAG" apps/control-plane
-docker image inspect "opsproof-demo:$M5_TAG" --format '{{.Id}}'
-docker image inspect "opsproof-control:$M5_TAG" --format '{{.Id}}'
-k3d image import "opsproof-demo:$M5_TAG" "opsproof-control:$M5_TAG" -c opsproof
+Always specify both local flags, even if another terminal selected a context:
+
+```powershell
+kubectl --kubeconfig .runtime/platform/kubeconfig.yaml --context k3d-opsproof get nodes -o wide
+kubectl --kubeconfig .runtime/platform/kubeconfig.yaml --context k3d-opsproof get pods -A
 ```
 
-Git dirty-state must be recorded if local changes are uncommitted; a Git-derived tag is not sufficient image provenance for a dirty tree.
+Verify DNS, storage, migration completion, restricted roles, intended traffic and
+denied cross-namespace traffic. Rendered policies do not prove CNI enforcement.
+Use the smoke tool's owned loopback forwards; do not accidentally inspect Compose
+on another port. Readiness alone does not prove telemetry delivery or recovery.
 
-## Stage 2 | Secret distribution and dependencies
+## Shutdown and evidence
 
-Store `.env` outside Git; the script uses it locally and writes no file. Do not use `kubectl -o yaml` to dump Secrets to logs. The namespaced `apply` operation requires operator privileges locally but no Pod receives those privileges.
-
-```bash
-python scripts/platform/render_local_secrets.py --env .env | kubectl apply -f -
-helm lint infra/helm/opsproof-dependencies
-helm upgrade --install demo-deps infra/helm/opsproof-dependencies -n opsproof-demo --wait --timeout 5m
-helm upgrade --install control-deps infra/helm/opsproof-dependencies -n opsproof-control --wait --timeout 5m
-kubectl rollout status statefulset/demo-deps-postgres -n opsproof-demo --timeout=5m
-kubectl rollout status statefulset/control-deps-postgres -n opsproof-control --timeout=5m
-kubectl rollout status statefulset/demo-deps-redis -n opsproof-demo --timeout=5m
-kubectl rollout status statefulset/control-deps-redis -n opsproof-control --timeout=5m
-```
-
-## Stage 2 | Application deployments
-
-The migrations are Helm pre-install/pre-upgrade Job hooks. Dependencies must already be healthy. Apps are released only after successful migrations.
-
-```bash
-helm lint infra/helm/opsproof-services -f infra/helm/opsproof-services/values-demo.yaml --set-string image.tag="$M5_TAG"
-helm lint infra/helm/opsproof-services -f infra/helm/opsproof-services/values-control.yaml --set-string image.tag="$M5_TAG"
-helm template demo infra/helm/opsproof-services -n opsproof-demo -f infra/helm/opsproof-services/values-demo.yaml --set-string image.tag="$M5_TAG" > /dev/null
-helm template control infra/helm/opsproof-services -n opsproof-control -f infra/helm/opsproof-services/values-control.yaml --set-string image.tag="$M5_TAG" > /dev/null
-helm upgrade --install demo infra/helm/opsproof-services -n opsproof-demo -f infra/helm/opsproof-services/values-demo.yaml --set-string image.tag="$M5_TAG" --wait --timeout 6m
-helm upgrade --install control infra/helm/opsproof-services -n opsproof-control -f infra/helm/opsproof-services/values-control.yaml --set-string image.tag="$M5_TAG" --wait --timeout 6m
-kubectl get pods -n opsproof-demo -o wide
-kubectl get pods -n opsproof-control -o wide
-kubectl get pvc -n opsproof-demo
-kubectl get pvc -n opsproof-control
-```
-
-## Smoke and evidence
-
-In separate Git Bash terminals:
-
-```bash
-kubectl port-forward -n opsproof-demo svc/demo-api 18088:8080 --address 127.0.0.1
-kubectl port-forward -n opsproof-control svc/control-api 18090:8080 --address 127.0.0.1
-```
-
-Then (from a third terminal):
-
-```bash
-curl -fsS http://127.0.0.1:18088/health/ready
-curl -fsS http://127.0.0.1:18090/health/ready
-python scripts/platform/verify_k3d.py --env .env
-kubectl logs -n opsproof-demo deploy/demo-worker --tail=50
-kubectl logs -n opsproof-control deploy/control-evidence --tail=50
-```
-
-The M5 smoke intentionally uses dedicated ports 18088/18090, avoiding accidentally hitting Compose on 8088/8090. The resulting `.runtime/m5/k3d-smoke.json` records actual run IDs, without secrets. This does not by itself qualify as the complete M4 recovery drill.
-
-## Important known gates before later stages
-
-- Postgres/Redis image UID, writable mount ownership and restricted Pod Security Admission must be proved on the actual k3s node. Unverified storage behavior is a blocker, not something to bypass by running a privileged Pod.
-- NetworkPolicies are not installed until the necessary cross-namespace communication and CNI enforcement are audited. They remain an M5 security acceptance requirement, not a waived control.
-- The Stage 3 Nginx frontend and Gateway manifest are prepared; they must be verified separately before they replace a host Vite development session.
-- Prometheus, Alertmanager, Collector, Loki, Tempo and Grafana must be connected and verified before declaring M4 recovery or M5 canary analysis fully functional inside Kubernetes.
-- Once full telemetry is live, test action-worker access to both the target and Prometheus; fail closed on unavailable scrape evidence.
-- No new recovery credential is mounted in any ordinary Pod.
-- No Kubernetes API permissions for action-worker until its separate narrowly scoped recovery design and operator approval tests are complete.
-- Nothing has been pushed or provisioned in AWS.
-
-## Cleanup (requires checking current state)
-
-Record PVC and database backups before deleting anything. `helm uninstall` alone does not imply data deletion. `k3d cluster delete opsproof` destroys local cluster and potentially its storage. Never execute the delete sequence automatically or before explicit user approval.
+Keep the cluster stopped when no live check needs it. Preserve PVCs, job history,
+private credentials and unique evidence. Never automatically delete `opsproof`,
+its volumes, or use `git clean -fdx`. Current private platform records are under
+`.runtime/platform`; archived milestone locators resolve through `scripts.paths`.
+AWS deployment has separate [owner gates](../cloud/owner-deployment-session.md).

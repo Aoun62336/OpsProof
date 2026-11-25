@@ -4,14 +4,14 @@ import json
 import shutil
 import subprocess
 
-from local_cluster import kubectl_prefix
-from preflight import ROOT
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
 
 
 def main():
     kube = kubectl_prefix()
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    context = ROOT / ".runtime/m5/git-server" / sha
+    context = ROOT / ".runtime/platform/git-server" / sha
     context.mkdir(parents=True, exist_ok=True)
     repo = context / "repo.git"
     if not repo.exists():

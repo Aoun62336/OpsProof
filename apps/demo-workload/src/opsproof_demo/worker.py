@@ -13,12 +13,18 @@ from .config import settings
 from .db import pool
 from .downstream import probe
 from .shutdown import checkpoint, stopping
+from .telemetry import message_span
 from .worker_control import HOLD_KEY
 
 logger = logging.getLogger(__name__)
 
 
-def process_entry(
+def process_entry(redis_client: Redis, message_id: str, data: dict[str, str]) -> None:
+    with message_span("jobs process", data, job_id=data.get("job_id", "")):
+        _process_entry(redis_client, message_id, data)
+
+
+def _process_entry(
     redis_client: Redis,
     message_id: str,
     data: dict[str, str],

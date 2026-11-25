@@ -16,6 +16,9 @@ spec:
           stabilizationWindowSeconds: 120
   triggers:
     - type: redis-streams
+      {{- if .Values.redisTls.enabled }}
+      authenticationRef: {name: opsproof-redis-trigger-auth}
+      {{- end }}
       metadata:
         address: demo-deps-redis.opsproof-demo.svc.cluster.local:6379
         stream: "opsproof:jobs"
@@ -23,6 +26,9 @@ spec:
         lagCount: {{ .Values.autoscaling.keda.lagCount | quote }}
         activationLagCount: "0"
     - type: redis-streams
+      {{- if .Values.redisTls.enabled }}
+      authenticationRef: {name: opsproof-redis-trigger-auth}
+      {{- end }}
       metadata:
         address: demo-deps-redis.opsproof-demo.svc.cluster.local:6379
         stream: "opsproof:jobs"
@@ -54,4 +60,16 @@ spec:
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 120
+{{- end }}
+
+{{- if and (eq .Values.component "demo") .Values.autoscaling.keda.enabled .Values.redisTls.enabled }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata: {name: opsproof-redis-trigger-auth}
+spec:
+  secretTargetRef:
+    - {parameter: password, name: opsproof-redis-auth, key: password}
+    - {parameter: tls, name: opsproof-redis-auth, key: tls}
+    - {parameter: ca, name: opsproof-redis-auth, key: ca}
 {{- end }}

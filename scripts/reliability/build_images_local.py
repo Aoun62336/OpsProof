@@ -14,7 +14,7 @@ from uuid import uuid4
 from scripts.platform.preflight import GIB, ROOT, memory_available
 from scripts.reliability.local_environment import source_identity, utc, write_json
 
-APPS = {"demo": "demo-workload", "control": "control-plane", "web": "web"}
+APPS = {"demo": "demo-workload", "control": "control-plane", "web": "web", "edge": "edge-proof"}
 
 
 def context_hash(directory):
@@ -53,14 +53,15 @@ def context_hash(directory):
 def main():
     if memory_available() < 2 * GIB:
         raise RuntimeError("Local image build requires 2 GiB free host RAM")
-    output = ROOT / ".runtime/m6/builds" / ("build-" + uuid4().hex)
+    output = ROOT / ".runtime/reliability/builds" / ("build-" + uuid4().hex)
     output.mkdir(parents=True, exist_ok=False)
     source = source_identity()
     write_json(output / "source.json", source)
     records = {}
     started = time.monotonic()
-    for component, folder in APPS.items():
-        directory = ROOT / "apps" / folder
+    contexts = {component: ROOT / "apps" / folder for component, folder in APPS.items()}
+    contexts["grafana"] = ROOT / "observability/grafana"
+    for component, directory in contexts.items():
         identity = context_hash(directory)
         tag = "opsproof-" + component + ":src-" + identity[:16]
         command = [
@@ -136,7 +137,7 @@ def main():
         "limitation": "Build timing includes local cache state; no optimization gain inferred",
     }
     write_json(output / "result.json", report)
-    pointer = ROOT / ".runtime/m6/acceptance/image-provenance.json"
+    pointer = ROOT / ".runtime/reliability/acceptance/image-provenance.json"
     pointer.parent.mkdir(parents=True, exist_ok=True)
     pointer.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return 0

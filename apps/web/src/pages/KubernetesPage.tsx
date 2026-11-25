@@ -109,11 +109,13 @@ function WorkloadCard({
   view,
   now,
   unavailable,
+  cloud = false,
 }: {
   observation: KubernetesObservation;
   view: View;
   now: number;
   unavailable: boolean;
+  cloud?: boolean;
 }) {
   const resource = observation.resource;
   const container = resource.spec.template.spec.containers[0];
@@ -386,7 +388,8 @@ function WorkloadCard({
       </section>
       {view === "Capacity" && (
         <p className="kube-caption">
-          Local sandbox · Cloud billing is not configured.
+          {cloud ? "Temporary EKS - Measured consumption and cloud cost estimates are unavailable here."
+            : "Local sandbox \u00b7 Cloud billing is not configured."}
         </p>
       )}
     </article>
@@ -410,11 +413,13 @@ function RecoveryCard({
   now,
   busy,
   approve,
+  canApprove,
 }: {
   recovery: KubernetesRecovery;
   now: number;
   busy: boolean;
   approve: () => void;
+  canApprove: boolean;
 }) {
   const expires = Date.parse(recovery.expires_at);
   const approvalValid = Number.isFinite(expires) && expires > now;
@@ -455,7 +460,7 @@ function RecoveryCard({
             {recovery.error}
           </p>
         )}
-        {recovery.status === "pending_approval" && (
+        {recovery.status === "pending_approval" && canApprove && (
           <div className="kube-approval">
             <p>
               {approvalValid
@@ -521,6 +526,8 @@ export function KubernetesPage({ view }: { view: View }) {
     enabled: workload.data?.enabled === true && view === "Runbooks",
     refetchInterval: 5000,
   });
+  const recoveryEnabled = workload.data?.recovery_enabled ?? workload.data?.enabled ?? false;
+  const cloud = workload.data?.environment === "temporary-eks";
   const [incident, setIncident] = useState("");
   const [run, setRun] = useState("");
   const [busy, setBusy] = useState(false);
@@ -530,7 +537,7 @@ export function KubernetesPage({ view }: { view: View }) {
   } | null>(null);
 
   async function act(operation: () => Promise<unknown>) {
-    if (busy) return;
+    if (busy || !recoveryEnabled) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -554,11 +561,13 @@ export function KubernetesPage({ view }: { view: View }) {
     <section className="page kube-page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">LOCAL KUBERNETES</p>
+          <p className="eyebrow">{!workload.data ? "KUBERNETES" : cloud ? "TEMPORARY EKS" : "LOCAL KUBERNETES"}</p>
           <h1>{view}</h1>
           <p className="page-description">
             {view === "Runbooks"
-              ? "Review a bounded recovery, approve it explicitly and inspect its verified outcome."
+              ? recoveryEnabled
+                ? "Review a bounded recovery, approve it explicitly and inspect its verified outcome."
+                : "Inspect recovery history. Operational actions are disabled in this environment."
               : "Independent observations of the demo worker. Updated every five seconds."}
           </p>
         </div>
@@ -575,7 +584,7 @@ export function KubernetesPage({ view }: { view: View }) {
       )}
       {workload.data && !workload.data.enabled && (
         <div className="panel state-message" role="status">
-          Kubernetes recovery and observation are disabled in this environment.
+          Kubernetes observation is disabled in this environment.
         </div>
       )}
       {workload.data?.enabled && workload.data.observations.length === 0 && (
@@ -592,10 +601,12 @@ export function KubernetesPage({ view }: { view: View }) {
             view={view}
             now={now}
             unavailable={workload.isError}
+            cloud={cloud}
           />
         ))}
       {view === "Runbooks" && workload.data?.enabled && (
         <>
+          {recoveryEnabled ? (
           <section className="kube-runbook-grid" aria-label="Recovery proposal">
             <article className="panel kube-runbook">
               <div className="kube-runbook__heading">
@@ -668,6 +679,13 @@ export function KubernetesPage({ view }: { view: View }) {
               </form>
             </article>
           </section>
+          ) : (
+            <article className="panel kube-runbook" role="status">
+              <div className="kube-runbook__heading"><ShieldCheck size={22} aria-hidden="true" /><Status>Read-only</Status></div>
+              <h2>Recovery actions are disabled</h2>
+              <p>Workload observations and recorded outcomes remain available. This environment does not permit the local recovery runbook.</p>
+            </article>
+          )}
           {message && (
             <p
               className={message.error ? "error-panel" : "kube-notice"}
@@ -704,6 +722,7 @@ export function KubernetesPage({ view }: { view: View }) {
                 recovery={recovery}
                 now={now}
                 busy={busy || recoveries.isError}
+                canApprove={recoveryEnabled}
                 approve={() =>
                   void act(() => approveKubernetesRecovery(recovery.id))
                 }

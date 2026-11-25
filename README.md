@@ -8,23 +8,19 @@ explicitly managed workloads, with an authenticated operator console.
 
 ## Current status
 
-The local system has recorded acceptance for six fault scenarios, nine accepted
-capacity trials across fixed replicas, HPA and KEDA, exact-job k6 verification,
-second-workload observations, durable trial records and cleanup. See the
-[local acceptance report](docs/history/m6-acceptance-report-2026-11-14.md) and
-[operational UI and offline evidence report](docs/history/m6-workspace-ui-and-offline-evidence-2026-11-15.md).
-Those are historical results for their recorded source and image identities.
+Local validation recorded six independently verified fault scenarios, nine
+accepted scaling trials across fixed replicas, HPA and KEDA, and exact-job k6
+verification. The [trial report](docs/history/reliability-trials-acceptance.md)
+and [workspace deployment evidence](docs/history/workspace-ui-and-offline-evidence.md)
+describe the tested revisions and results.
 
-The current repository standardization and checks are described in the
-[repository review](docs/engineering/repository-review.md). Cloud preparation
-exists, but M7 implementation and AWS acceptance await owner approval. No AWS
-resources have been provisioned by this review.
-
-AI comparison is optional and disabled. The earlier Groq and Gemini fixture
-comparison failed qualification for both candidates. Metric units, freshness,
-mechanical evidence-path validation and a four-case offline held-out set are
-implemented. Fresh external candidate comparison is deferred and requires
-separate authorization. Model output never authorizes recovery.
+The November 24 verification passed fresh builds, SQL and browser tests,
+Terraform mock tests, and the local image security gates. The NVIDIA advisory
+adapter passed its frozen 42-case development suite. Runtime AI is disabled.
+AWS deployment and teardown remain pending. See
+[engineering verification](docs/engineering/verification.md), the
+[advisory decision](docs/engineering/advisory-evaluation.md), and
+[cloud readiness](docs/cloud/readiness.md).
 
 ## Architecture
 
@@ -35,11 +31,11 @@ separate authorization. Model output never authorizes recovery.
 | `apps/web/` | React and TypeScript operator console, operational cards and read-only trial evidence |
 | `infra/helm/` | Application and dependency deployment profiles |
 | `infra/k8s/` | Namespaces, network boundaries, recovery RBAC and local platform settings |
-| `infra/terraform/` | Existing temporary AWS infrastructure preparation, disabled by default |
+| `infra/terraform/` | Separate state bootstrap, private platform and read-only public edge roots; disabled by default |
 | `observability/` | Prometheus, Grafana, Alertmanager, OpenTelemetry, Loki and Tempo configuration |
 | `scripts/platform/` | Local bootstrap, GitOps, gateway, deployment and platform verification |
 | `scripts/reliability/` | Bounded trials, evidence, source/image/database verification and capacity/cost analysis |
-| `scripts/cloud/` | Existing cost guard, read-only inventory and sanitized static replay helpers |
+| `scripts/cloud/` | Cloud preparation, release, credential/bootstrap, inventory, validation and sanitized replay tools |
 | `benchmarks/` | Versioned AI fixtures and bounded k6 load definitions |
 
 The demo and control services have separate databases and queues. The API does
@@ -98,13 +94,12 @@ are shown explicitly.
 
 ## Cloud and evidence
 
-Cloud runbooks under `docs/cloud/` describe existing preparation. They do not
-represent a verified AWS release. M7 requires a separate reviewed implementation
-and an owner-run Terraform apply after local validation and cost approval.
+Cloud [implementation and runtime guides](docs/cloud/readiness.md) distinguish
+local validation from AWS acceptance. The owner applies reviewed saved Terraform
+plans only after pre-cloud checks and fresh account/cost approval. Publication and
+model requests stay behind their separate approval gates.
 
-Historical acceptance, security findings, failed attempts and integration notes
-are retained in [docs/history](docs/history/README.md). Old evidence is never
-presented as a newly executed test. Ignored `.runtime` directories retain raw
-receipts, source/image manifests and cluster identity. Compatibility names in
-persisted SQL, environment variables, Helm values and API routes are documented
-rather than renamed destructively.
+The [local evidence index](docs/history/README.md) links the retained acceptance
+reports and measured results. Raw receipts, original reviews and interim checkpoints
+live in ignored runtime storage or the private archive. See the
+[retention guide](docs/engineering/repository-structure.md#generated-files-and-retention).

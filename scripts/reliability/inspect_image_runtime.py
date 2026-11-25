@@ -24,8 +24,10 @@ print(json.dumps({"python": sys.version, "executable": sys.executable,
 
 
 def main():
-    images = json.loads((ROOT / ".runtime/m6/acceptance/image-provenance.json").read_text())
-    output = ROOT / ".runtime/m6/acceptance/images" / ("inventory-" + uuid4().hex)
+    images = json.loads(
+        (ROOT / ".runtime/reliability/acceptance/image-provenance.json").read_text()
+    )
+    output = ROOT / ".runtime/reliability/acceptance/images" / ("inventory-" + uuid4().hex)
     output.mkdir(parents=True, exist_ok=False)
     for component in ("demo", "control"):
         image = images[component]

@@ -1,78 +1,47 @@
-# Local M6 execution profile
+# Controlled local reliability trials
 
-This profile is declared before any M6 fault or benchmark is dispatched. It
-preserves the M5 application, data, security policies, controllers and telemetry.
-No production or cloud environment is in scope. External model calls are disabled
-by the owner's explicit decision on 14 November 2026.
+This is the current local execution contract, not a statement that a cluster is
+running. Accepted six-scenario and nine-capacity-trial outcomes are historical;
+see [the trial results and measured profiles](../history/reliability-trials-acceptance.md).
 
-## Resources and staged UI checks
+## Preconditions
 
-- Comprehensive environment startup retains M5's 5 GiB available host RAM,
-  5 GiB Docker capacity and 15 GiB free workspace disk requirements.
-- Bounded active-cluster trials require 2 GiB available host RAM before starting.
-  The emergency stop remains 1 GiB. These are separate startup/steady-state
-  profiles; the M5 bootstrap guard and existing k6 guard are unchanged.
-- Earlier startup attempts had insufficient active-trial headroom. The accepted
-  runs subsequently passed the recorded resource checks. The resumed session
-  measures the running node through Kubernetes when Docker pipe access is denied.
-  The verified node exposes six CPUs and approximately 9.7 GiB memory.
-- The optional measurement profile temporarily scales only Grafana and the
-  Argo CD UI server to zero. It preserves exact Deployment UID, Pod template,
-  original replica count, images, resource limits, credentials and PVCs.
-- Prometheus, Alertmanager, Loki, Tempo, OTLP collection, Argo CD reconciliation
-  and repository server, Rollouts, KEDA, demo/control services and the OpsProof
-  web interface remain running. The two paused UIs are verified in a separate
-  stage and restored with readiness verification after measurements. The final
-  local cluster is running with both UIs restored.
-- All comparable capacity runs must use this same declared profile. Results
-  cannot be mixed with historical M5 runs or called full-profile measurements.
-- If this profile cannot satisfy the unchanged trial/abort floors, runtime work
-  remains BLOCKED. No reduced-memory limits or missing telemetry substitute.
+Inspect the existing local cluster, workload/image identities, absence of another
+active trial and the original configuration. Use an isolated loopback kubeconfig.
+Startup requires 5 GiB available host RAM and 15 GiB free workspace disk plus the
+existing Docker/node checks. Active trials require 2 GiB free host RAM; stop below
+1 GiB. Do not lower these gates. Never infer available capacity from reservations.
 
-## Bounded scenarios
+Declare the execution profile before comparing runs. The optional UI pause profile
+temporarily pauses only Grafana and Argo CD UI servers, then restores and checks
+them. Do not mix that profile with full-profile results. Other controllers,
+collectors, data services and the operator UI remain required.
 
-| Scenario | Mechanism and limit | Required outcome |
-|---|---|---|
-| Worker saturation | 60 ordinary 2,000-ms jobs; fixed healthy worker | Observed backlog; exact jobs and queue drain |
-| Faulty release | Existing reviewed bad candidate through Argo-owned parameters; bounded traffic | Actual errors, failed AnalysisRun, controller abort and stable service |
-| Database connectivity | Exclude only demo PostgreSQL from its existing additive allow policy; observe for <=10 s | Authenticated fresh database connections fail, control stays healthy, exact policy restoration and fresh-connection recovery. Existing pooled connections may remain usable. |
-| Worker failure | One observed worker Pod, UID/resourceVersion-preconditioned zero-grace termination | Real in-flight interruption, replacement, lease reclaim and durable duplicate fencing |
-| Downstream latency | GitOps opt-in fixed internal HTTP dependency; 1,000-ms delay, 400-ms client timeout | Timeout log, actual correlated client/server trace and normal completion after restoration |
-| Misleading evidence | Interrupt only the owned observer connection; controlled stale/contradictory variants labeled separately | Abstention, no workload mutation and restored fresh telemetry |
+## Fault scope and outcomes
 
-Dispatch intent is committed before any adapter runs. Unknown acknowledgment,
-abort or cleanup retains the reservation and indeterminate outcome. A separate
-read-only process must collect fresh postconditions before release. Each complete
-execution has a 600-second ledger deadline; cleanup remains required afterward.
+The six scenarios are worker saturation, faulty release, demo database connectivity,
+worker failure, downstream latency and misleading evidence. See
+[the exact catalog](scenario-catalog.md). Only supported owned local targets and
+explicitly bounded mechanisms are permitted. No cloud or production target is in
+scope. The Pod-deletion worker test may fail its crash hypothesis because a short
+job finishes during shutdown. The recorded hard-crash pass used a separately
+approved exact-container signal; it does not authorize routine host-level killing.
 
-## Capacity and qualification
+Persist dispatch intent before injection. Independent verification must establish
+both the hypothesis and cleanup for the same dispatch/target. Unknown effects stay
+indeterminate. Cleanup reconciliation appends evidence rather than rewriting a
+failed trial as passed. Keep every attempt, exact job IDs, raw measurements and
+manual intervention details. A ledger execution deadline does not cancel cleanup.
 
-The M6 Python capacity-v3-local protocol retains 60 jobs of 2,000 ms, 120 seconds of
-80-request/second background traffic, bounded warmup and nearest-rank p95.
-It uses a bounded local generator over an owned port-forward, emits immediate
-intents/receipts and keeps every attempt in a unique directory. It does not grant
-the actuator permission to create arbitrary Pods. Five consecutive readiness
-requests form the warmup; raw failures and all measurements remain recorded.
-At least three independently passing trials per fixed/API-HPA/worker-KEDA mode
-are required. HPA explicitly targets an existing Rollout's scale subresource
-when that profile is opted in; no duplicate API Deployment or ownership cutover
-is introduced. The separate k6 protocol retains its own limits and evidence.
+## Capacity and model boundaries
 
-Synthetic deterministic qualification is distinct from held-out real incidents.
-No held-out labels, model accuracy, optimization gain or savings are invented.
-The owner subsequently authorized the bounded free-tier Groq/Gemini evaluation.
-Both models failed the frozen qualification fixture and remain disabled. The
-retained AWS cost model records its prospective assumptions. AWS provisioning
-belongs to M7 in the original acceptance scope.
+Capacity comparisons require at least three independently accepted equivalent
+trials per fixed/API-HPA/worker-KEDA mode. Preserve actual served rates, workload
+limits, scaling ownership and cleanup. k6 has its separate exact-job protocol;
+do not combine incompatible measurements. Commands are in
+[reliability verification](reliability-verification.md).
 
-## Recorded completion on 15 November 2026
-
-All six scenarios have passing independent verification. The worker-crash pass
-used the owner's separately approved exact-container SIGKILL in the local k3d
-node. Ordinary Pod deletion can allow the short job to finish during shutdown,
-which is recorded as a failed hypothesis when restoration is verified.
-
-The accepted capacity comparison has three passing runs per mode. Actual served
-background rates are retained alongside the nominal 80-request/second target.
-The report and matrix identify retained failed attempts, completed provider
-evaluation, failed model qualification and independent AI-agent reviews.
+The NVIDIA adapter passed its recorded 42-case development qualification, while
+earlier provider failures remain retained. This neither grants model-call consent
+nor activates runtime AI. See [the current decision](../engineering/advisory-evaluation.md).
+Stop the cluster when the approved live session finishes; preserve PVCs and proof.

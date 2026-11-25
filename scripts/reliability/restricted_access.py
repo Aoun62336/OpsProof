@@ -202,9 +202,9 @@ class RestrictedAccess:
         self.cleanup_only = cleanup_only
         self.original_state = original_state or {}
         self.identity = uuid4().hex[:16]
-        self.admin = local_prefix(ROOT / ".runtime/m5/kubeconfig.yaml")
+        self.admin = local_prefix(ROOT / ".runtime/platform/kubeconfig.yaml")
         self.owned = []
-        self.private = ROOT / ".runtime/m6/private" / self.identity
+        self.private = ROOT / ".runtime/reliability/private" / self.identity
         self.private.mkdir(parents=True, exist_ok=False, mode=0o700)
         self.database_role = "m6_read_" + self.identity
         self.redis_users = []

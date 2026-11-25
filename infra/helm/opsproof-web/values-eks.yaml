@@ -1,0 +1,4 @@
+# EKS representative smoke, accessed only through local kubectl port-forward.
+# No Gateway API CRDs, ingress or internet-facing load balancer required.
+gatewayRoute:
+  enabled: false

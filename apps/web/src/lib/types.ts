@@ -117,7 +117,13 @@ export interface Recovery {
   error: string | null;
 }
 
+export type ExecutionEnvironment = "local" | "temporary-eks";
+
 export interface OperationalCapabilities {
+  environment?: ExecutionEnvironment;
+  environment_label?: string;
+  kubernetes_observation_enabled?: boolean;
+  kubernetes_recovery_enabled?: boolean;
   recovery_enabled: boolean;
   ai_enabled: boolean;
   ai_provider: string;

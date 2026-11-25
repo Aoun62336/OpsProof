@@ -1,7 +1,7 @@
 """Optional genuine PostgreSQL trial-store test.
 
 Explicitly requires OPSPROOF_M6_TEST_DATABASE_URL, a disposable local test DB
-that has already been migrated through revision 0007. Never uses M5 credentials.
+that has already been migrated through revision 0008. Never uses M5 credentials.
 """
 
 import os
@@ -37,7 +37,7 @@ def test_real_pg_idempotency_target_conflict_and_terminal_audit():
     key = f"m6-db-test-{uuid4().hex}"
     with psycopg.connect(dsn, row_factory=dict_row) as conn:
         version = conn.execute("SELECT version_num FROM alembic_version").fetchone()
-        assert version["version_num"] == "0007", "Run Alembic revision 0007 first"
+        assert version["version_num"] == "0008", "Run Alembic revision 0008 first"
         trial, is_new = create_trial(
             conn,
             request_key=key,

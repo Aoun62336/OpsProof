@@ -4,9 +4,9 @@ import json
 import subprocess
 from urllib.parse import urlparse
 
-from preflight import ROOT
+from scripts.platform.preflight import ROOT
 
-KUBECONFIG = ROOT / ".runtime/m5/kubeconfig.yaml"
+KUBECONFIG = ROOT / ".runtime/platform/kubeconfig.yaml"
 
 
 def validate_server(server):

@@ -8,14 +8,15 @@ from pathlib import Path
 from uuid import uuid4
 
 import yaml
-from local_cluster import kubectl_prefix
-from preflight import ROOT, memory_available
+
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT, memory_available
 
 
 def main():
     kube = kubectl_prefix()
     name = "opsproof-cleanup-" + uuid4().hex[:8]
-    output = ROOT / ".runtime/m5/acceptance/bootstrap-cleanup.json"
+    output = ROOT / ".runtime/platform/acceptance/bootstrap-cleanup.json"
     default_config = Path.home() / ".kube/config"
     default_hash = (
         hashlib.sha256(default_config.read_bytes()).hexdigest() if default_config.exists() else None
@@ -41,7 +42,7 @@ def main():
     config["metadata"]["name"] = name
     config["kubeAPI"]["hostPort"] = "6552"
     config.pop("ports", None)
-    path = ROOT / ".runtime/m5/cleanup-cluster.yaml"
+    path = ROOT / ".runtime/platform/cleanup-cluster.yaml"
     path.write_text(yaml.safe_dump(config))
     created = False
     stopped = False
@@ -76,7 +77,7 @@ def main():
         print("Resource gate passed; creating disposable empty cluster", flush=True)
         created = True  # also clean a partial create, but only this generated name
         record["create_output"] = run(["k3d", "cluster", "create", "--config", str(path)])
-        cfg = ROOT / ".runtime/m5/cleanup-kubeconfig.yaml"
+        cfg = ROOT / ".runtime/platform/cleanup-kubeconfig.yaml"
         cfg.write_text(run(["k3d", "kubeconfig", "get", name]))
         test_kube = ["kubectl", "--kubeconfig", str(cfg), "--context", "k3d-" + name]
         run(

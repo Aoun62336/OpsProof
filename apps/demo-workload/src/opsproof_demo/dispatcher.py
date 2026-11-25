@@ -2,11 +2,13 @@
 
 import logging
 
+from opentelemetry import trace
 from redis import Redis
 
 from .config import settings
 from .db import pool
 from .shutdown import stopping
+from .telemetry import bounded_context, capture_context, message_span
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,7 @@ def run() -> None:
                 with pool().connection() as conn:
                     row = conn.execute(
                         """
-                        SELECT id, job_id
+                        SELECT id, job_id, trace_context
                         FROM outbox
                         WHERE published_at IS NULL
                         ORDER BY id
@@ -36,19 +38,25 @@ def run() -> None:
                     ).fetchone()
 
                     if row:
-                        redis_client.xadd(
-                            config.stream_name,
-                            {"job_id": str(row["job_id"])},
-                        )
+                        with message_span(
+                            "outbox publish",
+                            bounded_context(row.get("trace_context")),
+                            kind=trace.SpanKind.PRODUCER,
+                            job_id=row["job_id"],
+                        ):
+                            redis_client.xadd(
+                                config.stream_name,
+                                {"job_id": str(row["job_id"]), **capture_context()},
+                            )
 
-                        conn.execute(
-                            """
-                            UPDATE outbox
-                            SET published_at = now()
-                            WHERE id = %s
-                            """,
-                            (row["id"],),
-                        )
+                            conn.execute(
+                                """
+                                UPDATE outbox
+                                SET published_at = now()
+                                WHERE id = %s
+                                """,
+                                (row["id"],),
+                            )
 
                 if row is None:
                     stopping.wait(0.4)

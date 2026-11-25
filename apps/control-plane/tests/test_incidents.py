@@ -21,7 +21,7 @@ def sample_alert() -> incidents.IncomingAlert:
         annotations={
             "summary": "Demo API unavailable",
         },
-        startsAt=datetime.now(UTC),
+        startsAt=datetime(2026, 11, 24, tzinfo=UTC),
     )
 
 
@@ -92,7 +92,11 @@ def test_duplicate_firing_alert_does_not_duplicate_event(monkeypatch) -> None:
 
     mock_conn = MagicMock()
     # Incident already exists with status "firing"
-    mock_conn.execute.return_value.fetchone.return_value = {"status": "firing"}
+    mock_conn.execute.return_value.fetchone.return_value = {
+        "status": "firing",
+        "started_at": sample_alert().startsAt,
+        "resolved_at": None,
+    }
 
     cm = MagicMock()
     cm.__enter__ = MagicMock(return_value=mock_conn)
@@ -125,7 +129,11 @@ def test_resolution_alert_records_event(monkeypatch) -> None:
 
     mock_conn = MagicMock()
     # Incident currently exists with status "firing"
-    mock_conn.execute.return_value.fetchone.return_value = {"status": "firing"}
+    mock_conn.execute.return_value.fetchone.return_value = {
+        "status": "firing",
+        "started_at": sample_alert().startsAt,
+        "resolved_at": None,
+    }
 
     cm = MagicMock()
     cm.__enter__ = MagicMock(return_value=mock_conn)
@@ -150,3 +158,13 @@ def test_resolution_alert_records_event(monkeypatch) -> None:
     # Both UPDATE incidents and INSERT INTO incident_events were called
     assert any("UPDATE incidents" in c for c in calls)
     assert any("INSERT INTO incident_events" in c for c in calls)
+
+
+def test_alert_timestamps_require_timezone_information():
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        incidents.IncomingAlert(
+            status="firing", fingerprint="a" * 16, startsAt=datetime(2026, 11, 24)
+        )

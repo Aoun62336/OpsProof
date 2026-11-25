@@ -1,0 +1,35 @@
+# Appended only to the Kubernetes profile. Direct kubelet HTTPS; no nodes/proxy.
+  - job_name: kubelet
+    scheme: https
+    authorization:
+      credentials_file: /run/opsproof-monitoring/token
+    tls_config:
+      ca_file: /run/opsproof-monitoring/ca.crt
+    kubernetes_sd_configs:
+      - role: node
+        api_server: https://kubernetes.default.svc:443
+        authorization:
+          credentials_file: /run/opsproof-monitoring/token
+        tls_config:
+          ca_file: /run/opsproof-monitoring/ca.crt
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+
+  - job_name: cadvisor
+    scheme: https
+    metrics_path: /metrics/cadvisor
+    authorization:
+      credentials_file: /run/opsproof-monitoring/token
+    tls_config:
+      ca_file: /run/opsproof-monitoring/ca.crt
+    kubernetes_sd_configs:
+      - role: node
+        api_server: https://kubernetes.default.svc:443
+        authorization:
+          credentials_file: /run/opsproof-monitoring/token
+        tls_config:
+          ca_file: /run/opsproof-monitoring/ca.crt
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node

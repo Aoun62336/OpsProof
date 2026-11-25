@@ -198,7 +198,9 @@ def main():
     parser.add_argument("--reconciliation-directory", type=Path)
     args = parser.parse_args()
     directory = args.run_directory.resolve(strict=True)
-    if args.run_directory.is_symlink() or not directory.is_relative_to(ROOT / ".runtime/m6/trials"):
+    if args.run_directory.is_symlink() or not directory.is_relative_to(
+        ROOT / ".runtime/reliability/trials"
+    ):
         parser.error("Only canonical M6 trial evidence directories are accepted")
     work = directory
     if args.reconciliation_directory:

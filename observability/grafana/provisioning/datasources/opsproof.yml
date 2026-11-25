@@ -13,9 +13,23 @@ datasources:
     type: loki
     access: proxy
     url: http://loki:3100
+    jsonData:
+      derivedFields:
+        - name: TraceID
+          matcherType: label
+          matcherRegex: trace_id
+          datasourceUid: opsproof-tempo
+          url: '$${__value.raw}'
 
   - name: OpsProof Tempo
     uid: opsproof-tempo
     type: tempo
     access: proxy
     url: http://tempo:3200
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: opsproof-loki
+        spanStartTimeShift: '-5s'
+        spanEndTimeShift: '5s'
+        filterByTraceID: true
+        filterBySpanID: false

@@ -1,71 +1,89 @@
-> Status: existing cloud preparation. M7 implementation, publishing and Terraform apply require separate owner approval. These procedures are not evidence of cloud acceptance.
+# Terraform preparation and owner-run deployment
 
-# OpsProof M7 | Temporary AWS Terraform operations
+The maintained roots are `infra/terraform/state-bootstrap`, `platform`, and
+`public-edge`. The old undeployed single-public-node preparation was replaced;
+its source remains in Git history at `5dddbf6`. Do not use its old commands.
+All roots default paid resources off and pin AWS provider 6.73.0. Locks contain
+HashiCorp-signed Windows/Linux checksums. Tests use `mock_provider`, not AWS.
 
-**Critical:** Not approved to provision. This repository includes a reviewable Terraform source plan, not a deployed system. Verify AWS provider/module compatibility and generated plans on the actual local toolchain before authorization.
+## Offline gates
 
-## Directory contract
+From the repository root, validate all three roots without initializing a backend:
 
-- `infra/terraform/versions.tf`: Terraform >=1.17, AWS provider 6.x and a partial S3 backend.
-- `providers.tf`: approved Region and cost/reconciliation tags.
-- `main.tf`: account-cost guard, module coordination, optional read-only GitHub role.
-- `modules/networking`: two public subnets, VPC/IGW/routes, no NAT/LB.
-- `modules/iam`: separate worker and EBS CSI Pod Identity roles.
-- `modules/eks`: EKS, access entry for approved operator, single EC2 worker, core add-ons, EBS CSI.
-- `values-eks.yaml` and `gp3-storageclass.yaml`: separate EKS storage policy. Keep existing k3d local-path behavior unchanged.
-
-## Threat model and limitations
-
-This is a low-cost temporary verification **not** production HA. One EC2 worker is a single point of failure. Node public IP and outbound internet connectivity are deliberately used to avoid NAT charges, but must not be treated as a secure private-node production topology. No inbound internet-facing application LB is provisioned. Access the Kubernetes API from the **explicit approved /32**; use tightly scoped port forwarding for local smoke tests. EKS, the node, logs, public IPv4 and PVCs all incur charges.
-
-The dedicated EKS operator role has cluster-scoped `AmazonEKSClusterAdminPolicy` for bootstrap only and must be separately scoped in IAM to the approved account and operator. The optional GitHub OIDC role permits only `eks:DescribeCluster`, not Terraform apply or Kubernetes writes.
-
-## Offline source checks (do not require AWS create permissions)
-
-```bash
-terraform -chdir=infra/terraform fmt -check -recursive
-terraform -chdir=infra/terraform init -backend=false
-terraform -chdir=infra/terraform validate
-python -m unittest discover -s scripts/cloud/tests -v
+```sh
+uv run --project apps/control-plane --locked python -m scripts.cloud.validate_infrastructure
 ```
 
-`terraform init -backend=false` downloads providers and may access the internet. It does not create the managed EKS resources. Save the generated `.terraform.lock.hcl` for reviewed provider selection. Do not claim successful Terraform validation until it has been run in your environment; this build container has no Terraform binary or network access.
+This runs native fmt, readonly init, validate and the committed mock tests for
+all three roots. Per-checkout/root data and the shared provider cache stay in the
+external OpsProof local directory. A mock plan is not a deployable cloud plan.
+The earlier raw init commands recreated three provider copies in the checkout.
 
-## S3 state backend (separate approved bootstrap)
+For owner deployment, use separate per-root `TF_DATA_DIR` directories under
+`<OpsProof local directory>/terraform/deployment/` and the shared external
+`TF_PLUGIN_CACHE_DIR` under `cache/terraform`. Select the matching root before
+each init/plan/apply/destroy. Never share one data directory between roots or reuse
+mock-validation backend metadata for the real backend. State and saved plans
+remain in their explicitly reviewed private locations; tool data is not state.
 
-The root declares `backend "s3" {}` and requires a **pre-existing** encrypted, access-controlled and versioned bucket. Review who can create it, exact cost, who can retrieve/modify state and how it will be destroyed or retained. The state contains sensitive infrastructure metadata. The S3 backend's native lock uses `use_lockfile=true`; locking uses the `.tflock` object. Do not use deprecated DynamoDB locking in a new deployment.
+## Private inputs
 
-After approval and separately provisioning the backend, prepare `.runtime/m7/backend.private.hcl` from `infra/terraform/backend.s3.hcl.example` and set the actual bucket, key and Region. Never include AWS keys or tokens in the backend file. The example placeholders must never be used in `terraform init`.
+Use absolute paths to ignored `.runtime/cloud/private/` inputs and saved plans
+when using `-chdir`, avoiding ambiguous relative path interpretation. Never put
+credentials in tfvars/backend files. Providers and S3 backends both restrict the
+approved account. The platform needs actual account/AZs/operator, fresh cost
+approval reference, exact Kubernetes/PostgreSQL versions, all six addon build
+pins, and the reviewed controller IAM policy path. The canonical policy is
+`infra/k8s/cloud/aws-load-balancer-controller-policy.json`; its source/version
+and SHA256 are recorded beside it and match the chart application version.
+The native tests' minimal IAM policy is an offline fixture, never a deployment
+input. Review the official policy's discovery and lifecycle wildcards before
+approving its controller role.
 
-## Actual cloud plan: only after explicit cost approval
+Keep `bootstrap_master_secret_access=false` except the short credential
+bootstrap phase. Initial node creation uses `bootstrap_cni_node_policy=true`;
+remove that temporary node attachment after verifying aws-node Pod Identity.
+These two narrowly scoped follow-up Terraform changes are planned security
+steps in the deployment window, not changes to invent during apply.
 
-Use a **dedicated temporary AWS provisioning role** with reviewed permissions. Use a named AWS profile. Verify STS account ID before any plan/apply.
+## Final owner-operated sequence
 
-```bash
-export AWS_PROFILE=opsproof-m7-provision  # Only when role is approved and configured
-aws sts get-caller-identity --profile "$AWS_PROFILE"
-terraform -chdir=infra/terraform init \
-  -backend-config=../../.runtime/m7/backend.private.hcl
-terraform -chdir=infra/terraform plan \
-  -var-file=../../.runtime/m7/cloud.private.tfvars \
-  -out=../../.runtime/m7/approved.tfplan
-terraform -chdir=infra/terraform show ../../.runtime/m7/approved.tfplan
+1. Complete the pre-cloud checklist, release trust checks and fresh account/cost
+   review. Review both the creation and cleanup procedures. Set a teardown timer.
+2. Review a saved `state-bootstrap` plan, then the owner applies it. This creates
+   only a dedicated encrypted, versioned, public-blocked, TLS-required S3 state
+   bucket. Preserve its local bootstrap state privately; never delete state as
+   a way to bypass an error.
+3. Fill the platform and public-edge `backend.s3.hcl.example` files privately.
+   They use separate state keys, encryption and native S3 `use_lockfile=true`.
+   Use the actual bucket and allowed account, never the placeholders.
+4. Initialize the platform backend, save a real plan, inspect its complete IAM,
+   network and cost diff, and run `scripts.cloud.verify_domainless_plan` on its
+   JSON export. This checker verifies the initial CREATE topology only; it
+   cannot approve IAM, price or authorization. The owner then applies the
+   reviewed saved plan. Capture partial state/resource IDs if apply fails.
+5. Verify two Ready private nodes in different AZs, exact addons, Pod Identity
+   and storage/network behavior. Bootstrap Kubernetes using the companion
+   [runtime procedure](runtime-deployment.md). Revoke temporary master-secret
+   and CNI-node access after their independent positive/negative checks.
+6. Obtain the actual healthy internal ALB listener ARN from that procedure.
+   Bind the public-edge plan to the same account, exact private subnets and
+   VPC Link security group. Review and owner-apply that saved plan last.
+7. Run all live [acceptance and cleanup checks](verification-and-teardown.md).
+   No pre-cloud test can establish real EKS/RDS/ALB runtime acceptance.
+
+Owner command pattern after approval (replace the uppercase absolute paths):
+
+```sh
+terraform -chdir=infra/terraform/platform init -input=false -lockfile=readonly -backend-config=ABSOLUTE_PRIVATE_BACKEND_FILE
+terraform -chdir=infra/terraform/platform plan -input=false -var-file=ABSOLUTE_PRIVATE_TFVARS -out=ABSOLUTE_SAVED_PLAN
+terraform -chdir=infra/terraform/platform show -no-color ABSOLUTE_SAVED_PLAN
+terraform -chdir=infra/terraform/platform show -json ABSOLUTE_SAVED_PLAN > ABSOLUTE_PRIVATE_PLAN_JSON
+python -m scripts.cloud.verify_domainless_plan --plan-json ABSOLUTE_PRIVATE_PLAN_JSON
+# Owner only, after inspecting the exact plan:
+terraform -chdir=infra/terraform/platform apply ABSOLUTE_SAVED_PLAN
 ```
 
-The relative backend path is interpreted from `infra/terraform`, not the repository root. Before making changes, **inspect the plan manually**, verify account, VPC, AZs, node size, IAM permissions, EKS version, public endpoint CIDR, price and all potential chargeable resources.
-
-**Only if explicitly authorized again after this review:**
-
-```bash
-terraform -chdir=infra/terraform apply ../../.runtime/m7/approved.tfplan
-```
-
-The availability of this command in the runbook does **not** authorize executing it. Never run it automatically from CI or from an unreviewed agent. If apply partially fails, switch immediately to the emergency cleanup runbook, inventory actual resources and preserve evidence.
-
-## Teardown (mandatory on any deployed environment)
-
-After the approved bounded cloud smoke, review a destroy plan against the correct backend/account and execute only under the approved cleanup procedure. Verify the actual AWS inventory separately, including unattached volumes and exposed IPs. Terraform exit code zero is not independent teardown proof.
-
-Read `M7_CLOUD_VERIFICATION_AND_TEARDOWN.md` before provisioning.
-
-**Sources:** https://developer.hashicorp.com/terraform/language/backend/s3 ; https://docs.aws.amazon.com/eks/latest/userguide/access-entries.html
+There is no Terraform apply in CI. Do not use `-auto-approve`, broad imports,
+force-unlocks or state removal to obtain a green result. Review state ownership
+and actual account resources after any partial failure.

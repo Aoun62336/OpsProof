@@ -4,8 +4,8 @@ import json
 import subprocess
 import time
 
-from local_cluster import kubectl_prefix
-from preflight import ROOT
+from scripts.platform.local_cluster import kubectl_prefix
+from scripts.platform.preflight import ROOT
 
 
 def configure(name, values, revision=None, extra_spec=None, wait=True):
@@ -33,7 +33,7 @@ def configure(name, values, revision=None, extra_spec=None, wait=True):
     source = {"helm": {"parameters": params}}
     if revision:
         source["targetRevision"] = revision
-    patch = ROOT / f".runtime/m5/{name}-configuration-patch.json"
+    patch = ROOT / f".runtime/platform/{name}-configuration-patch.json"
     patch.write_text(json.dumps({"spec": {"source": source, **(extra_spec or {})}}))
     subprocess.run(
         [

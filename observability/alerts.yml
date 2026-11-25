@@ -1,42 +1,176 @@
 groups:
-  - name: opsproof-local
-    rules:
-      - alert: OpsProofDemoCanaryErrors
-        expr: >-
-          sum(rate(opsproof_http_requests_total{job="opsproof-demo-canary",route="/api/v1/stats",status=~"5.."}[1m]))
-          / sum(rate(opsproof_http_requests_total{job="opsproof-demo-canary",route="/api/v1/stats"}[1m])) > 0.01
-        for: 10s
-        labels:
-          severity: warning
-          job: opsproof-demo-canary
-        annotations:
-          summary: Canary requests exceed the measured release error threshold
-      - alert: OpsProofDemoAPIUnavailable
-        expr: up{job="opsproof-demo-api"} == 0
-        for: 30s
-        labels:
-          severity: critical
-        annotations:
-          summary: >-
-            Demo API metrics endpoint has been
-            unavailable for 30 seconds
-
-      - alert: OpsProofDemoDependenciesUnavailable
-        expr: opsproof_demo_dependencies_ready == 0
-        for: 30s
-        labels:
-          severity: critical
-        annotations:
-          summary: >-
-            The demo API cannot verify PostgreSQL
-            or Redis readiness
-
-      - alert: OpsProofDemoQueueBacklog
-        expr: opsproof_demo_jobs{state="queued"} > 0
-        for: 45s
-        labels:
-          severity: warning
-        annotations:
-          summary: >-
-            Demo jobs remain queued beyond the
-            local experiment threshold
+- name: opsproof-services
+  rules:
+  - alert: OpsProofDemoAPIUnavailable
+    expr: (max(up{job="opsproof-demo-api"}) == 0) or absent_over_time(up{job="opsproof-demo-api"}[1m])
+    for: 30s
+    labels:
+      severity: critical
+      job: opsproof-demo-api
+    annotations:
+      summary: Demo API is unavailable
+      description: No healthy scrape target; check Pod readiness, DNS and application startup.
+  - alert: OpsProofDemoDependenciesUnavailable
+    expr: max(opsproof_demo_dependencies_ready{job="opsproof-demo-api"}) == 0
+    for: 30s
+    labels:
+      severity: critical
+      job: opsproof-demo-api
+    annotations:
+      summary: Demo API cannot verify its dependencies
+      description: Inspect PostgreSQL and Redis readiness; unknown state is not an empty queue.
+  - alert: OpsProofDemoStateStale
+    expr: time() - max(opsproof_demo_state_last_success_timestamp_seconds{job="opsproof-demo-api"}) > 30
+    for: 30s
+    labels:
+      severity: warning
+      job: opsproof-demo-api
+    annotations:
+      summary: Demo durable-state observation is stale
+      description: Database-wide counts and ages must not be treated as fresh evidence.
+  - alert: OpsProofDemoQueueBacklog
+    expr: max(opsproof_demo_oldest_active_age_seconds{job="opsproof-demo-api",state="queued"}) > 45
+    for: 15s
+    labels:
+      severity: warning
+      job: opsproof-demo-api
+    annotations:
+      summary: Demo oldest queued item exceeds 45 seconds
+      description: Experimental queue-age objective; inspect processing progress and pending outbox work.
+  - alert: OpsProofDemoProcessingStalled
+    expr: (max(opsproof_demo_oldest_active_age_seconds{job="opsproof-demo-api",state=~"processing"}) > 60) and (time()
+      - max(opsproof_demo_last_completion_timestamp_seconds{job="opsproof-demo-api"}) > 60)
+    for: 30s
+    labels:
+      severity: warning
+      job: opsproof-demo-api
+    annotations:
+      summary: Demo processing has old work without recent completion
+      description: Experimental progress objective; inspect worker logs, leases and downstream failures.
+  - alert: OpsProofControlAPIUnavailable
+    expr: (max(up{job="opsproof-control-api"}) == 0) or absent_over_time(up{job="opsproof-control-api"}[1m])
+    for: 30s
+    labels:
+      severity: critical
+      job: opsproof-control-api
+    annotations:
+      summary: Control API is unavailable
+      description: No healthy scrape target; check Pod readiness, DNS and application startup.
+  - alert: OpsProofControlDependenciesUnavailable
+    expr: max(opsproof_control_dependencies_ready{job="opsproof-control-api"}) == 0
+    for: 30s
+    labels:
+      severity: critical
+      job: opsproof-control-api
+    annotations:
+      summary: Control API cannot verify its dependencies
+      description: Inspect PostgreSQL and Redis readiness; unknown state is not an empty queue.
+  - alert: OpsProofControlStateStale
+    expr: time() - max(opsproof_control_state_last_success_timestamp_seconds{job="opsproof-control-api"}) > 30
+    for: 30s
+    labels:
+      severity: warning
+      job: opsproof-control-api
+    annotations:
+      summary: Control durable-state observation is stale
+      description: Database-wide counts and ages must not be treated as fresh evidence.
+  - alert: OpsProofControlQueueBacklog
+    expr: max(opsproof_control_oldest_active_age_seconds{job="opsproof-control-api",state="queued"}) > 45
+    for: 15s
+    labels:
+      severity: warning
+      job: opsproof-control-api
+    annotations:
+      summary: Control oldest queued item exceeds 45 seconds
+      description: Experimental queue-age objective; inspect processing progress and pending outbox work.
+  - alert: OpsProofControlProcessingStalled
+    expr: (max(opsproof_control_oldest_active_age_seconds{job="opsproof-control-api",state=~"running|verifying"})
+      > 300) and (time() - max(opsproof_control_last_completion_timestamp_seconds{job="opsproof-control-api"}) >
+      300)
+    for: 30s
+    labels:
+      severity: warning
+      job: opsproof-control-api
+    annotations:
+      summary: Control processing has old work without recent completion
+      description: Experimental progress objective; inspect worker logs, leases and downstream failures.
+  - alert: OpsProofAPIErrorRate
+    expr: (sum by (job) (rate(opsproof_http_requests_total{job=~"opsproof-demo-api|opsproof-control-api",route!~"/health/.*|/metrics",status=~"5.."}[5m]))
+      / sum by (job) (rate(opsproof_http_requests_total{job=~"opsproof-demo-api|opsproof-control-api",route!~"/health/.*|/metrics"}[5m]))
+      > 0.01) and (sum by (job) (increase(opsproof_http_requests_total{job=~"opsproof-demo-api|opsproof-control-api",route!~"/health/.*|/metrics"}[5m]))
+      >= 100)
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: Application error ratio exceeds one percent
+      description: Experimental objective requires at least 100 application requests in five minutes; inspect route-level
+        errors.
+  - alert: OpsProofAPILatency
+    expr: (histogram_quantile(0.95, sum by (job, le) (rate(opsproof_http_request_duration_seconds_bucket{job=~"opsproof-demo-api|opsproof-control-api",route!~"/health/.*|/metrics"}[5m])))
+      > 1) and (sum by (job) (rate(opsproof_http_requests_total{job=~"opsproof-demo-api|opsproof-control-api",route!~"/health/.*|/metrics"}[5m]))
+      > 0.1)
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: Application p95 latency exceeds one second
+      description: Experimental HTTP objective with a traffic floor; this is not asynchronous job completion latency.
+  - alert: OpsProofAPIPartiallyUnavailable
+    expr: (min by (job) (up{job=~"opsproof-demo-api|opsproof-control-api"}) == 0) and (max by (job) (up{job=~"opsproof-demo-api|opsproof-control-api"})
+      == 1)
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: An API replica is unavailable
+      description: Some replicas still serve; inspect the failed Pod without treating shared gauges as separate
+        queues.
+  - alert: OpsProofTelemetryComponentUnavailable
+    expr: up{job=~"prometheus|alertmanager|otel-collector|loki|tempo|grafana"} == 0
+    for: 30s
+    labels:
+      severity: critical
+    annotations:
+      summary: A monitoring component is unavailable
+      description: The independent operator watch must also run because Prometheus cannot report its own complete
+        outage.
+  - alert: OpsProofAlertDeliveryFailed
+    expr: sum(increase(alertmanager_notifications_failed_total[5m])) > 0
+    for: 30s
+    labels:
+      severity: critical
+      job: alertmanager
+    annotations:
+      summary: Alertmanager notification delivery has failed
+      description: Check the control API, webhook credential and network path; inspect Alertmanager directly.
+  - alert: OpsProofCollectorQueuePressure
+    expr: otelcol_exporter_queue_size / otelcol_exporter_queue_capacity > 0.8
+    for: 30s
+    labels:
+      severity: warning
+      job: otel-collector
+    annotations:
+      summary: Collector persistent export queue is nearly full
+      description: Check Loki or Tempo availability; buffering is bounded and is not an unlimited durability guarantee.
+  - alert: OpsProofCollectorExportFailed
+    expr: (sum(increase(otelcol_exporter_send_failed_spans_total[5m])) or vector(0)) + (sum(increase(otelcol_exporter_send_failed_log_records_total[5m]))
+      or vector(0)) > 0
+    for: 30s
+    labels:
+      severity: warning
+      job: otel-collector
+    annotations:
+      summary: Collector export attempts are failing
+      description: Check backend health and queue capacity; a retry failure is distinct from confirmed data loss.
+  - alert: OpsProofCollectorDataRejected
+    expr: (sum(increase(otelcol_receiver_refused_spans_total[5m])) or vector(0)) + (sum(increase(otelcol_receiver_refused_log_records_total[5m]))
+      or vector(0)) > 0
+    for: 0s
+    labels:
+      severity: critical
+      job: otel-collector
+    annotations:
+      summary: Collector has refused telemetry
+      description: Inspect memory, ingestion limits and persistent queue capacity; do not present rejected data
+        as delivered.

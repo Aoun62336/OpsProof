@@ -5,11 +5,13 @@ import os
 from collections.abc import Callable
 from uuid import UUID
 
+from opentelemetry import trace
 from redis import Redis
 from redis.exceptions import ResponseError
 
 from .db import pool, redis_client
 from .shutdown import checkpoint, stopping
+from .telemetry import bounded_context, capture_context, message_span
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +74,7 @@ def dispatcher() -> None:
             with pool().connection() as conn:
                 row = conn.execute(
                     """
-                    SELECT id, stream, run_id
+                    SELECT id, stream, run_id, trace_context
                     FROM outbox
                     WHERE published_at IS NULL
                     ORDER BY id
@@ -82,18 +84,24 @@ def dispatcher() -> None:
                 ).fetchone()
 
                 if row:
-                    redis.xadd(
-                        row["stream"],
-                        {"run_id": str(row["run_id"])},
-                    )
-                    conn.execute(
-                        """
-                        UPDATE outbox
-                        SET published_at = now()
-                        WHERE id = %s
-                        """,
-                        (row["id"],),
-                    )
+                    with message_span(
+                        "outbox publish",
+                        bounded_context(row.get("trace_context")),
+                        kind=trace.SpanKind.PRODUCER,
+                        run_id=row["run_id"],
+                    ):
+                        redis.xadd(
+                            row["stream"],
+                            {"run_id": str(row["run_id"]), **capture_context()},
+                        )
+                        conn.execute(
+                            """
+                            UPDATE outbox
+                            SET published_at = now()
+                            WHERE id = %s
+                            """,
+                            (row["id"],),
+                        )
 
             if row is None:
                 stopping.wait(0.4)
@@ -126,8 +134,9 @@ def consume(
                 checkpoint()
                 run_id = UUID(fields["run_id"])
                 try:
-                    handler(run_id)
-                    redis.xack(stream, group, message_id)
+                    with message_span("experiments process", fields, run_id=run_id):
+                        handler(run_id)
+                        redis.xack(stream, group, message_id)
                 except Exception:
                     logger.exception(
                         "Handler failed for run %s message %s",

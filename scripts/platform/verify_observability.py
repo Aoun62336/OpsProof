@@ -16,8 +16,8 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
-from forward import services
-from local_cluster import kubectl_prefix
+from scripts.platform.forward import services
+from scripts.platform.local_cluster import kubectl_prefix
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -197,7 +197,7 @@ def main():
         lambda: has_log(proxy + "opsproof-loki", "opsproof-demo-worker", job_id, headers),
         "same real worker log retrieved through authenticated Grafana datasource",
     )
-    output = ROOT / ".runtime/m5/acceptance/observability-verification.json"
+    output = ROOT / ".runtime/platform/acceptance/observability-verification.json"
     output.parent.mkdir(exist_ok=True)
     output.write_text(
         json.dumps(

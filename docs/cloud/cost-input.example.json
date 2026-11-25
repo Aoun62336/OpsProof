@@ -1,0 +1,30 @@
+{
+  "region": "ap-south-1",
+  "currency": "USD",
+  "quoted_utc": "REPLACE_WITH_FRESH_UTC_TIMESTAMP",
+  "source_url": "https://REPLACE_WITH_ACTUAL_ACCOUNT_PRICING_SOURCE",
+  "credit_eligibility_review": "PENDING: verify every selected resource's credit eligibility",
+  "max_hours": 12,
+  "gross_ceiling_usd": 40,
+  "operating_allocation_usd": 15,
+  "contingency_usd": 5,
+  "items": [
+    {"name": "eks", "unit": "hour", "usd_per_unit": null, "quantity": 1},
+    {"name": "two_workers", "unit": "hour", "usd_per_unit": null, "quantity": 2},
+    {"name": "nat_hours", "unit": "hour", "usd_per_unit": null, "quantity": 1},
+    {"name": "nat_gb", "unit": "flat", "usd_per_unit": null, "quantity": null},
+    {"name": "alb_hours", "unit": "hour", "usd_per_unit": null, "quantity": 1},
+    {"name": "alb_lcu", "unit": "flat", "usd_per_unit": null, "quantity": null},
+    {"name": "api_gateway_requests", "unit": "flat", "usd_per_unit": null, "quantity": null},
+    {"name": "rds_multi_az", "unit": "hour", "usd_per_unit": null, "quantity": 1},
+    {"name": "rds_storage", "unit": "hour", "usd_per_unit": null, "quantity": null},
+    {"name": "ebs_root_and_pvcs", "unit": "hour", "usd_per_unit": null, "quantity": null},
+    {"name": "public_ipv4", "unit": "hour", "usd_per_unit": null, "quantity": 1},
+    {"name": "secrets_manager", "unit": "flat", "usd_per_unit": null, "quantity": null},
+    {"name": "cloudwatch", "unit": "flat", "usd_per_unit": null, "quantity": null},
+    {"name": "s3_backend", "unit": "flat", "usd_per_unit": null, "quantity": null},
+    {"name": "inter_az_transfer", "unit": "flat", "usd_per_unit": null, "quantity": null},
+    {"name": "internet_egress", "unit": "flat", "usd_per_unit": null, "quantity": null},
+    {"name": "tax_and_other", "unit": "flat", "usd_per_unit": null, "quantity": null}
+  ]
+}

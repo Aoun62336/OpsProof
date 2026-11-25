@@ -1,0 +1,85 @@
+name: Cloud Infrastructure Contracts
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  infrastructure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        root: [state-bootstrap, platform, public-edge]
+    env:
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: '1.17.1'
+          terraform_wrapper: false
+      - name: Format, initialize without backend and validate
+        working-directory: infra/terraform/${{ matrix.root }}
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false -lockfile=readonly
+          terraform validate -no-color
+      - name: Native mock-provider safety tests (no AWS endpoints)
+        working-directory: infra/terraform/${{ matrix.root }}
+        run: terraform test -no-color
+  charts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install pinned YAML parser
+        run: python3 -m pip install PyYAML==6.0.3
+      - name: Install checksum-verified Helm
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl --fail --location --silent --show-error -O https://get.helm.sh/helm-v4.1.4-linux-amd64.tar.gz
+          curl --fail --location --silent --show-error -O https://get.helm.sh/helm-v4.1.4-linux-amd64.tar.gz.sha256sum
+          sha256sum --check helm-v4.1.4-linux-amd64.tar.gz.sha256sum
+          tar -xzf helm-v4.1.4-linux-amd64.tar.gz
+          mkdir -p "$RUNNER_TEMP/platform-bin"
+          cp linux-amd64/helm "$RUNNER_TEMP/platform-bin/helm"
+          echo "$RUNNER_TEMP/platform-bin" >> "$GITHUB_PATH"
+      - name: Fetch exact official charts and enforce committed integrity lock
+        run: python3 -m scripts.cloud.install_controllers lock --execute
+      - name: Cloud application and controller render contracts
+        run: python3 -m scripts.cloud.validate_charts
+      - name: Built-in and exact controller CRD schema contracts
+        run: python3 -m scripts.cloud.validate_schemas
+      - name: Immutable workflow dependencies
+        run: python3 -m scripts.cloud.check_workflow_pins .github/workflows/*.yml
+  database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e
+        with:
+          version: '0.13.7'
+      - run: uv python install 3.14
+      - name: Actual disposable TLS database, migrations and restricted grants
+        run: uv run --project apps/control-plane --locked python -m scripts.reliability.validate_postgres --cloud
+      - name: Retain sanitized database outcome only
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: cloud-database-outcome
+          include-hidden-files: true
+          path: .runtime/verification/cloud/postgres/*/result.json
+          if-no-files-found: warn
+          retention-days: 14

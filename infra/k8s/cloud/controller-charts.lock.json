@@ -1,0 +1,107 @@
+{
+  "schema": 2,
+  "note": "Exact official HTTPS downloads and archive metadata reviewed; hashes are integrity pins, not publisher signatures",
+  "charts": [
+    {
+      "name": "aws-load-balancer-controller",
+      "file": "aws-load-balancer-controller-3.6.2.tgz",
+      "version": "3.6.2",
+      "sha256": "9255bf39873b6cb31106dbe61dc87c3617bff4197783b5b94381811a13f99c3c",
+      "repository_url": "https://aws.github.io/eks-charts",
+      "metadata": [
+        {
+          "path": "aws-load-balancer-controller/Chart.yaml",
+          "apiVersion": "v2",
+          "name": "aws-load-balancer-controller",
+          "version": "3.6.2",
+          "metadata_sha256": "8f39e8da61a4dcc39580f83158d4bb8012c828e0b0a8da19c2f635efb34a3adc",
+          "app_version": "v3.6.2"
+        }
+      ]
+    },
+    {
+      "name": "external-secrets",
+      "file": "external-secrets-2.15.0.tgz",
+      "version": "2.15.0",
+      "sha256": "ed94d41cc67e392ea45e370345eb491b0fdc21387f1aaaefcf8e2e6c85089e1d",
+      "repository_url": "https://charts.external-secrets.io",
+      "metadata": [
+        {
+          "path": "external-secrets/Chart.yaml",
+          "apiVersion": "v2",
+          "name": "external-secrets",
+          "version": "2.15.0",
+          "metadata_sha256": "0ec75d27562baee21f1cf24a109a0a9b420bf99e5e99fb849fdaa11ab467c061",
+          "app_version": "v2.15.0"
+        },
+        {
+          "path": "external-secrets/charts/bitwarden-sdk-server/Chart.yaml",
+          "apiVersion": "v2",
+          "name": "bitwarden-sdk-server",
+          "version": "v0.6.0",
+          "metadata_sha256": "5c28b2e955e2b9c49b1fe0d20c66cf896f1592df3d5ec42c987e30889878a740",
+          "app_version": "v0.6.0"
+        }
+      ]
+    },
+    {
+      "name": "argo-cd",
+      "file": "argo-cd-10.17.1.tgz",
+      "version": "10.17.1",
+      "sha256": "1f2abd0368b5cd9562ea9316876a4e4dc2afcbcd3df2298fef6e0b9843100394",
+      "repository_url": "https://argoproj.github.io/argo-helm",
+      "metadata": [
+        {
+          "path": "argo-cd/Chart.yaml",
+          "apiVersion": "v2",
+          "name": "argo-cd",
+          "version": "10.17.1",
+          "metadata_sha256": "9cf2f6b3c29bf8e20e22546043e8609055ea4576073565196db3a0a1fcde8f5f",
+          "app_version": "v3.6.1"
+        },
+        {
+          "path": "argo-cd/charts/redis-ha/Chart.yaml",
+          "apiVersion": "v2",
+          "name": "redis-ha",
+          "version": "4.38.0",
+          "metadata_sha256": "ba0e35053d5b762060fc76bdb205727d700c4cefb5c06e785d95e09d42729f7a",
+          "app_version": "8.8.0"
+        }
+      ]
+    },
+    {
+      "name": "argo-rollouts",
+      "file": "argo-rollouts-2.43.12.tgz",
+      "version": "2.43.12",
+      "sha256": "168cc101a210affb29bfe6c1e84db5675d77432592974caa346ad999a3429c5e",
+      "repository_url": "https://argoproj.github.io/argo-helm",
+      "metadata": [
+        {
+          "path": "argo-rollouts/Chart.yaml",
+          "apiVersion": "v2",
+          "name": "argo-rollouts",
+          "version": "2.43.12",
+          "metadata_sha256": "1ed95643d0754f0a041dcfd00a4c16d956573d3d0d6ebaea4a528326d256a7f5",
+          "app_version": "v1.10.2"
+        }
+      ]
+    },
+    {
+      "name": "keda",
+      "file": "keda-2.21.0.tgz",
+      "version": "2.21.0",
+      "sha256": "a7da56bf41a33dad9d2fc82a6fdecee552fff947d80bf1e1dbcf4db0f9e26dee",
+      "repository_url": "https://kedacore.github.io/charts",
+      "metadata": [
+        {
+          "path": "keda/Chart.yaml",
+          "apiVersion": "v2",
+          "name": "keda",
+          "version": "2.21.0",
+          "metadata_sha256": "03d7fb9cb20c4135cdd693315cce3b7963b9be380c080414ce45c3f2332b62e9",
+          "app_version": "2.21.0"
+        }
+      ]
+    }
+  ]
+}
