@@ -6,13 +6,13 @@ updates:
       - "/apps/demo-workload"
       - "/apps/control-plane"
     schedule:
-      interval: "monthly"
+      interval: "quarterly"
     open-pull-requests-limit: 4
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "quarterly"
     open-pull-requests-limit: 2
 
   - package-ecosystem: "docker"
@@ -24,11 +24,11 @@ updates:
       - "/infra/emulator"
       - "/observability/grafana"
     schedule:
-      interval: "monthly"
+      interval: "quarterly"
     open-pull-requests-limit: 2
 
   - package-ecosystem: "npm"
     directory: "/apps/web"
     schedule:
-      interval: "monthly"
+      interval: "quarterly"
     open-pull-requests-limit: 3
