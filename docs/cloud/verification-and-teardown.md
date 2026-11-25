@@ -1,6 +1,6 @@
 # Cloud acceptance, evidence and teardown
 
-Pre-cloud validation is not final M7 acceptance. Only the owner-run temporary AWS
+Live AWS acceptance requires verification against the deployed resources. Only the owner-run temporary AWS
 window can prove EKS addons/Pod Identity, real RDS failover and TLS, EBS/CNI,
 private ALB, VPC Link/API Gateway, actual image pulls and complete teardown.
 Keep exact commands, timestamps, exit codes and source/image identities.
@@ -23,8 +23,8 @@ Keep exact commands, timestamps, exit codes and source/image identities.
   have no mutation controls. Check 1440, 1280, 768, 390 and 320-pixel widths.
 - Reconcile exact job IDs/counts, stream lag and pending entries. Exercise bounded
   HPA/KEDA within the two-worker-node resource budget; verify healthy return to
-  baseline. No local fault executor is armed in EKS. Do not rerun destructive M6
-  scenarios against RDS or control infrastructure.
+  baseline. Keep destructive fault scenarios in the local sandbox and leave the fault
+  executor disabled in EKS.
 - Verify actual metrics with units/freshness, correlated logs and traces, alert
   authentication, and private Grafana/Argo UI health. Check current requests,
   limits, allocatable capacity and transient update headroom before scaling.

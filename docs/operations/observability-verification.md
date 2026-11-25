@@ -160,6 +160,6 @@ Record:
 - Local simulated traffic is not production traffic.
 - Alert resolution is not equivalent to verified application recovery.
 - A successful demonstration does not establish production uptime.
-- AI diagnosis accuracy is not evaluated in this milestone.
+- See the [advisory evaluation](../engineering/advisory-evaluation.md) for AI diagnosis results.
 - Results are limited to the tested hardware, environment,
   configurations and scenarios.

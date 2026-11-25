@@ -8,11 +8,11 @@ explicitly managed workloads, with an authenticated operator console.
 
 ## Current status
 
-Local validation recorded six independently verified fault scenarios, nine
-accepted scaling trials across fixed replicas, HPA and KEDA, and exact-job k6
-verification. The [trial report](docs/history/reliability-trials-acceptance.md)
-and [workspace deployment evidence](docs/history/workspace-ui-and-offline-evidence.md)
-describe the tested revisions and results.
+In nine controlled local trials, Redis Streams based KEDA worker scaling reduced
+median job p95 from **101.43 s to 35.42 s (65.08%)** against fixed replicas.
+Local validation also recorded six independently verified fault scenarios and a
+k6 run with 60 submissions and 60 durable completions. See the
+[calculations and screenshots](docs/engineering/verification.md#local-results-and-screenshots).
 
 The November 24 verification passed fresh builds, SQL and browser tests,
 Terraform mock tests, and the local image security gates. The NVIDIA advisory
@@ -99,7 +99,6 @@ local validation from AWS acceptance. The owner applies reviewed saved Terraform
 plans only after pre-cloud checks and fresh account/cost approval. Publication and
 model requests stay behind their separate approval gates.
 
-The [local evidence index](docs/history/README.md) links the retained acceptance
-reports and measured results. Raw receipts, original reviews and interim checkpoints
-live in ignored runtime storage or the private archive. See the
-[retention guide](docs/engineering/repository-structure.md#generated-files-and-retention).
+The [verification guide](docs/engineering/verification.md) links the measured
+results and reviewed screenshots. The [retention guide](docs/engineering/repository-structure.md#generated-files-and-retention)
+describes where raw receipts and original reports are preserved.

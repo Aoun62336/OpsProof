@@ -54,8 +54,8 @@ service connectivity, billing and teardown require the owner deployment session.
    teardown, exact-ID/discovery checks and later settled billing review.
 
 Local tests cannot establish EKS/CNI/Pod Identity/RDS/ALB behavior, an enforced
-spending ceiling or absence of future charges. No live M7 Kubernetes deployment
-was run. These pending owner gates are not presented as completed M7 acceptance.
+spending ceiling or absence of future charges. Live AWS deployment and the
+owner acceptance checks remain pending.
 
 Start your session with [owner deployment steps](owner-deployment-session.md).
 Detailed procedures: [identity/cost](identity-and-cost.md),

@@ -59,5 +59,5 @@ on another port. Readiness alone does not prove telemetry delivery or recovery.
 Keep the cluster stopped when no live check needs it. Preserve PVCs, job history,
 private credentials and unique evidence. Never automatically delete `opsproof`,
 its volumes, or use `git clean -fdx`. Current private platform records are under
-`.runtime/platform`; archived milestone locators resolve through `scripts.paths`.
+`.runtime/platform`; historical receipt paths resolve through `scripts.paths`.
 AWS deployment has separate [owner gates](../cloud/owner-deployment-session.md).

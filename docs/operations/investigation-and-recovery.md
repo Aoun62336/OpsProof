@@ -1,8 +1,7 @@
 # Investigation and controlled recovery
 
 This guide describes current code. Dated local results are in
-[engineering verification](../engineering/verification.md) and the
-[local recovery acceptance](../history/local-recovery-acceptance.md). A past passing drill
+[engineering verification](../engineering/verification.md#local-results-and-screenshots). A past passing drill
 does not establish the state of a current deployment.
 
 ## Scope and responsibilities

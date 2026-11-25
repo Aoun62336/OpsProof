@@ -1,6 +1,6 @@
 # Reliability verification runbook
 
-Updated 24 November 2026. The [acceptance report](../history/reliability-trials-acceptance.md) and [matrix](../history/reliability-acceptance-matrix.md) identify the executed results and remaining reviews.
+See [local measurements and screenshots](../engineering/verification.md#local-results-and-screenshots) for executed results.
 
 ## Toolchain and source checks
 
@@ -83,7 +83,7 @@ Execute sequentially and collect at least three independently passing trials per
 
 ## Additional verification and evidence review
 
-The retained operator checks deploy the existing reuse Helm contract, collect actual normal/delayed/recovered investigations, verify unsupported targeting and remove the owned resources. The image comparison uses preserved M5 and current M6 images with the same read-only protocol and limits. The deployed browser check covers authentication, CSRF, actual trial evidence, desktop/mobile navigation, accessibility and session revocation.
+The retained operator checks deploy the existing reuse Helm contract, collect actual normal/delayed/recovered investigations, verify unsupported targeting and remove the owned resources. The image comparison uses the preserved baseline and candidate images with the same read-only protocol and limits. The deployed browser check covers authentication, CSRF, actual trial evidence, desktop/mobile navigation, accessibility and session revocation.
 
 Deterministic synthetic diagnosis uses the versioned dataset. The NVIDIA adapter subsequently passed its frozen 42-case development qualification; earlier Groq/Gemini failures remain historical evidence. Runtime AI stays disabled. See [the current decision](../engineering/advisory-evaluation.md). No provider rerun is needed for routine source verification. AWS acceptance remains owner-run.
 ```bash

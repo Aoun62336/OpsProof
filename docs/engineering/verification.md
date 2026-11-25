@@ -1,6 +1,53 @@
-# Repository verification baseline
+# Engineering verification
 
-The latest result is the [repository finalization follow-up](#repository-finalization-follow-up--24-november-2026). Earlier sections retain their dated results.
+## Local results and screenshots
+
+The benchmark ran on local Kubernetes with three accepted trials per mode. Each
+trial used 60 jobs configured for two seconds of work, the same application
+revision, and 120 seconds of background HTTP load. The generator targeted 80
+requests per second and served roughly 48–63 requests per second across the
+accepted trials. The comparison uses the median of each mode's three per-run
+job p95 values. API HPA scaled the API, while KEDA scaled workers using Redis
+Streams lag and pending entries.
+
+| Mode | Job p95 for the three trials (s) | Median job p95 (s) | Median throughput (jobs/s) |
+| --- | --- | ---: | ---: |
+| Fixed replicas | 101.500207, 101.311598, 101.433886 | 101.433886 | 0.497703 |
+| API HPA | 102.265894, 101.623977, 102.359241 | 102.265894 | 0.497389 |
+| KEDA worker scaling | 34.481898, 35.423098, 37.208533 | 35.423098 | 1.224233 |
+
+- **Job p95 reduction:** `(101.433886 − 35.423098) ÷ 101.433886 × 100 = 65.08%`.
+- **Job p95 time saved:** `101.433886 − 35.423098 = 66.01 s`.
+- **Throughput:** `1.224233 ÷ 0.497703 = 2.46×` the fixed-replica baseline.
+
+The eligible runs completed all 60 exact jobs once per trial. Two excluded
+attempts remain in the private run history. One was indeterminate before
+restoration finished and one recorded an HTTP failure. The measurements describe
+this controlled local comparison. Actual background rates varied, and AWS and
+production performance are pending. The nine original receipts and their hashes
+are preserved in the private verification index. The [analysis code](../../scripts/reliability/analyze_capacity.py)
+reproduces the medians and checks that the workloads and revisions match.
+
+A separate k6 run reconciled **60 unique submissions and 60 durable completions**.
+Six local scenarios produced independent fault and cleanup evidence, including
+database connectivity, downstream timeout, canary abort with stable traffic
+restored, worker interruption, queue saturation and stale observations. The [sanitized scenario records](../public/cases.json)
+contain the tested source identities and independent receipt digests.
+
+| Capacity observations | Recovery approval and independently verified outcome |
+| --- | --- |
+| [![OpsProof capacity view showing real local queue and resource observations](../public/screenshots/local-capacity.png)](../public/screenshots/local-capacity.png) | [Open the local recovery screenshot](../public/screenshots/local-recovery.png) |
+
+These are original browser captures of the OpsProof UI served by the local cluster.
+The deployment receipt records Argo CD `Synced` and `Healthy`, **34 served assets**
+matched by hash, and **20 passing view and viewport checks**. The capacity image
+shows configured requests and limits. The benchmark table supplies the measured
+performance evidence. A separate shutdown drill recorded **eight exact jobs**
+completing once and verification resuming after a restart.
+
+## Verification history
+
+The latest local validation is the [repository finalization follow-up](#repository-finalization-follow-up--24-november-2026). Earlier sections retain their dated results.
 
 Reviewed 21 November 2026. The repository cleanup and local verification work is
 complete for the checks recorded below. This is not cloud acceptance or release
@@ -190,7 +237,7 @@ under `.runtime/verification/cloud/` or the preserved runtime archive.
 | Earlier check | Recorded receipt relative to that runtime directory |
 | --- | --- |
 | Terraform mock validation | `terraform/result.json` |
-| Disposable SQL and browser | `postgres/opsproof-m6-pg-test-5b04a61429/result.json` |
+| Disposable SQL and browser | `postgres/` (exact result indexed in the private review) |
 | Redis TLS and authentication | `redis/` |
 | Emulator rehearsal | `emulator/run-8c682ff080704a839a992d32bc5472f4/result.json` |
 | Rendered cloud capacity worksheet | `capacity.json` |
@@ -217,8 +264,9 @@ Source/locks and unique evidence were not deleted. Older render/debug iterations
 are privately archived, with the current passing schema/input pair retained.
 
 Both purposeful branches and valuable history remain; main was not changed.
-Historical milestone names remain only where they identify original records or
-compatibility contracts. See [structure and retention](repository-structure.md).
+The public guide summarizes results and links the reviewed screenshots. Original
+reports and compatibility identifiers are preserved. See
+[structure and retention](repository-structure.md).
 
 ## Work that remains outside this verified baseline
 

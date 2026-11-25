@@ -34,7 +34,7 @@ docs/
   engineering/       Current structure, verification and AI qualification decision
   operations/        Maintained local operating procedures
   cloud/             Owner preparation, deployment, proof and teardown
-  history/           Selected local acceptance and measured evidence
+  public/            Sanitized scenario records and local screenshots
 ```
 
 Root Compose overlays are separate opt-in recovery, telemetry and integration
@@ -51,11 +51,9 @@ tests after behavior, not milestones. Run tooling from the repository root with
 `python -m scripts.<responsibility>.<module>` so package imports are consistent.
 
 Maintained tooling uses `platform`, `reliability`, `cloud` and `compose` names.
-Legacy `/api/v1/m6` routes, `OPSPROOF_*_M6_*` settings, Helm `m6` values, SQL names,
-migration revision IDs and frozen benchmark bytes remain compatibility contracts.
-Historical documents use descriptive filenames. Original dates and milestone
-labels stay in the records for provenance. Preserve original runtime evidence
-locators and compatibility identifiers when renaming documents.
+Existing API routes, settings, Helm values, SQL names, migration revisions and
+benchmark inputs remain compatibility contracts. Keep the original identifiers
+and receipt paths in archived records so measurements remain traceable.
 
 ## Generated files and retention
 
@@ -84,9 +82,11 @@ historical records live outside the checkout:
 - `private/archive/documentation-finalization/` retains the original reviews and
   interim reports removed from the working tree, with their paths and SHA-256
   hashes in the archive manifest.
+- `private/archive/portfolio-proof/` preserves the original local reports and
+  shutdown receipt consolidated into the verification guide.
 
-`scripts.paths.read_artifact` resolves current paths, old `.runtime/m5` and
-`.runtime/m6` aliases, then private archived originals. Isolated test checkouts
+`scripts.paths.read_artifact` resolves current and historical paths, then private
+archived originals. Isolated test checkouts
 cannot silently consult another checkout's historical archive. Archived handover
 copies may have Windows paths longer than 260 characters; use extended-length
 paths for exhaustive archive inspection. They are not build inputs.

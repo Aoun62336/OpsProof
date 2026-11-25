@@ -64,7 +64,6 @@ explains when its ledger is disabled. No synthetic healthy state is displayed.
 
 Current tests and dated production-build/browser results are recorded in
 [engineering verification](../engineering/verification.md). A source/build check
-does not establish live Kubernetes or cloud behavior. Historical UI outcomes and
-original image/source identities remain in
-[the UI acceptance record](../history/workspace-ui-and-offline-evidence.md).
+does not establish live Kubernetes or cloud behavior. The [local deployment results](../engineering/verification.md#local-results-and-screenshots)
+include browser screenshots.
 The Forest & Porcelain tokens in `apps/web/src/styles/tokens.css` remain authoritative.

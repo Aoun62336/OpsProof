@@ -2,7 +2,7 @@
 
 This is the current local execution contract, not a statement that a cluster is
 running. Accepted six-scenario and nine-capacity-trial outcomes are historical;
-see [the trial results and measured profiles](../history/reliability-trials-acceptance.md).
+see [the trial results and measured profiles](../engineering/verification.md#local-results-and-screenshots).
 
 ## Preconditions
 

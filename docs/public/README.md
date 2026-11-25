@@ -1,4 +1,7 @@
-# Curated historical evidence
+# Public evidence
+
+The [verification guide](../engineering/verification.md#local-results-and-screenshots) links the original
+local UI screenshots and the benchmark calculations.
 
 `cases.json` contains one sanitized historical local trial for each of the six
 scenario classes. It is prepared for review, not approved for public release.
