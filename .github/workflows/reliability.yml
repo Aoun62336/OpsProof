@@ -28,15 +28,13 @@ jobs:
           uv run --project apps/control-plane --locked ruff check --config apps/control-plane/pyproject.toml scripts conftest.py
           uv run --project apps/control-plane --locked ruff format --check --config apps/control-plane/pyproject.toml scripts conftest.py
       - name: Offline reliability contracts (never injects faults)
-        env:
-          PYTHONPATH: apps/control-plane/src
-        run: uv run --project apps/control-plane --locked pytest scripts/reliability/tests -q
+        run: uv run --project apps/control-plane --locked python -m pytest scripts/reliability/tests -q
       - name: Offline cost and inventory guards
         run: uv run --project apps/control-plane --locked python -m pytest scripts/cloud/tests -q
       - name: Disposable PostgreSQL migration and concurrency safety (no Kubernetes)
         run: uv run --project apps/control-plane --locked python scripts/reliability/validate_postgres.py
       - name: Kubernetes route separator regression
-        run: python3 -m unittest discover -s scripts/platform/tests -p 'test_kubernetes_route_registration.py' -v
+        run: uv run --project apps/control-plane --locked python -m pytest scripts/platform/tests/test_kubernetes_route_registration.py -v
       - name: Evidence fixture JSON validity
         run: |
           python3 -m json.tool benchmarks/ai/qualification_v1.json > /dev/null

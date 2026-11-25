@@ -30,12 +30,10 @@ jobs:
           enable-cache: true
       - run: uv python install 3.14
       - name: Demo regression tests
-        run: uv run --project apps/demo-workload --locked pytest apps/demo-workload/tests -q
+        run: uv run --project apps/demo-workload --locked python -m pytest apps/demo-workload/tests -q
       - name: Control regression tests
-        run: uv run --project apps/control-plane --locked pytest apps/control-plane/tests -q
+        run: uv run --project apps/control-plane --locked python -m pytest apps/control-plane/tests -q
       - name: Platform and reliability contracts
-        env:
-          PYTHONPATH: apps/control-plane/src
         run: |
           uv run --project apps/control-plane --locked python -m pytest scripts/platform/tests scripts/reliability/tests scripts/cloud/tests -q
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

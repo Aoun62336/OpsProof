@@ -1,4 +1,4 @@
-"""Check static repository inputs and cloud test discovery in maintained workflows.
+"""Check static repository inputs and test discovery in maintained workflows.
 
 This complements actionlint and SHA pin checks. It does not execute shell blocks,
 validate downloaded files, or establish a successful hosted workflow run.
@@ -28,11 +28,19 @@ def check(root: Path = ROOT) -> list[str]:
                     issues.append(
                         f"{workflow.name}:{number}: missing/unsafe source input {relative}"
                     )
-            if "scripts/cloud/tests" in line and re.search(r"\bunittest\s+discover\b", line):
-                issues.append(
-                    f"{workflow.name}:{number}: cloud tests require pytest discovery "
-                    "to include function-based and parameterized cases"
-                )
+            if re.search(r"(?:apps/[^/\s]+|scripts/[^/\s]+)/tests(?:[\s/]|$)", line):
+                if re.search(r"\bunittest\s+discover\b", line):
+                    issues.append(
+                        f"{workflow.name}:{number}: test suites require pytest discovery "
+                        "to include function-based and parameterized cases"
+                    )
+                if re.search(r"\bpytest\s+(?:apps|scripts)/", line) and not re.search(
+                    r"\bpython3?\s+-m\s+pytest\b", line
+                ):
+                    issues.append(
+                        f"{workflow.name}:{number}: use python -m pytest "
+                        "so repository-level imports resolve"
+                    )
     return issues
 
 
@@ -42,7 +50,7 @@ def main() -> int:
         print("FAIL:", issue)
     if issues:
         return 1
-    print("PASS: static workflow source inputs exist and cloud tests use complete discovery")
+    print("PASS: static workflow source inputs exist and test suites use complete discovery")
     return 0
 
 

@@ -49,7 +49,7 @@ jobs:
         run: uv run --locked ruff format --check .
 
       - name: Unit tests
-        run: uv run --locked pytest -v
+        run: uv run --locked python -m pytest -v
 
   integration:
     name: Container Integration and Recovery

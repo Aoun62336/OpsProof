@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 
 restore_worker() {
   docker compose start worker >/dev/null 2>&1 || true

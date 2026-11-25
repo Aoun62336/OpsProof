@@ -14,8 +14,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Install pinned YAML parser
-        run: python3 -m pip install PyYAML==6.0.3
+      - name: Set up uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.13.7'
+          enable-cache: true
+      - name: Install Python
+        run: uv python install 3.14
       - name: Install checksum-verified Helm
         shell: bash
         run: |
@@ -29,12 +34,12 @@ jobs:
           cp linux-amd64/helm "$RUNNER_TEMP/platform-bin/helm"
           echo "$RUNNER_TEMP/platform-bin" >> "$GITHUB_PATH"
       - name: Secret, resource and GitOps boundary contracts
-        run: python3 -m unittest discover -s scripts/platform/tests -v
+        run: uv run --project apps/control-plane --locked --with PyYAML==6.0.3 python -m pytest scripts/platform/tests -v
       - name: Helm lint, renders and offline Pod security contracts
-        run: python3 -m scripts.platform.validate_charts
+        run: uv run --project apps/control-plane --locked --with PyYAML==6.0.3 python -m scripts.platform.validate_charts
       - name: Pinned upstream Gateway chart schema and exposure contract
-        run: python3 -m scripts.platform.validate_gateway
+        run: uv run --project apps/control-plane --locked --with PyYAML==6.0.3 python -m scripts.platform.validate_gateway
       - name: Whitespace validation
         run: git diff --check
       - name: Pinned secret scanner and strict Kubernetes schemas
-        run: python3 -m scripts.platform.security_checks
+        run: uv run --project apps/control-plane --locked --with PyYAML==6.0.3 python -m scripts.platform.security_checks

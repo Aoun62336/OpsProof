@@ -52,7 +52,7 @@ jobs:
       - name: Run control-plane unit tests
         run: |
           uv run --project apps/control-plane --locked \
-            pytest apps/control-plane/tests -v
+            python -m pytest apps/control-plane/tests -v
 
   integration:
     name: Control Plane Integration
