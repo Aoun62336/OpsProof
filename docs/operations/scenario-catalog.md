@@ -59,6 +59,16 @@ The selected end state must be one of succeeded, failed, aborted or indeterminat
 - **Abort:** Any mutation or authorization unexpectedly granted, inability to restore telemetry or loss of canonical records.
 - **Proof:** Deterministic classification abstains, AI (if approved) is evaluated separately, unauthorized recovery denied, no success recorded from absent observations.
 
-## Shared execution warning
+## Execution and acceptance boundary
 
-The M6 implementation package presently provides the catalog, diagnostic tests, bounded load, queue observations and evidence/measurement harnesses. The six live injection/verification adapters and complete trial orchestration remain **integration work** until the final M5 source and operational approval gates are established. No script in this package claims to execute every scenario or certify their runtime result.
+The six bounded adapters, durable ledger and independent verifier are implemented.
+Historical local acceptance is recorded in the
+[acceptance report](../history/reliability-trials-acceptance.md).
+Those results apply to their recorded source, image and execution mechanisms.
+They are not a claim that every fresh deployment or every attempted fault passed.
+
+Run a new trial only under the [local execution profile](local-trials.md), with
+explicit acknowledgement, resource headroom, target ownership and cleanup.
+Acknowledgement alone cannot certify fault effect or restoration. The cloud
+profile does not authorize destructive local scenarios against control services
+or managed RDS. AI qualification is separate and runtime AI remains disabled.

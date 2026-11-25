@@ -90,4 +90,4 @@ five background processes. It restores workers and saves evidence in
 use the sequence above afterward.
 
 Local validation results and remaining nonlocal scope are recorded in
-[M4_LOCAL_VALIDATION_REPORT.md](../history/m4-local-validation-report.md).
+[worker shutdown validation](../history/worker-shutdown-validation.md).

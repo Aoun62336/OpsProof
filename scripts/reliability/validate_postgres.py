@@ -75,7 +75,10 @@ def browser_check(env, output, dsn):
             conn.execute(
                 "INSERT INTO kubernetes_observations (name,observed_at,resource,telemetry) "
                 "VALUES ('demo-worker',now(),%s,%s)",
-                (Jsonb(resource), Jsonb({"ready": True, "queued": 0, "sample_time": time.time()})),
+                (
+                    Jsonb(resource),
+                    Jsonb({"ready": True, "queued": 0, "sample_time": time.time()}),
+                ),
             )
     browser_env = {
         **env,
@@ -353,6 +356,7 @@ def main() -> int:
                     "apps/control-plane/tests/test_trial_postgres_integration.py",
                     "apps/control-plane/tests/test_postgres_safety.py",
                     "apps/control-plane/tests/test_postgres_api.py",
+                    "apps/control-plane/tests/test_incident_delivery_postgres.py",
                     "apps/control-plane/tests/test_verification_postgres.py",
                     "apps/control-plane/tests/test_database_permissions.py",
                     "apps/control-plane/tests/test_telemetry_postgres.py",

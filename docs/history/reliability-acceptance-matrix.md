@@ -14,7 +14,7 @@ The local execution package contains six passing fault scenarios, real 60-job k6
 
 These statuses describe 178 addressed criteria and their evidence disposition. The bounded provider comparison and independent AI-agent reviews are complete. Both external models failed fixture qualification and remain disabled under F14. F08 records Groq's stale-evidence failure explicitly. This table carries no claim that all model checks passed. AWS provisioning belongs to M7 in the original scope. M6's AWS cost model is complete.
 
-The [acceptance report](m6-acceptance-report-2026-11-14.md) explains the source versions, failed attempts, worker-crash authorization, evidence limits and completed independent-agent reviews. `.runtime/m6/handover/verification-summary.json` links raw records and exact hashes. The unnumbered exact-job, timeline, metric and three-trial requirements are covered by the linked execution records and analysis.
+The [acceptance report](reliability-trials-acceptance.md) explains the source versions, failed attempts, worker-crash authorization, evidence limits and completed independent-agent reviews. `.runtime/m6/handover/verification-summary.json` links raw records and exact hashes. The unnumbered exact-job, timeline, metric and three-trial requirements are covered by the linked execution records and analysis.
 
 | ID | Supplied acceptance criterion | Current status | Evidence and scope |
 | --- | --- | --- | --- |

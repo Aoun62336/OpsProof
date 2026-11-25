@@ -68,6 +68,14 @@ findings. Their application source and approved UI palette were not changed.
 
 ## Release enforcement and maintenance
 
+The source gate runs the checksum-pinned Gitleaks CLI on the checkout and Git
+history with redacted output. It needs no additional GitHub token or license.
+Trivy blocks HIGH and CRITICAL vulnerabilities and infrastructure findings,
+including unfixed findings. Release jobs rescan their built images before
+publishing. CI uploads only selected verification reports from its runtime
+directories. Private keys, owner credentials and raw runtime directories stay
+outside the uploaded artifacts.
+
 Images retain nonroot users, read-only deployment filesystems, dropped capabilities
 and no privilege escalation. Python builds use checksum-pinned uv and locked
 production dependencies. Build contexts allow only declared source/configuration

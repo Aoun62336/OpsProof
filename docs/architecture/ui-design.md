@@ -47,29 +47,24 @@ from brand colors. Every state also requires readable text.
 7. No fabricated metrics or healthy-state assumptions.
 8. Restrained motion and reduced-motion support.
 
-## Temporary Brand Mark
+## Brand mark and current data scope
 
-The OP monogram is temporary and will be replaced
-with the final supplied brand logo.
+The OP monogram is the current implemented mark. No replacement asset is required.
+The operator workspace includes experiments, incidents, investigations, approvals,
+evidence and a read-only trial ledger. Workloads, Deployments, Capacity and Runbooks
+use operational cards with explicit observation state and backend capabilities.
+The environment label comes from the authenticated API, not a fixed local label.
 
-## Current Data Scope
-
-The current UI displays control-plane experiment
-records, execution states, event histories and reports.
-
-Kubernetes telemetry, incident correlation,
-AI diagnosis and cloud cost information are not yet
-integrated into the dashboard.
+Capacity reservations are configuration, not measured utilization or cloud billing.
+Unavailable integrations and stale/missing observations remain explicit. Cloud
+runbooks are read-only; AI and recovery defaults remain disabled. The trial page
+explains when its ledger is disabled. No synthetic healthy state is displayed.
 
 ## Verification
 
-Source implementation prepared.
-
-Runtime, visual, responsive, accessibility and CI
-verification must be recorded after execution.
-
-## Local results ? 2026-11-05
-
-Backend lint and 17 tests passed; frontend lint, 3 unit tests and production build passed. Browser branding, accessibility, real navigation, mobile Escape/focus and desktop controls passed. Four required viewport sizes were checked for overflow on login, Overview, Experiments and Evidence. Screenshots and real exported evidence are under ignored `.runtime/redesign/`. A real experiment was created through the UI and independently verified. Missing/invalid CSRF returned 403; successful logout returned the login screen and revoked the session.
-
-Corrections found during execution: use the existing darker ink token for the login hint; match the navigation label exactly in Playwright; preserve the active auth query when removing private cached records on logout.
+Current tests and dated production-build/browser results are recorded in
+[engineering verification](../engineering/verification.md). A source/build check
+does not establish live Kubernetes or cloud behavior. Historical UI outcomes and
+original image/source identities remain in
+[the UI acceptance record](../history/workspace-ui-and-offline-evidence.md).
+The Forest & Porcelain tokens in `apps/web/src/styles/tokens.css` remain authoritative.

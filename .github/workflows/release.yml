@@ -54,10 +54,13 @@ jobs:
         run: uv run --project apps/control-plane --locked python -m scripts.cloud.check_workflow_contracts
       - name: k6 JavaScript syntax
         run: node --check benchmarks/k6/jobs.js
-      - name: Secrets scan before image publication
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Scan source and Git history before image publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          scanner="$(python3 -c 'from scripts.security_tools import binary; print(binary("gitleaks"))')"
+          "$scanner" dir --redact=100 --no-banner .
+          "$scanner" git --log-opts='--all --full-history -m' --redact=100 --no-banner .
   build-scan-publish:
     needs: review-and-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish_approved == true
@@ -101,10 +104,6 @@ jobs:
         with:
           version: '0.13.7'
       - run: uv python install 3.14
-      - name: Authenticate to GitHub Container Registry
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
       - name: Build once from reviewed commit
         shell: bash
         env:
@@ -130,6 +129,7 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: python-compatibility-${{ matrix.name }}
+          include-hidden-files: true
           path: .runtime/verification/python-images/*/result.json
           if-no-files-found: error
           retention-days: 30
@@ -182,9 +182,11 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: grafana-verification
+          include-hidden-files: true
           path: |
             .runtime/verification/observability-runtime/result.json
-            .runtime/verification/grafana-security
+            .runtime/verification/grafana-security/*.json
+            .runtime/verification/grafana-security/*.log
           retention-days: 30
       - name: CycloneDX software bill of materials
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
@@ -197,6 +199,10 @@ jobs:
           output: sbom.cdx.json
           exit-code: '0'
           cache: 'false'
+      - name: Authenticate to GitHub Container Registry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
       - name: Publish exact scanned image
         id: publish
         shell: bash
@@ -275,6 +281,7 @@ jobs:
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: approved-release-manifest
+          include-hidden-files: true
           path: .runtime/cloud/release-manifest.json
           if-no-files-found: error
           retention-days: 30

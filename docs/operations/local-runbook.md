@@ -16,7 +16,7 @@ Python cluster scripts use `local_cluster.py`, which requires the isolated confi
 
 ## Local GitOps updates
 
-Commit reviewed changes locally, run `python -m scripts.platform.serve_local_git`, then update the five Applications' `spec.source.targetRevision` to that commit while preserving Helm parameters and ignore rules. The local Git server is read-only and publishes no GitHub/registry content. Verify the commit is reachable before refreshing Argo. All five Applications must be Synced/Healthy at the intended SHA.
+Commit reviewed changes locally, run `uv run --project apps/control-plane --locked --with PyYAML==6.0.3 python -m scripts.platform.serve_local_git`, then update the five Applications' `spec.source.targetRevision` to that commit while preserving Helm parameters and ignore rules. The local Git server is read-only and publishes no GitHub/registry content. Verify the commit is reachable before refreshing Argo. All five Applications must be Synced/Healthy at the intended SHA.
 
 Argo owns application resources. Do not independently run `helm upgrade` on them. Preserve narrowly scoped exceptions for Rollouts-managed route weights and recovery-managed worker replicas; do not ignore entire resources. Secrets are supplied out-of-band from ignored `.env` and must never enter Git.
 
@@ -25,11 +25,11 @@ Keep tested image tags/digests when application source is unchanged. For changed
 ## Targeted checks
 
 ```powershell
-python -m scripts.platform.smoke
-python -m scripts.platform.verify_recovery_security
-python -m scripts.platform.verify_release_incident
-python -m scripts.reliability.validate_source
-python -m scripts.platform.security_checks
+uv run --project apps/control-plane --locked --with PyYAML==6.0.3 python -m scripts.platform.smoke
+uv run --project apps/control-plane --locked --with PyYAML==6.0.3 python -m scripts.platform.verify_recovery_security
+uv run --project apps/control-plane --locked --with PyYAML==6.0.3 python -m scripts.platform.verify_release_incident
+uv run --project apps/control-plane --locked --with PyYAML==6.0.3 python -m scripts.reliability.validate_source
+uv run --project apps/control-plane --locked --with PyYAML==6.0.3 python -m scripts.platform.security_checks
 ```
 
 Use existing evidence when code and deployment have not changed. `verify_rollouts.py --faulty-only` intentionally injects a bad release; run it only when a new failure trial is needed, with healthy baseline and enough free RAM. It restores the healthy image in its cleanup path; independently confirm Rollout Healthy and route stable/canary weights 100/0 afterward. Port-forward helpers bind loopback and clean up their owned processes.

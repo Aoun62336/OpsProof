@@ -92,7 +92,7 @@ shutdown fix; the matrix above identifies the checks rerun on the fixed build.
 
 ## Evidence and limitations
 
-Portable trial evidence is in [M4_SHUTDOWN_EVIDENCE.json](m4-shutdown-evidence.json).
+Portable trial evidence is in [worker shutdown evidence](worker-shutdown-evidence.json).
 Detailed local logs, screenshots and prior negative-check records remain under
 `.runtime/acceptance/`; that ignored directory is not part of a Git source archive.
 The portable evidence and this report are included in the source handoff.

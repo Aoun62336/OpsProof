@@ -34,44 +34,13 @@ and no images or website were published. The original local cluster stayed off.
 
 ## Local verification
 
-The source gate covers Python/demo/web tests, lint/format, production web build,
-25 preserved local Helm profiles, six cloud application/five controller profiles
-plus the shared telemetry profile,
-workflow pins, k6 syntax, whitespace and source secret scanning. Native Terraform
-validation and 11 mock tests passed across all three roots. All ten workflows
-were checked by actionlint. These are local checks, not hosted CI results.
-
-Actual disposable integrations also passed: 34 SQL/TLS/permission tests; the
-production UI against the real restricted API at five viewport widths with 20
-screenshots and accessibility checks; Redis trusted TLS/auth and negative probes;
-four nonroot/read-only image smoke tests; and a signed AWS Emulator S3/Secrets
-Manager contract rehearsal. Test resources and generated private session files
-were removed. The patched Python images also passed actual artifact/TLS/role checks.
-All four final image scans are clean. The strengthened release gate
-blocks HIGH/CRITICAL findings; see [container security](../engineering/container-security.md).
-
-The subsequent observability hardening also passed real Collector persistent
-restart, Loki/Tempo delivery, authenticated Grafana queries and Alertmanager
-receiver-outage/firing/resolution tests. A disposable Kubernetes cluster verified
-per-Pod discovery including unready Pods, a real missing-target firing alert,
-direct kubelet/cAdvisor TLS and read-only monitoring permissions. Its cleanup
-preserved the original stopped cluster and default kubeconfig. The local-path
-driver did not expose PVC capacity statistics; those stay unknown and the
-missing-evidence rule applies. EBS/CSI capacity metrics remain a live cloud gate.
-
-See the [verification review](../history/cloud-readiness-review-2026-11-17.md) for actual
-commands, retained receipts, failures repaired and remaining limitations. The
-[AI decision](../engineering/advisory-evaluation.md) records the final 42-case pass,
-retained failed epochs and precision limitations without changing frozen labels.
-
-## Final local release checks
-
-The 24 November pre-cloud closeout refreshed the complete source gate in a
-source-only checkout, real SQL/API/browser integrations, built application
-artifacts, strict image/source security, telemetry and Terraform mock tests.
-See [the executed checks and limitations](../engineering/verification.md#pre-cloud-release-closeout--24-november-2026).
-The qualified AI source is included in local release artifacts; runtime AI
-remains disabled. No repeat provider calls or Kubernetes startup were needed.
+The [latest verification report](../engineering/verification.md#repository-finalization-follow-up--24-november-2026)
+records the clean-checkout tests, disposable SQL and browser checks, chart and
+schema validation, Terraform mocks, and the scanned local artifacts. Earlier
+Redis TLS, emulator and observability rehearsals are documented in the same guide.
+The runtime advisory feature remains disabled. This evidence establishes local
+behavior for the tested revisions. Real EKS admission, account-specific settings,
+service connectivity, billing and teardown require the owner deployment session.
 
 ## Remaining owner gates
 

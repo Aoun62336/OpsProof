@@ -8,43 +8,19 @@ explicitly managed workloads, with an authenticated operator console.
 
 ## Current status
 
-The local system has recorded acceptance for six fault scenarios, nine accepted
-capacity trials across fixed replicas, HPA and KEDA, exact-job k6 verification,
-second-workload observations, durable trial records and cleanup. See the
-[local acceptance report](docs/history/m6-acceptance-report-2026-11-14.md) and
-[operational UI and offline evidence report](docs/history/m6-workspace-ui-and-offline-evidence-2026-11-15.md).
-Those are historical results for their recorded source and image identities.
+Local validation recorded six independently verified fault scenarios, nine
+accepted scaling trials across fixed replicas, HPA and KEDA, and exact-job k6
+verification. The [trial report](docs/history/reliability-trials-acceptance.md)
+and [workspace deployment evidence](docs/history/workspace-ui-and-offline-evidence.md)
+describe the tested revisions and results.
 
-The current repository standardization and checks are described in the
-[repository review](docs/history/repository-review-2026-11-16.md). The repository cleanup and local verification baseline has passed;
-[verification results](docs/engineering/verification.md) record the actual checks and limits
-on a separate branch;
-see [cloud readiness](docs/cloud/readiness.md). The Python image security issue is
-fixed and all four final images scanned clean; [details](docs/engineering/container-security.md).
-AI remains disabled. AWS acceptance still requires the
-owner-run deployment and teardown. No AWS resources have been provisioned here.
-
-The NVIDIA advisory integration passed the frozen 42-case development qualification
-on 24 November 2026: ten runtime cases and 32 broader evidence-contract cases.
-All answers passed mechanical checks and the frozen decision labels; independent
-review found no material unsupported explanation or unsafe recommendation.
-Runtime AI remains disabled; this evaluation does not activate it or establish
-production reliability on unseen incidents. Cause/action disagreements are
-rejected by deterministic policy, and model output never authorizes recovery.
-
-Evidence paths come from the actual request. Broad wire citations use sparse
-true-only selections, requiring at least one citation for a positive finding
-and at most six. They decode losslessly to the unchanged public list; invalid
-answers are rejected rather than repaired. Explicit units, freshness, thresholds,
-missing-value semantics and conservative abstention are part of the contract.
-The final source-only reproduction passed 550 tests and 21 subtests, 39 demo
-tests and 46 web tests. Its 36 skipped SQL cases passed separately against
-disposable PostgreSQL. Lint, formatting, production build and infrastructure
-checks passed; see the [release closeout](docs/engineering/verification.md#pre-cloud-release-closeout--24-november-2026). Gemini/Groq execution
-commands and local credentials are retired; their historical failures remain
-preserved. See the [evaluation decision](docs/engineering/advisory-evaluation.md).
-The updated source was built into local release images and tested. No registry
-publication or Kubernetes/AWS deployment has occurred.
+The November 24 verification passed fresh builds, SQL and browser tests,
+Terraform mock tests, and the local image security gates. The NVIDIA advisory
+adapter passed its frozen 42-case development suite. Runtime AI is disabled.
+AWS deployment and teardown remain pending. See
+[engineering verification](docs/engineering/verification.md), the
+[advisory decision](docs/engineering/advisory-evaluation.md), and
+[cloud readiness](docs/cloud/readiness.md).
 
 ## Architecture
 
@@ -123,9 +99,7 @@ local validation from AWS acceptance. The owner applies reviewed saved Terraform
 plans only after pre-cloud checks and fresh account/cost approval. Publication and
 model requests stay behind their separate approval gates.
 
-Historical acceptance, security findings, failed attempts and integration notes
-are retained in [docs/history](docs/history/README.md). Old evidence is never
-presented as a newly executed test. Ignored `.runtime` directories retain raw
-receipts, source/image manifests and cluster identity. Compatibility names in
-persisted SQL, environment variables, Helm values and API routes are documented
-rather than renamed destructively.
+The [local evidence index](docs/history/README.md) links the retained acceptance
+reports and measured results. Raw receipts, original reviews and interim checkpoints
+live in ignored runtime storage or the private archive. See the
+[retention guide](docs/engineering/repository-structure.md#generated-files-and-retention).

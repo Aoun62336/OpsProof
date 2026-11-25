@@ -44,7 +44,10 @@ database administrator remain trusted.
 
 Runtime investigation and the broader reliability benchmark have different
 schemas/scopes. An offline score does not qualify another adapter. Runtime AI
-remains disabled pending its actual qualification gate; failures are retained.
+remains disabled by operator choice. The NVIDIA adapter passed its frozen
+42-case development qualification; activation and real deployment acceptance
+remain separate gates. Earlier failed evaluations are retained. See the
+[advisory decision](../engineering/advisory-evaluation.md).
 
 Compose/local Kubernetes preserve the controlled demo and recovery profiles.
 Temporary EKS uses read-only observation, private operator access, TLS/authenticated

@@ -84,3 +84,19 @@ run "reject_unpinned_addons" {
   }
   expect_failures = [terraform_data.spend_gate]
 }
+
+run "reject_ipv6_operator_cidr" {
+  command = plan
+  variables { operator_public_cidr = "2001:db8::/32" }
+  expect_failures = [var.operator_public_cidr]
+}
+run "reject_broad_operator_cidr" {
+  command = plan
+  variables { operator_public_cidr = "203.0.113.0/24" }
+  expect_failures = [var.operator_public_cidr]
+}
+run "reject_invalid_operator_cidr" {
+  command = plan
+  variables { operator_public_cidr = "invalid/32" }
+  expect_failures = [var.operator_public_cidr]
+}

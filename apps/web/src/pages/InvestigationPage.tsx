@@ -118,7 +118,7 @@ export function InvestigationPage() {
     <div className="page investigation-page">
       <Link className="back-link" to="/incidents"><ArrowLeft size={16} />Back to incidents</Link>
       <header className="page-header"><div>
-        <p className="overline">INCIDENT INVESTIGATION / LOCAL</p>
+        <p className="overline">INCIDENT INVESTIGATION / {capabilities.data?.environment_label ?? "Environment unavailable"}</p>
         <h1>Investigation</h1>
         <p className="page-description">Collect evidence, review a diagnosis, and approve only the supported demo recovery.</p>
       </div></header>
@@ -303,7 +303,7 @@ export function InvestigationPage() {
 
             {!(!capabilities.isError && capabilities.data?.ai_enabled) && (
               <p className="scope-note">
-                Paid model calls are disabled.
+                Model evaluation is disabled.
               </p>
             )}
 

@@ -51,7 +51,7 @@ variable "operator_public_cidr" {
   type    = string
   default = ""
   validation {
-    condition     = var.operator_public_cidr == "" || (can(cidrhost(var.operator_public_cidr, 0)) && endswith(var.operator_public_cidr, "/32") && !startswith(var.operator_public_cidr, "0.0.0.0"))
+    condition     = var.operator_public_cidr == "" || (can(cidrnetmask(var.operator_public_cidr)) && can(cidrhost(var.operator_public_cidr, 0)) && endswith(var.operator_public_cidr, "/32") && !startswith(var.operator_public_cidr, "0.0.0.0"))
     error_message = "Provide the actual approved public IPv4 /32, not a broad network."
   }
 }

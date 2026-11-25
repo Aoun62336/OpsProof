@@ -54,6 +54,19 @@ test("private cloud profile preserves palette, auth and read-only cards at five 
   await page.getByRole("button", { name: "Open navigation" }).click();
   await page.getByRole("dialog").getByRole("link", { name: "Capacity", exact: true }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
+  // Exercise the corrected investigation labels against the real authenticated
+  // API and current production bundle. The incident ID is a synthetic empty fixture.
+  await page.goto("/incidents/fixture-incident-12345/investigate");
+  await expect(page.getByText("INCIDENT INVESTIGATION / Temporary EKS", { exact: true })).toBeVisible();
+  await expect(page.getByText("Model evaluation is disabled.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Evaluate model once" })).toHaveCount(0);
+  for (const width of [1440, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const audit = await new AxeBuilder({ page }).analyze();
+    expect(audit.violations.filter(v => ["serious", "critical"].includes(v.impact ?? ""))).toEqual([]);
+    await page.screenshot({ path: `${output}/investigation-${width}.png`, fullPage: true });
+  }
   expect(errors).toEqual([]);
   // This is an explicitly synthetic local observation, never AWS screenshot proof.
 });

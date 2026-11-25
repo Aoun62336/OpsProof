@@ -14,6 +14,7 @@ from fastapi import (
 )
 from psycopg.types.json import Jsonb
 from pydantic import (
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
@@ -33,8 +34,8 @@ class IncomingAlert(BaseModel):
     fingerprint: str = Field(min_length=16, max_length=64)
     labels: dict[str, str] = Field(default_factory=dict)
     annotations: dict[str, str] = Field(default_factory=dict)
-    startsAt: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    endsAt: datetime | None = None
+    startsAt: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+    endsAt: AwareDatetime | None = None
 
 
 class AlertmanagerWebhook(BaseModel):
@@ -94,7 +95,13 @@ def ingest_alertmanager_webhook(payload: AlertmanagerWebhook) -> dict[str, str |
     now = datetime.now(UTC)
 
     with pool().connection() as conn:
-        for alert in payload.alerts:
+        # Stable lock order prevents multi-alert batches from deadlocking.
+        for alert in sorted(payload.alerts, key=lambda item: item.fingerprint):
+            # A row lock cannot serialize first delivery when no row exists yet.
+            conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                ("opsproof-incident:" + alert.fingerprint,),
+            )
             name = alert.labels.get("alertname", "UnknownAlert")
             target = alert.labels.get("job", alert.labels.get("instance", "unknown"))
             severity = alert.labels.get("severity", "warning")
@@ -102,7 +109,7 @@ def ingest_alertmanager_webhook(payload: AlertmanagerWebhook) -> dict[str, str |
 
             row = conn.execute(
                 """
-                SELECT status
+                SELECT status, started_at, resolved_at
                 FROM incidents
                 WHERE fingerprint = %s
                 FOR UPDATE
@@ -110,9 +117,21 @@ def ingest_alertmanager_webhook(payload: AlertmanagerWebhook) -> dict[str, str |
                 (alert.fingerprint,),
             ).fetchone()
 
+            if row is not None:
+                if alert.startsAt < row["started_at"]:
+                    continue  # Delayed delivery from an older occurrence.
+                if (
+                    alert.startsAt == row["started_at"]
+                    and row["status"] == "resolved"
+                    and alert.status == "firing"
+                ):
+                    continue  # A resolved occurrence cannot be reopened by a retry.
+            if alert.status == "resolved" and alert.endsAt is not None:
+                if alert.endsAt < alert.startsAt:
+                    continue  # Malformed source time cannot resolve an incident.
             if row is None:
                 # First observation of this incident
-                resolved_at = now if alert.status == "resolved" else None
+                resolved_at = (alert.endsAt or now) if alert.status == "resolved" else None
                 conn.execute(
                     """
                     INSERT INTO incidents (
@@ -154,17 +173,17 @@ def ingest_alertmanager_webhook(payload: AlertmanagerWebhook) -> dict[str, str |
                     (
                         alert.fingerprint,
                         alert.status,
-                        now,
+                        resolved_at or alert.startsAt,
                     ),
                 )
             else:
                 current_status = row["status"]
-                if current_status == alert.status:
+                if current_status == alert.status and alert.startsAt == row["started_at"]:
                     # Deduplication: state repeated, update observation timestamp only
                     conn.execute(
                         """
                         UPDATE incidents
-                        SET last_seen_at = %s,
+                        SET last_seen_at = GREATEST(last_seen_at, %s),
                             summary = COALESCE(NULLIF(%s, ''), summary)
                         WHERE fingerprint = %s
                         """,
@@ -172,20 +191,24 @@ def ingest_alertmanager_webhook(payload: AlertmanagerWebhook) -> dict[str, str |
                     )
                 else:
                     # State transition (firing -> resolved or resolved -> firing)
-                    resolved_at = now if alert.status == "resolved" else None
+                    resolved_at = (alert.endsAt or now) if alert.status == "resolved" else None
                     conn.execute(
                         """
                         UPDATE incidents
                         SET status = %s,
-                            last_seen_at = %s,
+                            started_at = %s,
+                            last_seen_at = GREATEST(last_seen_at, %s),
                             resolved_at = %s,
+                            payload = %s,
                             summary = COALESCE(NULLIF(%s, ''), summary)
                         WHERE fingerprint = %s
                         """,
                         (
                             alert.status,
+                            alert.startsAt,
                             now,
                             resolved_at,
+                            Jsonb(alert.model_dump(mode="json")),
                             summary,
                             alert.fingerprint,
                         ),
@@ -202,7 +225,7 @@ def ingest_alertmanager_webhook(payload: AlertmanagerWebhook) -> dict[str, str |
                         (
                             alert.fingerprint,
                             alert.status,
-                            now,
+                            resolved_at or alert.startsAt,
                         ),
                     )
 

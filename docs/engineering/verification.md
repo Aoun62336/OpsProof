@@ -1,5 +1,7 @@
 # Repository verification baseline
 
+The latest result is the [repository finalization follow-up](#repository-finalization-follow-up--24-november-2026). Earlier sections retain their dated results.
+
 Reviewed 21 November 2026. The repository cleanup and local verification work is
 complete for the checks recorded below. This is not cloud acceptance or release
 approval. The Python base-image findings have been remediated and all four final
@@ -178,6 +180,28 @@ manifest and CRI configuration identity separately. This avoids trusting a
 successful k3d import exit or confusing different digest types. Failed fixture
 attempts were retained as failures and their clusters were removed.
 
+## Earlier pre-cloud evidence
+
+The November 17 rehearsal was recorded against base `5dddbf6` and checkpoint
+`b97302a`. The subsequent checks on this page supersede its working status and
+image security findings. Earlier run-specific receipts are retained privately
+under `.runtime/verification/cloud/` or the preserved runtime archive.
+
+| Earlier check | Recorded receipt relative to that runtime directory |
+| --- | --- |
+| Terraform mock validation | `terraform/result.json` |
+| Disposable SQL and browser | `postgres/opsproof-m6-pg-test-5b04a61429/result.json` |
+| Redis TLS and authentication | `redis/` |
+| Emulator rehearsal | `emulator/run-8c682ff080704a839a992d32bc5472f4/result.json` |
+| Rendered cloud capacity worksheet | `capacity.json` |
+| Sanitized trial lineage and render | `public-lineage.json` and `public/` |
+
+The full review, including corrected integration failures and earlier schema
+coverage limits, is in the private documentation archive. The capacity worksheet
+excluded node reservations and actual usage. Use the owner preflight and measured
+allocatable capacity for deployment decisions. See
+[retention and archive locations](repository-structure.md#generated-files-and-retention).
+
 ## Storage and history
 
 The original reconciled inventory found 59,533 files and 7,385,786,993 logical
@@ -215,3 +239,72 @@ local evidence. They were not rerun during this cleanup; Kubernetes stayed off.
 Docker was used only for bounded local integrations/builds and stopped afterward.
 See [container security](container-security.md), [AI decision](advisory-evaluation.md)
 and the [owner deployment guide](../cloud/owner-deployment-session.md).
+
+
+## Repository finalization follow-up — 24 November 2026
+
+The approved static-audit corrections are implemented. Replica-aware investigation
+collection requires matching unique scrape targets and healthy recent samples from
+all returned replicas. Alert ingestion serializes first delivery, orders occurrences
+by source time and retains receipt times separately. Runtime AI ownership is held
+across the durable claim and provider response; abandoned unknown work is never
+retried. Compose defaults, IPv4-only Terraform validation and environment labels
+now match the maintained implementation. Runtime AI remains disabled.
+
+Maintained runbooks now describe current behavior. Dated advisory/trial narratives
+were consolidated into existing history documentation; frozen fixtures, failed
+answers, original proof and compatibility identities were preserved. No framework,
+service, deployment architecture or vulnerability waiver was added.
+
+| Executed check | Result and scope |
+|---|---|
+| Final isolated source-only checkout | Fresh locked Python/npm installs; 565 backend/tooling tests and 21 subtests, 39 demo tests, 47 web tests passed |
+| Real PostgreSQL | All 46 SQL-only cases skipped above passed separately: 41 integration/concurrency/ownership tests and five role/TLS tests; legacy rows preserved |
+| Production browser/API | Passed using current built assets, real restricted SQL/API and synthetic cloud observations; 22 screenshots, five card widths and desktop/mobile investigation checks; accessibility checks passed |
+| Terraform | Three backend-disabled roots passed formatting/init/validation and 14 native mock tests; no AWS endpoints or apply |
+| Charts and schemas | 25 local profiles plus cloud/controller/telemetry profiles; 215 objects and 51 schemas; invalid custom field rejected |
+| Workflows | Ten workflows passed actionlint, source-reference/input and pin checks; hosted execution remains pending |
+| Current local images | Five source-identified images built; four application images passed nonroot/read-only/network-isolated smoke checks |
+| Security | Four application inventories/SBOMs report zero vulnerabilities; six telemetry images pass the unchanged strict HIGH/CRITICAL gate with existing fixed-source proof; source vulnerability/IaC and source secret gates passed |
+| Documentation | Relative file links checked; no missing targets after reconciliation; syntax, script references and whitespace checked |
+| Preservation and cleanup | Protected credentials/configuration, palette, benchmark fixtures and model contract hashes unchanged; fresh checkouts, SQL fixtures and test servers removed; original cluster stayed stopped; Docker stopped |
+
+The demo tests emitted one upstream TestClient/httpx deprecation warning; tests
+passed. This follow-up does not change dependency policy solely to silence it.
+Earlier targeted formatting checks needed correction, and the first browser run
+preceded the current main-checkout UI build. Their receipts were retained; the
+final current-asset browser run and final source gate passed. The final SQL
+suite uses a real connection pool so closing a test connection cannot conceal a
+leaked session lock. Source/receipt timestamp assertions passed as well.
+
+Proof and exact command arrays are private under
+`.runtime/verification/repository-finalization/20261124/`; SQL/browser proofs are
+linked by `database-proof.json`. The clean-checkout manifest records tested source
+hashes. This verification narrative and final status links were updated afterward;
+final static checks bind those documentation-only differences to the receipt.
+Local images carry the current parent commit plus dirty-source/content identities;
+publication must rebuild the reviewed committed release rather than relabel them.
+
+Commands executed included the following from the repository root (the source
+commands also ran in an isolated checkout with initially empty dependency caches):
+
+```text
+uv sync --project apps/control-plane --locked
+uv sync --project apps/demo-workload --locked
+npm.cmd --prefix apps/web ci
+uv run --project apps/control-plane --locked --with PyYAML==6.0.3 python -m scripts.reliability.validate_source
+uv run --project apps/control-plane --locked python -m scripts.cloud.validate_infrastructure
+npm.cmd --prefix apps/web run build
+uv run --project apps/control-plane --locked python -m scripts.reliability.validate_postgres --cloud --cloud-browser
+uv run --project apps/control-plane --locked python -m scripts.reliability.build_images_local
+uv run --project apps/control-plane --locked python -m scripts.reliability.smoke_images
+```
+
+The checksum-verified Trivy 0.76.2 scanner checked full application inventories and
+SBOMs, source vulnerabilities/IaC and the unchanged telemetry policy; actionlint
+1.7.12 checked the workflows. Expanded arguments, image IDs, raw reports, gate
+results, preservation and shutdown receipts are retained privately. No provider
+request, Kubernetes startup, AWS provisioning, Terraform apply, registry/website
+publication, Git commit/merge or push occurred. Review/commit, hosted CI, approved
+release publication, account-specific preflight and real cloud acceptance remain
+separate owner gates. Terraform provisioning is last.

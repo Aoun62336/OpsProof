@@ -34,7 +34,7 @@ docs/
   engineering/       Current structure, verification and AI qualification decision
   operations/        Maintained local operating procedures
   cloud/             Owner preparation, deployment, proof and teardown
-  history/           Dated immutable engineering and acceptance records
+  history/           Selected local acceptance and measured evidence
 ```
 
 Root Compose overlays are separate opt-in recovery, telemetry and integration
@@ -53,9 +53,9 @@ tests after behavior, not milestones. Run tooling from the repository root with
 Maintained tooling uses `platform`, `reliability`, `cloud` and `compose` names.
 Legacy `/api/v1/m6` routes, `OPSPROOF_*_M6_*` settings, Helm `m6` values, SQL names,
 migration revision IDs and frozen benchmark bytes remain compatibility contracts.
-Historical milestone names identify the original evidence/revision. Rewriting
-those identities would break clients or falsify provenance. They are not new
-milestone-specific implementations.
+Historical documents use descriptive filenames. Original dates and milestone
+labels stay in the records for provenance. Preserve original runtime evidence
+locators and compatibility identifiers when renaming documents.
 
 ## Generated files and retention
 
@@ -81,6 +81,9 @@ historical records live outside the checkout:
 - `private/checkpoints/`: verified private configuration checkpoints.
 - `private/archive/legacy-runtime/`: preserved historical evidence with original
   bytes/locators. Windows private storage has owner/SYSTEM-only ACLs.
+- `private/archive/documentation-finalization/` retains the original reviews and
+  interim reports removed from the working tree, with their paths and SHA-256
+  hashes in the archive manifest.
 
 `scripts.paths.read_artifact` resolves current paths, old `.runtime/m5` and
 `.runtime/m6` aliases, then private archived originals. Isolated test checkouts
@@ -116,3 +119,14 @@ Historical commands in `docs/history` refer to their recorded revisions.
 
 See [cloud readiness](../cloud/readiness.md) for the distinction between local
 verification, hosted release proof and owner-run cloud acceptance.
+
+
+## Dependency updates and commit identity
+
+The existing Dependabot configuration proposes monthly Python, npm, Docker and
+Action updates. It does not authorize automatic merges. Review compatibility,
+security and the resulting commit attribution before accepting a proposal.
+The current local history contains the owner's identity; that is not a guarantee
+about future automated commits or GitHub's contributor display. The owner decides
+whether to retain update PRs or replace them with a manual review process.
+Do not falsify third-party authorship or disable security updates silently.

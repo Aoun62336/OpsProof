@@ -48,7 +48,14 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: observability-configuration
-          path: .runtime/verification/observability-config
+          include-hidden-files: true
+          path: |
+            .runtime/verification/observability-config/result.json
+            .runtime/verification/observability-config/*.log
+            .runtime/verification/observability-config/cloud/*.yml
+            .runtime/verification/observability-config/cloud/validation.log
+            .runtime/verification/observability-config/kubernetes/*.yml
+            .runtime/verification/observability-config/kubernetes/validation.log
           retention-days: 14
   security:
     name: Full telemetry inventory and vulnerability gate
@@ -76,5 +83,8 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: observability-security
-          path: .runtime/verification/observability-security
+          include-hidden-files: true
+          path: |
+            .runtime/verification/observability-security/*.json
+            .runtime/verification/observability-security/*.log
           retention-days: 30
