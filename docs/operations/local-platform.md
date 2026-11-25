@@ -1,9 +1,6 @@
 # Local Kubernetes platform
 
-The local platform has historical acceptance; a fresh installation must pass its
-own checks. This guide does not assert that a cluster is currently running.
-Use [the operating runbook](local-runbook.md) for an existing deployment and
-[verification](../engineering/verification.md) for dated results.
+For routine checks on an existing deployment, use the [operating runbook](local-runbook.md).
 
 ## Safe context and prerequisites
 

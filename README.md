@@ -1,26 +1,14 @@
 # OpsProof
 
-Cloud reliability verification and safe operations.
+OpsProof investigates incidents, runs controlled reliability trials, and verifies
+recovery for explicitly managed Kubernetes workloads. Its authenticated operator
+console shows operational evidence and recovery outcomes.
 
-OpsProof investigates incidents, records controlled operational trials and verifies
-recovery against independent evidence. It is an engineering demonstration for
-explicitly managed workloads, with an authenticated operator console.
+## Getting started
 
-## Current status
-
-In nine controlled local trials, Redis Streams based KEDA worker scaling reduced
-median job p95 from **101.43 s to 35.42 s (65.08%)** against fixed replicas.
-Local validation also recorded six independently verified fault scenarios and a
-k6 run with 60 submissions and 60 durable completions. See the
-[calculations and screenshots](docs/engineering/verification.md#local-results-and-screenshots).
-
-The November 24 verification passed fresh builds, SQL and browser tests,
-Terraform mock tests, and the local image security gates. The NVIDIA advisory
-adapter passed its frozen 42-case development suite. Runtime AI is disabled.
-AWS deployment and teardown remain pending. See
-[engineering verification](docs/engineering/verification.md), the
-[advisory decision](docs/engineering/advisory-evaluation.md), and
-[cloud readiness](docs/cloud/readiness.md).
+- [Run OpsProof locally](docs/operations/local-platform.md) using the local Kubernetes guide.
+- [Read the system design](docs/architecture/system.md) for service boundaries and recovery flow.
+- [Prepare an AWS deployment](docs/cloud/owner-deployment-session.md) using the owner runbook.
 
 ## Architecture
 
@@ -29,6 +17,7 @@ AWS deployment and teardown remain pending. See
 | `apps/control-plane/` | Authenticated API, durable ledger, investigation, restricted action and independent verification processes |
 | `apps/demo-workload/` | Independent API, PostgreSQL job state, Redis Streams dispatcher and fenced worker |
 | `apps/web/` | React and TypeScript operator console, operational cards and read-only trial evidence |
+| `apps/edge-proof/` | Isolated, read-only public evidence viewer |
 | `infra/helm/` | Application and dependency deployment profiles |
 | `infra/k8s/` | Namespaces, network boundaries, recovery RBAC and local platform settings |
 | `infra/terraform/` | Separate state bootstrap, private platform and read-only public edge roots; disabled by default |
@@ -83,22 +72,14 @@ kubeconfigs, database state and raw operational evidence private.
 - [Local platform](docs/operations/local-platform.md) and [runbook](docs/operations/local-runbook.md)
 - [GitOps ownership](docs/operations/gitops.md) and [gateway](docs/operations/gateway.md)
 - [Investigation and recovery](docs/operations/investigation-and-recovery.md)
-- [Trial execution](docs/operations/local-trials.md) and [verification](docs/operations/reliability-verification.md)
+- [Reliability trials and verification](docs/operations/reliability-verification.md)
 - [Scenario catalog](docs/operations/scenario-catalog.md)
-- [Observability verification](docs/operations/observability-verification.md)
+- [Monitoring and alerting](docs/operations/observability-verification.md)
 - [Worker shutdown](docs/operations/worker-shutdown.md)
 
-The original forest and porcelain UI palette is retained. Capacity reservations
-are configured requests, not measured usage. Stale or unavailable observations
-are shown explicitly.
+## Deployment status
 
-## Cloud and evidence
-
-Cloud [implementation and runtime guides](docs/cloud/readiness.md) distinguish
-local validation from AWS acceptance. The owner applies reviewed saved Terraform
-plans only after pre-cloud checks and fresh account/cost approval. Publication and
-model requests stay behind their separate approval gates.
-
-The [verification guide](docs/engineering/verification.md) links the measured
-results and reviewed screenshots. The [retention guide](docs/engineering/repository-structure.md#generated-files-and-retention)
-describes where raw receipts and original reports are preserved.
+AWS deployment and teardown verification are pending. See
+[cloud readiness](docs/cloud/readiness.md) for prerequisites and acceptance checks.
+Runtime AI is disabled. See the [advisory decision](docs/engineering/advisory-evaluation.md)
+for qualification details.

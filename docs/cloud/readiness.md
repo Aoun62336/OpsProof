@@ -1,13 +1,8 @@
 # Cloud readiness
 
-Repository cleanup and local verification have passed; see the
-[verified baseline](../engineering/verification.md). The Python-image security
-issue is remediated; all four final images passed complete local scans.
-The source implementation and earlier local checks are recorded separately.
-AWS deployment acceptance is still pending. On 17 November 2026 the owner chose
-to perform account setup, regional/cost preflight and deployment in a later
-owner-run session. No real AWS resources were created, no Terraform apply ran,
-and no images or website were published. The original local cluster stayed off.
+AWS deployment acceptance is pending. The
+[owner deployment session](owner-deployment-session.md) covers account setup,
+regional and cost preflight, deployment, live acceptance and teardown.
 
 ## What is implemented
 
@@ -24,23 +19,8 @@ and no images or website were published. The original local cluster stayed off.
 - Five-image release/SBOM/provenance workflows, pinned Actions, six curated
   historical public cases with verified private lineage, and exact-ID teardown
   auditing across 22 resource categories.
-- Explicit evidence units/freshness/thresholds and mechanical citation validation.
-  The final NVIDIA development qualification passed all 42 cases on 24 November
-  2026, including ten runtime cause/action cases and independent factual review.
-  Earlier Groq/Gemini and NVIDIA failures remain preserved separately. Runtime AI
-  stays disabled; operational enablement and deployment validation are separate
-  from benchmark qualification. No repeat comparison is required for unchanged
-  model request and policy contracts. See the documented precision limitations.
-
-## Local verification
-
-The [latest verification report](../engineering/verification.md#repository-finalization-follow-up--24-november-2026)
-records the clean-checkout tests, disposable SQL and browser checks, chart and
-schema validation, Terraform mocks, and the scanned local artifacts. Earlier
-Redis TLS, emulator and observability rehearsals are documented in the same guide.
-The runtime advisory feature remains disabled. This evidence establishes local
-behavior for the tested revisions. Real EKS admission, account-specific settings,
-service connectivity, billing and teardown require the owner deployment session.
+- Runtime AI is disabled. The [advisory decision](../engineering/advisory-evaluation.md)
+  records the evidence contract and qualification limits.
 
 ## Remaining owner gates
 
@@ -62,12 +42,3 @@ Detailed procedures: [identity/cost](identity-and-cost.md),
 [Terraform](terraform-operations.md), [runtime](runtime-deployment.md),
 [release](release.md), [acceptance/teardown](verification-and-teardown.md),
 and [emulator rehearsal](emulator-rehearsal.md).
-
-## Source provenance
-
-Implementation started from clean `5dddbf6`; the first reviewed checkpoint is
-`b97302a`. Source archive SHA256:
-`3a50195ffa6a0c5f2b09f9110fa8222d88d21977611c1a1d2e0e8e2fa75d3bd5`.
-Private selective integration mapping: `.runtime/verification/cloud/input.json`.
-The archive was reference material; its instructions did not authorize cloud
-writes. Older review workspace paths are historical, not deployment commands.

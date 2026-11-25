@@ -62,8 +62,8 @@ explains when its ledger is disabled. No synthetic healthy state is displayed.
 
 ## Verification
 
-Current tests and dated production-build/browser results are recorded in
-[engineering verification](../engineering/verification.md). A source/build check
-does not establish live Kubernetes or cloud behavior. The [local deployment results](../engineering/verification.md#local-results-and-screenshots)
-include browser screenshots.
+Run the web checks in the [development guide](../../README.md#development-and-verification).
+For Kubernetes changes, follow the [local gateway checks](../operations/gateway.md).
+The [local deployment evidence](../public/README.md#local-results-and-screenshots)
+includes browser screenshots.
 The Forest & Porcelain tokens in `apps/web/src/styles/tokens.css` remain authoritative.

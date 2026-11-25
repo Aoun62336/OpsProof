@@ -63,11 +63,11 @@ The selected end state must be one of succeeded, failed, aborted or indeterminat
 
 The six bounded adapters, durable ledger and independent verifier are implemented.
 Historical local acceptance is recorded in the
-[measured results](../engineering/verification.md#local-results-and-screenshots).
+[measured results](../public/README.md#local-results-and-screenshots).
 Those results apply to their recorded source, image and execution mechanisms.
 They are not a claim that every fresh deployment or every attempted fault passed.
 
-Run a new trial only under the [local execution profile](local-trials.md), with
+Run a new trial only under the [local trial runbook](reliability-verification.md#bounded-fault-trials-and-reconciliation), with
 explicit acknowledgement, resource headroom, target ownership and cleanup.
 Acknowledgement alone cannot certify fault effect or restoration. The cloud
 profile does not authorize destructive local scenarios against control services

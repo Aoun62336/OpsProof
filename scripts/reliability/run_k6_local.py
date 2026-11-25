@@ -91,10 +91,10 @@ def k6_executable() -> str:
 
 
 def execute(args):
-    if args.acknowledge != "M6_LOCAL_DURABLE_JOBS":
+    if args.acknowledge not in {"LOCAL_DURABLE_JOBS", "M6_LOCAL_DURABLE_JOBS"}:
         raise ValueError("Explicit local test-data write acknowledgment required")
-    if not re.fullmatch(r"m6-[a-z0-9-]{8,36}", args.run_id):
-        raise ValueError("Expected a fresh m6- prefixed lowercase run ID")
+    if not re.fullmatch(r"(?:local-[a-z0-9-]{8,33}|m6-[a-z0-9-]{8,36})", args.run_id):
+        raise ValueError("Expected a fresh lowercase run ID prefixed with local-")
     if not 1 <= args.rate <= 5 or not 10 <= args.seconds <= 120:
         raise ValueError("Rate or seconds outside bounded limits")
     if not 1 <= args.vus <= 16 or not 1 <= args.timeout <= 600:

@@ -22,8 +22,7 @@ Runtime AI remains disabled. Model output cannot authorize operations. Enabling
 the optional runtime adapter and validating a rebuilt deployment are separate
 operational decisions. This qualification did not deploy an image. The subsequent
 pre-cloud closeout built and tested local artifacts containing the qualified
-source; see [the release closeout](verification.md). Nothing was published or
-deployed to Kubernetes or AWS.
+source.
 
 ## Contract and implementation
 

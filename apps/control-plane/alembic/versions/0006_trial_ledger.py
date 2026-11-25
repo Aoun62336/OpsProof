@@ -1,4 +1,4 @@
-"""Independent M6 trial ledger. Does not modify M4/M5 recovery tables."""
+"""Create the independent trial ledger and evidence constraints."""
 
 from alembic import op
 

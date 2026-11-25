@@ -1,6 +1,6 @@
 # Reliability verification runbook
 
-See [local measurements and screenshots](../engineering/verification.md#local-results-and-screenshots) for executed results.
+See [local measurements and screenshots](../public/README.md#local-results-and-screenshots) for executed results.
 
 ## Toolchain and source checks
 
@@ -27,7 +27,7 @@ uv run --project apps/control-plane --locked python scripts/reliability/validate
 
 This command requires local Docker access and creates an owned disposable PostgreSQL 18 container on localhost port 15432. It migrates through the preserved baseline schema, inserts preservation data, upgrades to head (`0008`) and runs the selected real SQL integration suites, including alert concurrency and AI-worker ownership. The browser option exercises a real isolated API/database using the existing frontend. The harness removes its container and stops its servers. A passing result includes migration, preserved rows, integration, browser and cleanup checks.
 
-Use the [latest verification receipt](../engineering/verification.md#repository-finalization-follow-up--24-november-2026) for current source/test identities. Earlier acceptance records remain bound to their original source; they do not certify later changes.
+Use the current run receipts to confirm the tested source, checks and cleanup.
 
 ## Local deployment and resource profile
 
@@ -41,7 +41,9 @@ Active trials require 2 GiB free host RAM and 15 GiB free disk, with the existin
 
 Historical deployment records bind actual source/image, role and Secret identities. Inspect a current deployment independently; do not use an old commit or migration as its expected identity. HTTP arming and AI remain disabled by default.
 
-The optional measurement profile pauses Grafana and the Argo CD UI server while controllers, collectors, data services and the OpsProof UI run. Every accepted capacity trial used that profile. Restore and verify both UIs after measurements.
+Use the same measurement profile across trials. The optional profile pauses
+Grafana and the Argo CD UI server while controllers, collectors, data services
+and the OpsProof UI keep running. Restore and verify both UIs after measurements.
 
 ```bash
 uv run --project apps/control-plane --locked python -m scripts.reliability.ui_test_profile restore
@@ -49,7 +51,10 @@ uv run --project apps/control-plane --locked python -m scripts.reliability.ui_te
 
 ## Bounded fault trials and reconciliation
 
-Review [the local execution profile](local-trials.md) before dispatch. The CLI acknowledges a local fault experiment, verifies a healthy baseline and creates a new durable trial.
+Before dispatch, confirm the expected local workload and image, check that no
+trial is active, and record the original configuration. Use only the explicit
+local target and the supported fault mechanisms in the [scenario catalog](scenario-catalog.md).
+The CLI verifies a healthy baseline and creates a durable trial before injection.
 
 ```bash
 uv run --project apps/control-plane --locked python -m scripts.reliability.run_local_trial --scenario worker_saturation --acknowledge M6_LOCAL_FAULT_TRIAL
@@ -57,7 +62,10 @@ uv run --project apps/control-plane --locked python -m scripts.reliability.run_l
 
 The fixed catalog also includes `faulty_release`, `database_connectivity`, `worker_failure`, `downstream_latency` and `misleading_evidence`. The worker-failure CLI uses exact Pod deletion. A short job can complete during shutdown, producing a failed hypothesis with verified cleanup. The passing hard-crash evidence used the owner's separately approved one-off container signal test. Its exact helper and target guards are retained with the local-review evidence.
 
-Success requires an independent matching hypothesis and cleanup receipt. Missing hypothesis evidence can produce a failed trial after restoration. Unknown dispatch or restoration retains an indeterminate record. Cleanup reconciliation appends evidence and releases the reservation when restoration is independently established.
+Success requires an independent matching hypothesis and cleanup receipt. Missing hypothesis evidence can produce a failed trial after restoration. Unknown dispatch or restoration retains an indeterminate record. A ledger
+deadline does not cancel cleanup. Keep each attempt, exact job IDs, raw
+measurements and manual interventions. Cleanup reconciliation appends evidence
+and releases the reservation when restoration is independently established.
 
 ```bash
 uv run --project apps/control-plane --locked python -m scripts.reliability.reconcile_local_trial --run-directory .runtime/reliability/trials/RETAINED_RUN_ID --acknowledge M6_RECONCILE_ONLY
@@ -68,10 +76,11 @@ Use the actual retained run directory. Reconciliation uses the original checkpoi
 ## k6 and capacity measurements
 
 ```bash
-uv run --project apps/control-plane --locked python -m scripts.reliability.run_k6_local --run-id m6-local-example-01 --rate 2 --seconds 30 --duration-ms 250 --vus 4 --acknowledge M6_LOCAL_DURABLE_JOBS
+uv run --project apps/control-plane --locked python -m scripts.reliability.run_k6_local --run-id local-job-check-01 --rate 2 --seconds 30 --duration-ms 250 --vus 4 --acknowledge LOCAL_DURABLE_JOBS
 ```
 
-Choose a fresh lowercase run ID matching the CLI contract. This profile submits exactly 60 bounded jobs and reconciles their durable outcomes. The recorded stop test injected a below-threshold memory reading, stopped an actual owned k6 process and checked both submitted jobs in PostgreSQL and Redis.
+Choose a fresh run ID starting with `local-` followed by 8 to 33 lowercase
+letters, digits or hyphens. This profile submits exactly 60 bounded jobs and reconciles their durable outcomes. The recorded stop test injected a below-threshold memory reading, stopped an actual owned k6 process and checked both submitted jobs in PostgreSQL and Redis.
 
 ```bash
 uv run --project apps/control-plane --locked python -m scripts.reliability.run_local_trial --scenario worker_saturation --capacity-mode fixed --acknowledge M6_LOCAL_FAULT_TRIAL
@@ -79,7 +88,7 @@ uv run --project apps/control-plane --locked python -m scripts.reliability.run_l
 uv run --project apps/control-plane --locked python -m scripts.reliability.run_local_trial --scenario worker_saturation --capacity-mode keda --acknowledge M6_LOCAL_FAULT_TRIAL
 ```
 
-Execute sequentially and collect at least three independently passing trials per mode under the same profile. The capacity protocol uses 60 jobs at 2,000 ms, a 120-second background target of 80 requests per second, bounded concurrency and nearest-rank percentiles. Actual served rates, failures, IDs, resource samples and scale transitions are retained. Failed attempts keep their original outcome. The analysis CLI accepts repeated `--trial MODE:PATH` arguments and requires all three modes with at least three valid equivalent trials.
+Execute sequentially and collect at least three independently passing trials per mode under the same profile. The capacity protocol uses 60 jobs at 2,000 ms, a 120-second background target of 80 requests per second, bounded concurrency and nearest-rank percentiles. Actual served rates, failures, IDs, resource samples and scale transitions are retained. Failed attempts keep their original outcome. Use separate evidence for the k6 exact-job check and the capacity comparison. The analysis CLI accepts repeated `--trial MODE:PATH` arguments and requires all three modes with at least three valid equivalent trials.
 
 ## Additional verification and evidence review
 

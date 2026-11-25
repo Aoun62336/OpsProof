@@ -90,4 +90,4 @@ five background processes. It restores workers and saves evidence in
 use the sequence above afterward.
 
 Local validation results and remaining nonlocal scope are recorded in
-[local results](../engineering/verification.md#local-results-and-screenshots).
+[local results](../public/README.md#local-results-and-screenshots).

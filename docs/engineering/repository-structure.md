@@ -115,18 +115,11 @@ registries may be needed; these commands need no model key or AWS account.
 Terraform validation uses external data and committed mocks; it never initializes
 a state backend or runs apply. Docker integrations are separate bounded checks
 and remove only their owned resources. Local Kubernetes need not be running.
-Historical commands in `docs/history` refer to their recorded revisions.
 
 See [cloud readiness](../cloud/readiness.md) for the distinction between local
 verification, hosted release proof and owner-run cloud acceptance.
 
+## Dependency updates
 
-## Dependency updates and commit identity
-
-The existing Dependabot configuration proposes monthly Python, npm, Docker and
-Action updates. It does not authorize automatic merges. Review compatibility,
-security and the resulting commit attribution before accepting a proposal.
-The current local history contains the owner's identity; that is not a guarantee
-about future automated commits or GitHub's contributor display. The owner decides
-whether to retain update PRs or replace them with a manual review process.
-Do not falsify third-party authorship or disable security updates silently.
+[Dependabot](../../.github/dependabot.yml) proposes monthly Python, npm, Docker
+and GitHub Actions updates. Review compatibility and CI results before merging.
