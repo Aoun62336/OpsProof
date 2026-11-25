@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 FROM cleanstart/grafana@sha256:f7d47c4ebb4b632bfb5e7d4c78b8a126e739cd6e733aeda15b720d93a4247eef AS upstream
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:be019c1c74fe69204a42c4e10bc4d886a49bf5403ffa74374ef7baa408fc9a26
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:28c39be5a5e1e9b85081c10740e8495f6518a865b23bc6a486637c4b21e74b43
 
 # Keep the supported OS package inventory; never copy the vendor's unrecognized OS.
 RUN apk upgrade --no-cache && apk add --no-cache tzdata \
