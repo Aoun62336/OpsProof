@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:be019c1c74fe69204a42c4e10bc4d886a49bf5403ffa74374ef7baa408fc9a26 AS python-base
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:28c39be5a5e1e9b85081c10740e8495f6518a865b23bc6a486637c4b21e74b43 AS python-base
 
 # Vendor-signed glibc packages preserve the Python minor version and include the
 # upstream SQLite fixes; no unstable repository or locally patched library.
